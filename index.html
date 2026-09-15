@@ -1,0 +1,133 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AMVOX Preços</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&display=swap">
+<style>
+:root{--ink:#17181A;--muted:#8B8B87;--line:#E6E5E2;--accent:#D71920;--topo:#121214}
+*{box-sizing:border-box;margin:0}
+body{background:var(--topo);color:#fff;font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.marca{font:800 30px 'Archivo',sans-serif;letter-spacing:.05em}
+.marca b{color:var(--accent)}
+.sub{font:600 11px 'Archivo',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#9A9A97;margin-top:6px}
+.card{width:100%;max-width:380px;background:#1C1C1F;border:1px solid #2C2C30;border-radius:12px;padding:26px;margin-top:26px}
+label{display:block;font:600 11px 'Archivo',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#9A9A97;margin:14px 0 6px}
+input{width:100%;padding:11px 13px;border:1px solid #3A3A3E;border-radius:8px;background:#121214;color:#fff;font:15px inherit}
+input:focus{outline:2px solid var(--accent)}
+.btn{width:100%;margin-top:20px;padding:12px;border:0;border-radius:8px;background:var(--accent);color:#fff;
+  font:700 14px 'Archivo',sans-serif;letter-spacing:.05em;cursor:pointer}
+.btn:hover{background:#B3131A}
+.ghost{background:none;border:0;color:#9A9A97;font:600 12px inherit;cursor:pointer;margin-top:14px;text-decoration:underline}
+.msg{margin-top:14px;font-size:13px;color:#9A9A97;min-height:18px}
+.msg.err{color:#FF7A7E}
+.msg.ok{color:#7BD88F}
+/* hub */
+.hub{display:none;width:100%;max-width:720px;text-align:center}
+.hub .quem{margin-top:10px;font-size:13px;color:#9A9A97}
+.hub .papel{display:inline-block;margin-left:8px;padding:2px 10px;border-radius:99px;background:#2C2C30;
+  font:700 10px 'Archivo',sans-serif;letter-spacing:.1em}
+.hub .papel.adm{background:var(--accent)}
+.apps{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:28px}
+.appc{display:block;background:#1C1C1F;border:1px solid #2C2C30;border-radius:12px;padding:24px 22px;
+  text-align:left;text-decoration:none;color:#fff}
+.appc:hover{border-color:var(--accent)}
+.appc .ic{font-size:26px}
+.appc h3{font:700 17px 'Archivo',sans-serif;margin-top:10px}
+.appc p{font-size:13px;color:#9A9A97;margin-top:6px;line-height:1.5}
+.rodape{margin-top:34px;font:500 10.5px 'Archivo',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5A5A5E}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+</head><body>
+<div class="marca">AMVO<b>X</b></div>
+<div class="sub">Preços · Controladoria</div>
+
+<div class="card" id="cardLogin">
+  <div id="fLogin">
+    <label for="em">E-mail</label><input id="em" type="email" autocomplete="username">
+    <label for="pw">Senha</label><input id="pw" type="password" autocomplete="current-password">
+    <button class="btn" id="bEntrar">Entrar</button>
+    <button class="ghost" id="bEsqueci">Esqueci / quero definir minha senha</button>
+    <div class="msg" id="mLogin"></div>
+  </div>
+  <div id="fSenha" style="display:none">
+    <p style="font-size:14px;color:#C9C9C5">Bem-vindo! Defina a sua senha de acesso.</p>
+    <label for="np">Nova senha (mín. 8 caracteres)</label><input id="np" type="password" autocomplete="new-password">
+    <label for="np2">Repita a senha</label><input id="np2" type="password" autocomplete="new-password">
+    <button class="btn" id="bSalvarSenha">Salvar senha e entrar</button>
+    <div class="msg" id="mSenha"></div>
+  </div>
+</div>
+
+<div class="hub" id="hub">
+  <div class="quem">Conectado como <b id="quemEmail"></b><span class="papel" id="quemPapel"></span>
+    <button class="ghost" onclick="sair()">Sair</button></div>
+  <div class="apps">
+    <a class="appc" href="custos.html"><span class="ic">🚢</span>
+      <h3>Custo de Aquisição 2025×2026</h3>
+      <p>Simulador de custo e preço, visão comparativa dos modelos e frete real × projetado (EIC ao vivo).</p></a>
+    <a class="appc" href="tabelas.html"><span class="ic">🏷️</span>
+      <h3>Tabelas de Preço 2026</h3>
+      <p>Consulta por SKU: tabela base 078, Tabela 5, pós-venda, mostruário, avarias, funcionários e Suframa.</p></a>
+  </div>
+  <div class="rodape">AMVOX · Reistar — acesso restrito · dados sob demanda da Controladoria</div>
+</div>
+
+<script>
+"use strict";
+const $=id=>document.getElementById(id);
+const ehConvite = /type=(invite|recovery|signup)/.test(location.hash);
+
+async function mostraHub(session){
+  $('cardLogin').style.display='none';
+  $('hub').style.display='block';
+  $('quemEmail').textContent = session.user.email;
+  try{
+    const { data } = await SB.from('profiles').select('papel').eq('id', session.user.id).single();
+    const papel = (data && data.papel) || 'CONSULTA';
+    const el = $('quemPapel'); el.textContent = papel;
+    if (papel === 'ADM') el.classList.add('adm');
+  }catch(e){ $('quemPapel').textContent = 'CONSULTA'; }
+}
+
+SB.auth.onAuthStateChange(async (event, session)=>{
+  if (event === 'PASSWORD_RECOVERY' || (session && ehConvite)){
+    $('fLogin').style.display='none'; $('fSenha').style.display='block'; return;
+  }
+  if (session && !ehConvite) mostraHub(session);
+});
+(async()=>{
+  const { data:{ session } } = await SB.auth.getSession();
+  if (session && ehConvite){ $('fLogin').style.display='none'; $('fSenha').style.display='block'; }
+  else if (session) mostraHub(session);
+})();
+
+$('bEntrar').onclick = async ()=>{
+  const m=$('mLogin'); m.className='msg'; m.textContent='Entrando…';
+  const { error } = await SB.auth.signInWithPassword({ email:$('em').value.trim(), password:$('pw').value });
+  if (error){ m.className='msg err'; m.textContent = 'Não foi possível entrar: e-mail ou senha incorretos.'; }
+};
+$('pw').addEventListener('keydown', e=>{ if(e.key==='Enter') $('bEntrar').click(); });
+
+$('bEsqueci').onclick = async ()=>{
+  const m=$('mLogin'); const email=$('em').value.trim();
+  if(!email){ m.className='msg err'; m.textContent='Digite o e-mail acima e clique de novo.'; return; }
+  const { error } = await SB.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+  m.className = error ? 'msg err' : 'msg ok';
+  m.textContent = error ? 'Não foi possível enviar: '+error.message : 'Enviado! Abra o link do e-mail para definir a senha.';
+};
+
+$('bSalvarSenha').onclick = async ()=>{
+  const m=$('mSenha'); const p1=$('np').value, p2=$('np2').value;
+  if (p1.length<8){ m.className='msg err'; m.textContent='A senha precisa ter pelo menos 8 caracteres.'; return; }
+  if (p1!==p2){ m.className='msg err'; m.textContent='As senhas não conferem.'; return; }
+  m.className='msg'; m.textContent='Salvando…';
+  const { error } = await SB.auth.updateUser({ password:p1 });
+  if (error){ m.className='msg err'; m.textContent='Erro: '+error.message; return; }
+  m.className='msg ok'; m.textContent='Senha salva!';
+  history.replaceState(null,'',location.pathname);
+  const { data:{ session } } = await SB.auth.getSession();
+  if (session) mostraHub(session);
+};
+</script>
+</body></html>
