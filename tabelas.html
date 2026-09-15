@@ -391,4 +391,15 @@ renderS();
 <div style="position:fixed;right:14px;bottom:14px;z-index:99">
   <button onclick="sair()" style="cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3)">Sair ⎋</button>
 </div>
+
+<script>
+/* papel do LOGIN comanda o acesso aos Parâmetros (aprovado 15/09/2026) */
+document.addEventListener('papel-pronto', ()=>{
+  const adm = window.PAPEL === 'ADM';
+  const gate = document.getElementById('gate'), painel = document.getElementById('painelParam');
+  const navBtn = document.querySelector('nav button[data-tela="parametros"]');
+  if (adm){ if(gate) gate.style.display='none'; if(painel) painel.style.display='block'; }
+  else if (navBtn){ navBtn.style.display='none'; }
+});
+</script>
 </body></html>
