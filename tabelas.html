@@ -1,0 +1,394 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html{visibility:hidden}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>guardaPagina();</script>
+</head><body>
+<title>Tabelas de Preço 2026</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&display=swap">
+<style>
+  :root{
+    --ink:#17181A; --muted:#6B7076; --line:#E6E5E2; --ground:#F7F6F4; --panel:#FFFFFF;
+    --topo:#121214; --accent:#D71920; --accent-soft:#FBEAEB;
+    --incl:#1D66C2; --incl-bg:#E8F0FB; --warn:#B54708; --warn-bg:#FDF0E3;
+    --sans:'Archivo',-apple-system,'Segoe UI',Roboto,sans-serif;
+    --body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+  }
+  body{background:var(--ground);color:var(--ink);font:14px/1.5 var(--body);margin:0}
+  .num{font-variant-numeric:tabular-nums}
+  header{background:var(--topo);color:#fff;padding:14px 20px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .marca{font:800 20px var(--sans);letter-spacing:.06em}
+  .marca b{color:var(--accent)}
+  header h1{font:600 15px var(--sans);margin:0;letter-spacing:.02em;color:#E8E8E6}
+  header .data{margin-left:auto;font:500 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9A9A97}
+  nav{background:var(--topo);display:flex;gap:2px;padding:0 20px;border-bottom:3px solid var(--accent);overflow-x:auto}
+  nav button{background:none;border:0;color:#B9B9B6;font:600 12px var(--sans);letter-spacing:.07em;text-transform:uppercase;padding:10px 14px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-3px;white-space:nowrap}
+  nav button:hover{color:#fff}
+  nav button.on{color:#fff;border-color:var(--accent)}
+  nav button:focus-visible,button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  main{padding:18px 20px 40px;max-width:1280px;margin:0 auto}
+  .tela{display:none}.tela.on{display:block}
+
+  /* CONSULTA */
+  .barra{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  .busca{flex:1 1 240px;max-width:380px;position:relative}
+  .busca input{width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{border:1px solid var(--line);background:var(--panel);color:var(--muted);font:600 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;padding:6px 11px;border-radius:99px;cursor:pointer}
+  .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .barra .acao{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 12px var(--sans);padding:8px 13px;border-radius:6px;cursor:pointer}
+  .btn:hover{border-color:var(--ink)}
+  .conta{font:500 12px var(--sans);color:var(--muted)}
+  .aviso-param{display:none;background:var(--accent-soft);border:1px solid #F2C9CB;color:#8E1216;font:600 12px var(--sans);padding:8px 12px;border-radius:6px;margin-bottom:10px}
+  .tbl-wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
+  table{border-collapse:collapse;width:100%;min-width:1060px}
+  thead th{position:sticky;top:0;background:var(--ink);color:#fff;font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:9px 10px;text-align:right;white-space:nowrap;z-index:1}
+  thead th:nth-child(-n+2){text-align:left}
+  thead th.dest{background:var(--accent)}
+  tbody td{padding:7px 10px;border-top:1px solid var(--line);text-align:right;white-space:nowrap}
+  tbody td:nth-child(-n+2){text-align:left}
+  tbody tr{cursor:pointer}
+  tbody tr:hover td{background:#F3F2EF}
+  td.dest{font-weight:700;background:var(--accent-soft)}
+  tbody tr:hover td.dest{background:#F6DEDF}
+  .cod{color:var(--muted);font:500 11px var(--sans)}
+  .mod{font:600 13px var(--sans)}
+  .badge{display:inline-block;font:700 9.5px var(--sans);letter-spacing:.05em;padding:2px 7px;border-radius:99px;margin-left:6px;vertical-align:1px}
+  .b-incl{background:var(--incl-bg);color:var(--incl)}
+  .b-sem{background:var(--warn-bg);color:var(--warn)}
+  .b-boom{background:#EDEBE8;color:#4C4E52}
+  .seg{color:var(--muted);font-size:12px}
+
+  /* DETALHE */
+  #veu{display:none;position:fixed;inset:0;background:rgba(18,18,20,.45);z-index:5}
+  #det{display:none;position:fixed;top:0;right:0;bottom:0;width:min(420px,94vw);background:var(--panel);z-index:6;box-shadow:-12px 0 30px rgba(0,0,0,.18);overflow-y:auto}
+  #det .cab{background:var(--topo);color:#fff;padding:16px 18px}
+  #det .cab .cod{color:#9A9A97}
+  #det .cab h2{font:700 18px var(--sans);margin:4px 0 0}
+  #det .corpo{padding:14px 18px}
+  .dl{display:grid;grid-template-columns:1fr auto auto;gap:0;font-size:13px}
+  .dl>div{padding:8px 4px;border-bottom:1px solid var(--line)}
+  .dl .lbl{font:600 11px var(--sans);letter-spacing:.04em;text-transform:uppercase;color:var(--muted);align-self:center}
+  .dl .val{text-align:right;font-weight:600}
+  .dl .pct{text-align:right;color:var(--muted);min-width:70px}
+  .dl .base .lbl,.dl .base .val{color:var(--accent);font-weight:800}
+  #det .fechar{position:absolute;top:12px;right:12px;background:none;border:0;color:#fff;font-size:20px;cursor:pointer;line-height:1}
+  .nota-det{font-size:11.5px;color:var(--muted);margin-top:12px}
+
+  /* PARAMETROS */
+  .gate{max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:22px}
+  .gate h2,.pan h2{font:700 15px var(--sans);margin:0 0 6px}
+  .gate p{color:var(--muted);font-size:13px;margin:0 0 12px}
+  .gate input{width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);margin-bottom:10px;background:var(--panel);color:var(--ink)}
+  .gate .erro{color:var(--accent);font:600 12px var(--sans);display:none;margin-top:8px}
+  #painelParam{display:none}
+  .aviso{background:var(--warn-bg);border:1px solid #F0D9BC;color:var(--warn);font:600 12px var(--sans);padding:9px 12px;border-radius:6px;margin-bottom:14px}
+  .pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+  .pcard{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
+  .pcard h3{font:700 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+  .prow{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0}
+  .prow label{font-size:12.5px}
+  .prow input{width:76px;padding:5px 8px;border:1px solid var(--line);border-radius:5px;font:13px var(--body);text-align:right;background:#FFFBEA;color:var(--ink)}
+  .pacts{margin-top:14px;display:flex;gap:10px}
+
+  /* FONTES / METODOLOGIA */
+  .doc{max-width:760px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:24px 26px}
+  .doc h2{font:700 16px var(--sans);margin:0 0 12px}
+  .doc h3{font:700 12px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:20px 0 6px}
+  .doc p,.doc li{font-size:13.5px;color:#333}
+  .doc code{background:#F1F0ED;border-radius:4px;padding:1px 5px;font-size:12.5px}
+  .doc .formula{background:#F7F6F4;border-left:3px solid var(--accent);padding:10px 14px;font-size:13px;margin:8px 0}
+  footer{max-width:1280px;margin:24px auto 0;padding:0 20px;font:500 10.5px var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+  @media (max-width:640px){ header{padding:12px 14px} nav{padding:0 8px} main{padding:14px 12px 32px} .barra .acao{margin-left:0} }
+</style>
+
+<header>
+  <span class="marca">AMVO<b>X</b></span>
+  <h1>Tabelas de Preço 2026</h1>
+  <span class="data">Base: tabela 078 TOTVS · 15/09/2026</span>
+</header>
+<nav>
+  <button class="on" data-tela="consulta">Consulta</button>
+  <button data-tela="suframa">Suframa</button>
+  <button data-tela="parametros">Parâmetros</button>
+  <button data-tela="fontes">Fontes</button>
+  <button data-tela="metodologia">Metodologia</button>
+</nav>
+
+<main>
+  <!-- CONSULTA -->
+  <section class="tela on" id="tela-consulta">
+    <div class="aviso-param" id="avisoSim">⚠ Parâmetros alterados (simulação) — os valores abaixo NÃO são os oficiais. Restaure em Parâmetros para voltar à tabela vigente.</div>
+    <div class="barra">
+      <div class="busca"><input id="q" type="search" placeholder="Buscar por modelo ou código… (ex.: ACA 650, 000503B50)" aria-label="Buscar produto"></div>
+      <div class="chips" id="chipsLinha"></div>
+      <div class="chips" id="chipsSeg"></div>
+      <div class="acao">
+        <span class="conta" id="conta"></span>
+        <button class="btn" id="copiar">Copiar CSV</button>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Código</th><th>Modelo</th><th class="dest">Tab. 3 New (=078)</th><th>Tabela 5</th>
+          <th>Pós-venda</th><th>Mostruário</th><th>Funcionários</th><th>Avaria 51</th><th>Avaria 52</th><th>Avaria 53</th>
+        </tr></thead>
+        <tbody id="corpo"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- SUFRAMA -->
+  <section class="tela" id="tela-suframa">
+    <div class="aviso" style="margin-bottom:12px">Área de incentivo SUFRAMA/ZFM — tabela própria: <b>078 × (1 + acréscimo)</b>. O benefício do cliente sai como <b>desconto destacado na NF, em cascata</b> (ICMS 12% → PIS/COFINS 9,25% sobre a base já sem ICMS → IPI não cobrado, conforme o benefício comprovado). Frete UF e VPC entram por fora no SFA. Tabelas TOTVS 227 (ICMS+PIS/COFINS) · 228 (ICMS) · 229 (isenção IPI) — mesmos preços.</div>
+    <div class="barra">
+      <div class="busca"><input id="qS" type="search" placeholder="Buscar por modelo ou código…" aria-label="Buscar produto Suframa"></div>
+      <div class="chips" id="chipsLinhaS"></div>
+      <div class="acao"><span class="conta" id="contaS"></span><button class="btn" id="copiarS">Copiar CSV</button></div>
+    </div>
+    <div class="tbl-wrap">
+      <table style="min-width:760px">
+        <thead><tr>
+          <th>Código</th><th>Modelo</th><th class="dest">Tabela Suframa (078 × acr.)</th><th>TOTVS hoje (227/228/229)</th><th>Δ novo × atual</th>
+        </tr></thead>
+        <tbody id="corpoS"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- PARAMETROS -->
+  <section class="tela" id="tela-parametros">
+    <div class="gate" id="gate">
+      <h2>Acesso restrito — Controladoria</h2>
+      <p>Os parâmetros da formação de preço são editáveis apenas pelo ADM. Informe o código de acesso.</p>
+      <input id="codigo" type="password" placeholder="Código de acesso" autocomplete="off">
+      <button class="btn" id="entrar">Entrar</button>
+      <div class="erro" id="erroCod">Código inválido.</div>
+    </div>
+    <div id="painelParam">
+      <div class="aviso">SIMULAÇÃO — alterar aqui recalcula a consulta ao vivo, mas NÃO grava nada no TOTVS. A tabela oficial é a 078 + regras vigentes.</div>
+      <div class="pgrid">
+        <div class="pcard"><h3>Cadeia (a partir da Tab. 3 New)</h3>
+          <div class="prow"><label>Fator Tab. 3 New (× Orig)</label><input data-p="fNew" type="number" step="0.001" value="0.97"></div>
+          <div class="prow"><label>Tabela 5 (× Orig)</label><input data-p="t5" type="number" step="0.001" value="1.03"></div>
+          <div class="prow"><label>Pós-venda (× Orig)</label><input data-p="pos" type="number" step="0.01" value="0.70"></div>
+          <div class="prow"><label>Avaria 53 (× Orig)</label><input data-p="a53" type="number" step="0.01" value="0.30"></div>
+        </div>
+        <div class="pcard"><h3>Sobre a Tabela 1 (interna)</h3>
+          <div class="prow"><label>Var. Tab. 1→2</label><input data-p="v12" type="number" step="0.001" value="0.02"></div>
+          <div class="prow"><label>Var. Tab. 2→3</label><input data-p="v23" type="number" step="0.001" value="0.02"></div>
+          <div class="prow"><label>Mostruário (× Tab. 1)</label><input data-p="mos" type="number" step="0.01" value="0.60"></div>
+        </div>
+        <div class="pcard"><h3>Funcionários (× Tab. 1)</h3>
+          <div class="prow"><label>Portáteis (Lar/Clima/F&amp;A)</label><input data-p="fPort" type="number" step="0.01" value="0.70"></div>
+          <div class="prow"><label>Áudio Bateria</label><input data-p="fBat" type="number" step="0.01" value="0.80"></div>
+          <div class="prow"><label>Áudio Torre</label><input data-p="fTor" type="number" step="0.01" value="0.90"></div>
+        </div>
+        <div class="pcard"><h3>Suframa</h3>
+          <div class="prow"><label>Acréscimo s/ 078</label><input data-p="acr" type="number" step="0.0001" value="0.1277"></div>
+        </div>
+        <div class="pcard"><h3>Avarias 51 / 52 (× Orig)</h3>
+          <div class="prow"><label>Av. 51 — Áudio</label><input data-p="a51A" type="number" step="0.01" value="0.65"></div>
+          <div class="prow"><label>Av. 51 — Portáteis</label><input data-p="a51P" type="number" step="0.01" value="0.60"></div>
+          <div class="prow"><label>Av. 52 — Áudio</label><input data-p="a52A" type="number" step="0.01" value="0.60"></div>
+          <div class="prow"><label>Av. 52 — Portáteis</label><input data-p="a52P" type="number" step="0.01" value="0.50"></div>
+        </div>
+      </div>
+      <div class="pacts">
+        <button class="btn" id="restaurar">Restaurar oficiais</button>
+        <button class="btn" id="sair">Sair do modo ADM</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- FONTES -->
+  <section class="tela" id="tela-fontes">
+    <div class="doc">
+      <h2>Fontes dos dados</h2>
+      <h3>Preço base</h3>
+      <p>Tabela <code>078 — TABELA BASE</code> do TOTVS (DA0/DA1), extração de <b>15/09/2026</b>. A coluna <b>Tab. 3 New</b> deste painel é o espelho da 078 — as demais derivam dela pelas regras da Metodologia.</p>
+      <h3>Escopo</h3>
+      <p>152 produtos: 148 do excel-mestre <code>TABELAS_PRECO_VIGENTES_APARTIR_2026</code> + 4 inclusões de 15/09 (ACA 301 Gigante III, ACA 651 Strondo III, ACA 181 Mini Gigante, ARF 1222 Oven 110V). <span class="badge b-incl">INCLUSÃO</span> marca item recém-cadastrado; <span class="badge b-sem">SEM 078</span> marca 21 itens sem preço na 078 vigente (valores pela última tabela conhecida — confirmação com a Controladoria antes de negociar); <span class="badge b-boom">R10</span> marca a família BOOMVOX (formação própria).</p>
+      <h3>Atualização</h3>
+      <p>Sob demanda pela Controladoria (Silvio Amaral — gerente.contabil@amvox.com.br): o gerador reconsulta a 078 e este painel é republicado no mesmo link. A data vigente aparece no topo.</p>
+      <h3>Suframa</h3>
+      <p>Aba própria: itens da tabela 228 do TOTVS (106 SKUs, extração 15/09/2026) com o preço recalculado 078 × 1,1277 e o Δ contra o preço vigente. <span class="badge b-sem">SEM 078</span> ali significa preço mantido pela tabela atual.</p>
+      <h3>O que este painel NÃO mostra</h3>
+      <p>Tabelas internas 1, 2, 3 Orig e Gerentes (uso da Controladoria).</p>
+    </div>
+  </section>
+
+  <!-- METODOLOGIA -->
+  <section class="tela" id="tela-metodologia">
+    <div class="doc">
+      <h2>Como cada tabela é formada</h2>
+      <p>Tudo parte da <b>Tab. 3 New = tabela 078</b> (preço base Brasil, sem frete e sem VPC). Internamente ela equivale a <code>Tab. 3 Orig × 0,97</code>.</p>
+      <div class="formula">
+        Tabela 5 = Orig × 1,03 &nbsp;·&nbsp; Pós-venda = Orig × 0,70 &nbsp;·&nbsp; Avaria 53 = Orig × 0,30<br>
+        Avarias 51/52 — Áudio: Orig × 0,65 / 0,60 &nbsp;·&nbsp; Portáteis: Orig × 0,60 / 0,50<br>
+        Mostruário = Tab. 1 × 0,60 &nbsp;·&nbsp; Funcionários = Tab. 1 × 0,70 (Portáteis) / 0,80 (Áudio Bateria) / 0,90 (Torre)
+      </div>
+      <h3>Exceção — família BOOMVOX (R10)</h3>
+      <p>ACA 310/610 Black e Grafite não seguem a cadeia: o preço é único (todas as tabelas internas iguais à 078) e as avarias usam o padrão Portáteis. Produto licenciado (royalty R10).</p>
+      <h3>Frete e VPC</h3>
+      <p>Os preços deste painel são <b>base Brasil</b>. No faturamento o SFA soma por fora o % de frete da UF e o % de VPC do cliente — o preço final do pedido será maior que o daqui.</p>
+      <h3>Saldão CLIMA</h3>
+      <p>Os climatizadores ACL (exceto ventilador AMV 4126) estão em preço de escoamento deliberado — margens baixas ou negativas nesses itens são esperadas e não indicam erro de tabela.</p>
+    </div>
+  </section>
+</main>
+<footer>AMVOX · Controladoria — painel de consulta · valores em R$ · base 078 de 15/09/2026</footer>
+
+<div id="veu"></div>
+<aside id="det" aria-label="Detalhe do produto">
+  <div class="cab"><button class="fechar" id="fecharDet" aria-label="Fechar">×</button><div class="cod" id="detCod"></div><h2 id="detNome"></h2><div class="seg" id="detSeg" style="color:#B9B9B6"></div></div>
+  <div class="corpo"><div class="dl" id="detLista"></div>
+    <p class="nota-det">Percentuais = desconto (−) ou acréscimo (+) sobre a Tab. 3 New. Preços base Brasil, sem frete/VPC e sem IPI.</p>
+  </div>
+</aside>
+
+<script>
+const PRODUTOS=[["000503A05","ACA 550 STRONDO II","Áudio","Bateria",365.65,0,0,0],["000503A06","ACA 221 GIGANTE II","Áudio","Bateria",180.25,0,0,0],["000503A07","PARTY VOX PRIME","Áudio","Bateria",1025.88,0,0,0],["000503A14","ACA 480 VIPER II","Áudio","Bateria",326.51,0,0,0],["000503A46","ACA 255 HIT","Áudio","Bateria",184.37,0,1,0],["000503A63","ACA 600 BAGVOX BLACK","Áudio","Bateria",324.45,0,0,0],["000503A80","ACA 880 VEGAS SFM","Áudio","Bateria",551.05,0,0,0],["000503A81","ACA 251 NEW X","Áudio","Bateria",194.67,0,1,0],["000503A94","ACA 610 BLACK","Áudio","Bateria",803.8,1,0,0],["000503B01","ACA 150 POP","Áudio","Bateria",123.6,0,0,0],["000503B04","ACA 680 FANTASY","Áudio","Bateria",466.075,0,1,0],["000503B10","ACA 310 BLACK","Áudio","Bateria",444.3,1,0,0],["000503B11","ACA 410 NEON","Áudio","Bateria",593.546495,0,0,0],["000503B53","ACA 610 GRAFITE","Áudio","Bateria",803.8,1,0,0],["000503B54","ACA 310 GRAFITE","Áudio","Bateria",444.3,1,0,0],["000503B57","ACA 620 BAGVOX BEAT","Áudio","Bateria",326.51,0,1,0],["000566001","ATX 1600M PANCADÃO","Áudio","Torre",692.63606,0,0,0],["000566002","ATX 2108M QUADRADINHO","Áudio","Torre",791.725625,0,0,0],["000566003","ATX 3200M PANCADÃO","Áudio","Torre",1212.31,0,0,0],["000566004","ATX 1508 M QUADRADINHO","Áudio","Torre",692.63606,0,0,0],["000566005","ATX 3150M PESADÃO X","Áudio","Torre",1131.97,0,0,0],["000566007","ATX 3108M QUADRADINHO","Áudio","Torre",1088.99432,0,0,0],["000566008","ATX 2150M PESADÃO X","Áudio","Torre",1025.88,0,1,0],["000566009","ATX 2200M PANCADÃO","Áudio","Torre",791.725625,0,0,0],["000503A48","ACA 1000 NEW X","Áudio","Torre",604.61,0,0,0],["000503A54","ACA 1300 NEW X SFM","Áudio","Torre",719.97,0,1,0],["000503A56","ACA 1900 NEW X SFM","Áudio","Torre",1028.97,0,0,0],["000503A67","ACA 1101 BLACK DUPLO 8","Áudio","Torre",559.29,0,0,0],["000503A68","ACA 1402 TITAN BLACK","Áudio","Torre",719.97,0,0,0],["000503A69","ACA 2201 PESADÃO II","Áudio","Torre",1028.97,0,0,0],["000503A78","ACA 1601 FESTA II","Áudio","Torre",719.97,0,0,0],["000503A85","ACA 2900 NEW X","Áudio","Torre",1678.9,0,0,0],["000503A93","ACA 1202 DEZOITÃO II","Áudio","Torre",1025.88,0,1,0],["000503B02","ACA 1200 ELITE","Áudio","Torre",791.725625,0,0,0],["000503B06","ACA 5500 PAREDAO NEW X","Áudio","Torre",2519.38,0,0,0],["000503B43","ACA 1305 NAVE","Áudio","Torre",932.15,0,0,0],["000503B50","ACA 650 GLADIADOR","Áudio","Bateria",375.549452,0,0,0],["000503B51","ACA 950 GLADIADOR","Áudio","Bateria",593.546495,0,0,0],["000503B52","ACA 1201 FESTA BEAT","Áudio","Torre",559.29,0,1,0],["000163001","AST 65F","Portáteis","F&A",47.38,0,0,0],["000163002","AST 30A","Portáteis","F&A",60.77,0,1,0],["000163003","AST 35A","Portáteis","F&A",71.07,0,1,0],["000163004","AST 70F","Portáteis","F&A",11.33,0,1,0],["000163005","ASM 016A","Portáteis","Lar",267.8,0,1,0],["000163006","ASM 08A","Portáteis","Lar",139.05,0,1,0],["000202161","ARF 1222 OVEN 220V","Portáteis","Lar",288.4,0,0,0],["000202247","ACF 227 INOX 18X","Portáteis","Lar",79.31,0,0,0],["000202248","ACF 227 INOX 18X 220V","Portáteis","Lar",79.31,0,0,0],["000202260","ARF 1255 M INOX","Portáteis","Lar",338.87,0,0,0],["000202261","ARF 1255 M INOX","Portáteis","Lar",338.87,0,0,0],["000202262","ARF 1255 M BLACK","Portáteis","Lar",338.87,0,0,0],["000202263","ARF 1255 M BLACK 220V","Portáteis","Lar",338.87,0,0,0],["000202264","ARF 1412 OVEN","Portáteis","Lar",410.97,0,0,0],["000202265","ARF 1412 OVEN","Portáteis","Lar",410.97,0,0,0],["000202266","ACF 927 INOX","Portáteis","Lar",148.32,0,0,0],["000202267","ACF 927 INOX 220V","Portáteis","Lar",148.32,0,0,0],["000202294","ARF 1150 REVERSE","Portáteis","Lar",587.1,0,0,0],["000202295","ARF 1150 REVERSE 220V","Portáteis","Lar",587.1,0,0,0],["000202335","ARF 1480 BLACK I.A","Portáteis","Lar",494.4,0,0,0],["000202336","ARF 1480 BLACK I.A 220V","Portáteis","Lar",494.4,0,0,0],["000202337","ARF 1565","Portáteis","Lar",338.87,0,0,0],["000202338","ARF 1565 220V","Portáteis","Lar",338.87,0,0,0],["000202342","ARF 1205 NEW BLACK","Portáteis","Lar",232.78,0,0,0],["000202343","ARF 1205 NEW BLACK 220V","Portáteis","Lar",232.78,0,0,0],["000202390","ARF 1465 TURBO BLACK","Portáteis","Lar",441.87,0,0,0],["000202391","ARF 1465 TURBO BLACK 220V","Portáteis","Lar",441.87,0,0,0],["000203080","AES 350","Portáteis","Lar",120.51,0,0,0],["000203081","AES 350 220V","Portáteis","Lar",120.51,0,0,0],["000204129","AF 1907","Portáteis","Lar",46.35,0,0,0],["000204130","AF 1907 220V","Portáteis","Lar",46.35,0,0,0],["000204131","AF 2110","Portáteis","Lar",101.97,0,0,0],["000204132","AF 2110 220V","Portáteis","Lar",101.97,0,0,0],["000204133","AF 1606","Portáteis","Lar",50.47,0,0,0],["000204135","AF 006","Portáteis","Lar",120.51,0,0,0],["000204136","AF 006 220V","Portáteis","Lar",120.51,0,0,0],["000207127","AMS 370 BLACK","Portáteis","Lar",56.65,0,0,0],["000207128","AMS 370 BLACK 220V","Portáteis","Lar",56.65,0,0,0],["000207129","AMS 500 BLACK","Portáteis","Lar",64.89,0,0,0],["000207130","AMS 500 BLACK 220V","Portáteis","Lar",64.89,0,0,0],["000207134","AMS 500 RED 220V","Portáteis","Lar",64.89,0,1,0],["000207166","AMS 800","Portáteis","Lar",87.55,0,0,0],["000207167","AMS 800 220V","Portáteis","Lar",87.55,0,0,0],["000207190","AMS 801 BLACK SQUARE","Portáteis","Lar",79.31,0,0,0],["000207191","AMS 801 BLACK SQUARE 220V","Portáteis","Lar",79.31,0,0,0],["000229002","ABB 240 BIV","Portáteis","Lar",242.05,0,0,0],["000229046","ABB 240 BLACK BIV","Portáteis","Lar",252.35,0,0,0],["000229060","ABB 510 BLACK","Portáteis","Lar",463.5,0,0,0],["000229061","ABB 510 BLACK 220V","Portáteis","Lar",463.5,0,0,0],["000229062","ABB 510 WHITE","Portáteis","Lar",463.5,0,0,0],["000229063","ABB 510 WHITE 220V","Portáteis","Lar",463.5,0,0,0],["000229065","ABB 240 NEW BLACK BIV","Portáteis","Lar",262.65,0,0,0],["000229078","ABB 240 NEW BRANCO BIV","Portáteis","Lar",252.35,0,0,0],["000238038","APC 027","Portáteis","Lar",87.55,0,0,0],["000238039","APC 027 220V","Portáteis","Lar",87.55,0,0,0],["000241050","APS 050","Portáteis","Lar",298.7,0,0,0],["000241051","APS 050 220V","Portáteis","Lar",298.7,0,0,0],["000249001","APR 1001 BLACK","Portáteis","Lar",64.89,0,0,0],["000249002","APR 1001 BLACK 220V","Portáteis","Lar",64.89,0,0,0],["000249003","APR 1001 RED","Portáteis","Lar",64.89,0,1,0],["000249004","APR 1001 RED 220V","Portáteis","Lar",64.89,0,1,0],["000249028","APR 400","Portáteis","Lar",91.67,0,0,0],["000249029","APR 400 220V","Portáteis","Lar",91.67,0,0,0],["000250001","ASP 1101","Portáteis","Lar",132.87,0,0,0],["000250002","ASP 1101 220V","Portáteis","Lar",132.87,0,0,0],["000250027","ASP 060","Portáteis","Lar",822.97,0,0,0],["000250032","ASP 018","Portáteis","Lar",369.77,0,0,0],["000256001","ALQ 0209","Portáteis","Lar",190.55,0,0,0],["000256002","ALQ 0209 220V","Portáteis","Lar",190.55,0,0,0],["000256025","ALQ 600","Portáteis","Lar",92.7,0,0,0],["000256026","ALQ 600 220V","Portáteis","Lar",92.7,0,0,0],["000256027","ALQ 0108","Portáteis","Lar",204.97,0,0,0],["000256034","ALQ 301 BLACK","Portáteis","Lar",128.75,0,0,0],["000256035","ALQ 301 BLACK 220V","Portáteis","Lar",128.75,0,0,0],["000259001","AKL 0150","Portáteis","Lar",58.71,0,0,0],["000259002","AKL 0150 220V","Portáteis","Lar",58.71,0,0,0],["000260001","AMG 113","Portáteis","Lar",494.4,0,0,0],["000260002","AMG 113 220V","Portáteis","Lar",494.4,0,0,0],["000260014","AMG 212","Portáteis","Lar",447.02,0,1,0],["000260015","AMG 212 220V","Portáteis","Lar",447.02,0,1,0],["000262002","ACT 407 220V","Portáteis","Lar",1287.5,0,1,0],["000262003","ACT 204 220V","Portáteis","Lar",648.9,0,1,0],["000301217","ACL 018","Portáteis","Clima",398.577867,0,0,0],["000301218","ACL 018 220V","Portáteis","Clima",398.577867,0,0,0],["000301219","ACL 9022","Portáteis","Clima",1025.88,0,0,0],["000301220","ACL 9022 220V","Portáteis","Clima",1025.88,0,0,0],["000301324","ACL 4022","Portáteis","Clima",719.97,0,0,0],["000301325","ACL 4022 220V","Portáteis","Clima",719.97,0,0,0],["000301326","ACL 018 BRANCO","Portáteis","Clima",535.6,0,0,0],["000301327","ACL 018 BRANCO 220V","Portáteis","Clima",535.6,0,0,0],["000301328","ACL 9022 BRANCO","Portáteis","Clima",810.879638,0,0,0],["000301329","ACL 9022 BRANCO 220V","Portáteis","Clima",810.879638,0,0,0],["000301341","ACL 130","Portáteis","Clima",1247.636714,0,0,0],["000301342","ACL 130 220V","Portáteis","Clima",1490.41,0,0,0],["000301411","ACL 030","Portáteis","Clima",616.97,0,0,0],["000301412","ACL 030 220V","Portáteis","Clima",616.97,0,0,0],["000302100","AMV 4126 TURBO","Portáteis","Lar",133.166467,0,0,0],["000302101","AMV 4126 TURBO 220V","Portáteis","Lar",133.166467,0,0,0],["000457001","AFC 1000","Portáteis","Lar",719.97,0,1,0],["000457002","AFC 2000","Portáteis","Lar",822.97,0,0,0],["000551001","AHP 2401","Portáteis","Lar",148.32,0,0,0],["000551002","AHP 0812","Portáteis","Lar",133.9,0,0,0],["000551003","AHP 1209","Portáteis","Lar",87.55,0,0,0],["000551004","AHP 0608","Portáteis","Lar",133.9,0,0,0],["000551005","AHP 01","Portáteis","Lar",64.89,0,0,0],["000554002","ASB 0201","Portáteis","Lar",1143.3,0,0,0],["000561002","ACP 15 PRO","Áudio","Torre",1955.97,0,0,0],["000204134","AF 1606 220V","Portáteis","Lar",50.47,0,0,0],["000202109","ARF 1205","Portáteis","Lar",211.308498,0,0,0],["000503B73","ACA 301 GIGANTE III","Áudio","Bateria",226.915104,0,0,1],["000503B75","ACA 651 STRONDO III","Áudio","Bateria",355.731539,0,0,1],["000503B42","ACA 181 MINI GIGANTE","Áudio","Bateria",167.461365,0,0,1],["000202160","ARF 1222 OVEN","Portáteis","Lar",288.400179,0,0,1]];
+const SUFRAMA=[["000202294","AIR FRYER AMVOX ARF 1150 110V","LAR",592.49,679.19,0],["000202295","AIR FRYER AMVOX ARF 1150 220V","LAR",592.49,679.19,0],["000202342","AIR FRYER AMVOX ARF 1205 NEW BLACK 110V","LAR",234.92,269.29,0],["000202343","AIR FRYER AMVOX ARF 1205 NEW BLACK 220V","LAR",234.92,269.29,0],["000202160","AIR FRYER AMVOX ARF 1222 OVEN 12L 110V","LAR",null,333.64,1],["000202161","AIR FRYER AMVOX ARF 1222 OVEN 12L 220V","LAR",null,333.64,1],["000202262","AIR FRYER AMVOX ARF 1255 M BLACK 110V","LAR",341.98,392.02,0],["000202263","AIR FRYER AMVOX ARF 1255 M BLACK 220V","LAR",341.98,392.02,0],["000202260","AIR FRYER AMVOX ARF 1255 M INOX 110V","LAR",341.98,392.02,0],["000202261","AIR FRYER AMVOX ARF 1255 M INOX 220V","LAR",341.98,392.02,0],["000202264","AIR FRYER AMVOX ARF 1412 OVEN 12L 110V","LAR",414.75,475.43,0],["000202265","AIR FRYER AMVOX ARF 1412 OVEN 12L 220V","LAR",414.75,475.43,0],["000202390","AIR FRYER AMVOX ARF 1465 TURBO BLACK 110V","LAR",445.93,511.18,0],["000202391","AIR FRYER AMVOX ARF 1465 TURBO BLACK 220V","LAR",445.93,511.18,0],["000202335","AIR FRYER AMVOX ARF 1480 BLACK I.A 110V","LAR",498.94,571.95,0],["000202336","AIR FRYER AMVOX ARF 1480 BLACK I.A 220V","LAR",498.94,571.95,0],["000202337","AIR FRYER AMVOX ARF 1565 INOX 110V","LAR",341.98,392.02,0],["000202338","AIR FRYER AMVOX ARF 1565 INOX 220V","LAR",341.98,392.02,0],["000250001","ASPIRADOR DE PO VERTICAL AMVOX ASP 1101 110V","LAR",134.09,153.71,0],["000250002","ASPIRADOR DE PO VERTICAL AMVOX ASP 1101 220V","LAR",134.09,153.71,0],["000250027","ASPIRADOR ELETR. MOP ASP 060","LAR",830.53,952.06,0],["000250032","ASPIRADOR ROBO ASP 018 BLACK","LAR",373.17,427.77,0],["000229002","BEBEDOURO AMVOX  ABB 240 BIV","LAR",244.27,280.02,0],["000229046","BEBEDOURO AMVOX  ABB 240 BLACK BIV","LAR",null,291.93,1],["000229060","BEBEDOURO AMVOX  ABB 510 BLACK C/COMPRESSOR 110V","LAR",467.76,536.2,0],["000229061","BEBEDOURO AMVOX  ABB 510 BLACK C/COMPRESSOR 220V","LAR",467.76,536.2,0],["000229062","BEBEDOURO AMVOX  ABB 510 WHITE C/COMPRESSOR 110V","LAR",467.76,536.2,0],["000229063","BEBEDOURO AMVOX  ABB 510 WHITE C/COMPRESSOR 220V","LAR",467.76,536.2,0],["000229078","BEBEDOURO AMVOX ABB 240 NEW BRANCO BIV","LAR",254.67,291.93,0],["000202247","CAFETEIRA  AMVOX ACF 227 INOX 18X 110V","LAR",80.04,91.75,0],["000202248","CAFETEIRA  AMVOX ACF 227 INOX 18X 220V","LAR",80.04,91.75,0],["000259001","CHALEIRA AMVOX AKL 0150 INOX 1,8L 110V","LAR",59.25,67.92,0],["000259002","CHALEIRA AMVOX AKL 0150 INOX 1,8L 220V","LAR",59.25,67.92,0],["000203080","EXTRATOR DE FRUTAS AMVOX AES 350 110V","LAR",121.62,139.41,0],["000203081","EXTRATOR DE FRUTAS AMVOX AES 350 220V","LAR",121.62,139.41,0],["000256034","LIQUIDIF. AMVOX ALQ 301 BLACK 110V","LAR",129.93,148.94,0],["000256035","LIQUIDIF. AMVOX ALQ 301 BLACK 220V","LAR",129.93,148.94,0],["000256025","LIQUIDIF. AMVOX ALQ 600 BLACK 110V","LAR",93.55,107.24,0],["000256026","LIQUIDIF. AMVOX ALQ 600 BLACK 220V","LAR",93.55,107.24,0],["000256027","LIQUIDIF. PORTATIL AMVOX ALQ 0108 BIV","LAR",206.85,237.12,0],["000260001","MAQUINA DE GELO AMVOX AMG 113 110V","LAR",498.94,571.95,0],["000260002","MAQUINA DE GELO AMVOX AMG 113 220V","LAR",498.94,571.95,0],["000249001","MINI PROCESS. AMVOX APR 1001 BLACK 110V","LAR",65.49,75.07,0],["000249002","MINI PROCESS. AMVOX APR 1001 BLACK 220V","LAR",65.49,75.07,0],["000249028","MIXER AMVOX APR 400 110V","LAR",92.51,106.05,0],["000249029","MIXER AMVOX APR 400 220V","LAR",92.51,106.05,0],["000241050","PAN. PRESSAO ELET AMVOX APS 050 5LT 110V","LAR",301.44,345.55,0],["000241051","PAN. PRESSAO ELET AMVOX APS 050 5LT 220V","LAR",301.44,345.55,0],["000238038","PIPOQ. AMVOX APC 027 110V","LAR",88.35,101.28,0],["000238039","PIPOQ. AMVOX APC 027 220V","LAR",88.35,101.28,0],["000207129","SAND E GRILL  AMVOX  AMS 500 BLACK 110V","LAR",65.49,75.07,0],["000207130","SAND E GRILL  AMVOX  AMS 500 BLACK 220V","LAR",65.49,75.07,0],["000207166","SAND E GRILL  AMVOX  AMS 800 110V","LAR",88.35,101.28,0],["000207167","SAND E GRILL  AMVOX  AMS 800 220V","LAR",88.35,101.28,0],["000207190","SAND E GRILL  AMVOX  AMS 801 BLACK SQUARE 110V","LAR",80.04,91.75,0],["000207191","SAND E GRILL  AMVOX  AMS 801 BLACK SQUARE 220V","LAR",80.04,91.75,0],["000301217","CLIMAT AMVOX  ACL 018 110V","CLIMA",402.24,619.61,0],["000301218","CLIMAT AMVOX  ACL 018 220V","CLIMA",402.24,619.61,0],["000301326","CLIMAT AMVOX  ACL 018 BRANCO 110V","CLIMA",null,619.61,1],["000301327","CLIMAT AMVOX  ACL 018 BRANCO 220V","CLIMA",null,619.61,1],["000301324","CLIMAT AMVOX  ACL 4022 110V","CLIMA",null,832.9,1],["000301325","CLIMAT AMVOX  ACL 4022 220V","CLIMA",null,832.9,1],["000301219","CLIMAT AMVOX  ACL 9022 110V","CLIMA",1035.31,1186.79,0],["000301220","CLIMAT AMVOX  ACL 9022 220V","CLIMA",1035.31,1186.79,0],["000301328","CLIMAT AMVOX  ACL 9022 BRANCO 110V","CLIMA",818.33,1186.79,0],["000301329","CLIMAT AMVOX  ACL 9022 BRANCO 220V","CLIMA",818.33,1186.79,0],["000301341","CLIMAT AMVOX ACL 130 110V","CLIMA",1259.1,1724.19,0],["000301342","CLIMAT AMVOX ACL 130 220V","CLIMA",1504.1,1724.19,0],["000302100","VENT AMVOX AMV 4126 TURBO BLACK 50CM MESA 110V","CLIMA",134.39,175.16,0],["000457002","FECHADURA ELET. AMVOX AFC 2000","INFORMATICA",830.53,952.06,0],["000503A48","CAIXA AMPLIF. AMVOX ACA 1000 NEW X SFM","AUDIO",610.17,699.45,0],["000503A67","CAIXA AMPLIF. AMVOX ACA 1101 BLACK DUPLO 8","AUDIO",564.43,647.02,0],["000503B02","CAIXA AMPLIF. AMVOX ACA 1200 PARTY VOX ELITE","AUDIO",799.0,1035.47,0],["000503A68","CAIXA AMPLIF. AMVOX ACA 1402 TITAN BLACK","AUDIO",726.59,832.9,0],["000503B01","CAIXA AMPLIF. AMVOX ACA 150 POP","AUDIO",124.74,142.99,0],["000503A78","CAIXA AMPLIF. AMVOX ACA 1601 FESTA II","AUDIO",726.59,832.9,0],["000503A56","CAIXA AMPLIF. AMVOX ACA 1900 NEW X SFM","AUDIO",1038.42,1190.37,0],["000503A69","CAIXA AMPLIF. AMVOX ACA 2201 PESADAO II","AUDIO",1038.42,1190.37,0],["000503A06","CAIXA AMPLIF. AMVOX ACA 221 GIGANTE II","AUDIO",181.91,208.52,0],["000503A85","CAIXA AMPLIF. AMVOX ACA 2900 NEW X SFM","AUDIO",1694.33,1942.24,0],["000503B10","CAIXA AMPLIF. AMVOX ACA 310 BOOMVOX","AUDIO",444.3,494.03,0],["000503B54","CAIXA AMPLIF. AMVOX ACA 310 BOOMVOX GRAFITE","AUDIO",444.3,494.03,0],["000503B11","CAIXA AMPLIF. AMVOX ACA 410 NEON","AUDIO",599.0,774.51,0],["000503A14","CAIXA AMPLIF. AMVOX ACA 480 VIPER II","AUDIO",null,377.72,1],["000503A05","CAIXA AMPLIF. AMVOX ACA 550 STRONDO II","AUDIO",369.01,423.0,0],["000503A63","CAIXA AMPLIF. AMVOX ACA 600 BAGVOX BLACK","AUDIO",327.43,375.34,0],["000503A94","CAIXA AMPLIF. AMVOX ACA 610 BOOMVOX","AUDIO",803.8,893.77,0],["000503B53","CAIXA AMPLIF. AMVOX ACA 610 BOOMVOX GRAFITE","AUDIO",803.8,893.77,0],["000503B50","CAIXA AMPLIF. AMVOX ACA 650 GLADIADOR X","AUDIO",379.0,463.52,0],["000503A80","CAIXA AMPLIF. AMVOX ACA 880 VEGAS SFM","AUDIO",556.11,637.48,0],["000503B51","CAIXA AMPLIF. AMVOX ACA 950 GLADIADOR X","AUDIO",599.0,832.9,0],["000503A07","CAIXA AMPLIF. AMVOX PARTY VOX PRIME","AUDIO",null,1186.79,1],["000561002","CAIXA PROFISSIONAL AMVOX ACP 15 PRO","AUDIO",1973.94,2262.77,0],["000551005","FONE DE OUVIDO AMVOX AHP 01","AUDIO",65.49,75.07,0],["000551003","FONE DE OUVIDO AMVOX AHP 1209","AUDIO",88.35,101.28,0],["000551001","FONE DE OUVIDO AMVOX AHP 2401","AUDIO",149.68,171.58,0],["000551002","FONE DE OUVIDO GAMER AMVOX AHP 0812","AUDIO",135.13,154.9,0],["000551004","FONE DE OUVIDO SPORT AMVOX AHP 0608","AUDIO",135.13,154.9,0],["000554002","SOUNDBAR AMVOX ASB 0201","AUDIO",1153.8,1322.63,0],["000566004","TORRE DE SOM AMVOX ATX 1508M QUADRADINHO","AUDIO",699.0,862.69,0],["000566002","TORRE DE SOM AMVOX ATX 2108M QUADRADINHO","AUDIO",799.0,1036.66,0],["000566009","TORRE DE SOM AMVOX ATX 2200M PANCADAO","AUDIO",799.0,1036.66,0],["000566005","TORRE DE SOM AMVOX ATX 3150M PESADAO","AUDIO",1142.37,1309.52,0],["000566001","TORRE DE SOM DUPLO 8 RING LED AMVOX ATX 1600","AUDIO",699.0,862.69,0],["000301411","CLIMAT AMVOX ACL 030 BRANCO 110V","CLIMA",622.64,null,0],["000301412","CLIMAT AMVOX ACL 030 BRANCO 220V","CLIMA",622.64,null,0]];
+const OFICIAL = {acr:.1277, fNew:.97, t5:1.03, pos:.70, a53:.30, v12:.02, v23:.02, mos:.60, fPort:.70, fBat:.80, fTor:.90, a51A:.65, a51P:.60, a52A:.60, a52P:.50};
+let P = {...OFICIAL};
+const fmt = n => n.toLocaleString('pt-BR',{minimumFractionDigits:2, maximumFractionDigits:2});
+
+function calc(d){
+  const [cod, mod, lin, seg, p1, boom] = d;
+  const fator = P.fNew * (1+P.v12) * (1+P.v23);
+  const m = boom ? p1 : p1 * fator;          // Tab 3 New (=078)
+  const orig = boom ? m : m / P.fNew;        // Tab 3 Orig
+  const audio = lin === 'Áudio' && !boom;
+  const jf = boom ? P.fBat : (lin!=='Áudio' ? P.fPort : (seg==='Torre' ? P.fTor : P.fBat));
+  return { m, t5:orig*P.t5, pos:orig*P.pos, mos:p1*P.mos, fun:p1*jf,
+           a51:orig*(audio?P.a51A:P.a51P), a52:orig*(audio?P.a52A:P.a52P), a53:orig*P.a53 };
+}
+// filtros
+const linhas=[...new Set(PRODUTOS.map(d=>d[2]))], segs=[...new Set(PRODUTOS.map(d=>d[3]))];
+let fLin=null, fSeg=null, termo='';
+function chip(el, lista, get, set){
+  el.innerHTML='';
+  const mk=(txt,val)=>{const b=document.createElement('button');b.className='chip'+(get()===val?' on':'');b.textContent=txt;
+    b.onclick=()=>{set(get()===val?null:val);render();};el.appendChild(b);};
+  lista.forEach(v=>mk(v,v));
+}
+function badges(d){
+  let h='';
+  if(d[7]) h+='<span class="badge b-incl">INCLUSÃO</span>';
+  if(d[6]) h+='<span class="badge b-sem">SEM 078</span>';
+  if(d[5]) h+='<span class="badge b-boom">R10</span>';
+  return h;
+}
+let visiveis=[];
+function render(){
+  chip(document.getElementById('chipsLinha'), linhas, ()=>fLin, v=>fLin=v);
+  chip(document.getElementById('chipsSeg'), segs, ()=>fSeg, v=>fSeg=v);
+  const t=termo.trim().toLowerCase();
+  visiveis = PRODUTOS.filter(d=>(!fLin||d[2]===fLin)&&(!fSeg||d[3]===fSeg)&&(!t||d[1].toLowerCase().includes(t)||d[0].toLowerCase().includes(t)));
+  document.getElementById('conta').textContent = visiveis.length+' de '+PRODUTOS.length+' produtos';
+  document.getElementById('corpo').innerHTML = visiveis.map((d,i)=>{
+    const v=calc(d);
+    return `<tr data-i="${i}"><td class="cod">${d[0]}</td><td><span class="mod">${d[1]}</span>${badges(d)}<br><span class="seg">${d[2]} · ${d[3]}</span></td>`+
+      `<td class="dest num">${fmt(v.m)}</td><td class="num">${fmt(v.t5)}</td><td class="num">${fmt(v.pos)}</td><td class="num">${fmt(v.mos)}</td>`+
+      `<td class="num">${fmt(v.fun)}</td><td class="num">${fmt(v.a51)}</td><td class="num">${fmt(v.a52)}</td><td class="num">${fmt(v.a53)}</td></tr>`;
+  }).join('');
+  const sim = JSON.stringify(P)!==JSON.stringify(OFICIAL);
+  document.getElementById('avisoSim').style.display = sim?'block':'none';
+}
+document.getElementById('q').addEventListener('input',e=>{termo=e.target.value;render();});
+// detalhe
+document.getElementById('corpo').addEventListener('click',e=>{
+  const tr=e.target.closest('tr'); if(!tr)return;
+  const d=visiveis[+tr.dataset.i], v=calc(d);
+  document.getElementById('detCod').textContent=d[0];
+  document.getElementById('detNome').textContent=d[1];
+  document.getElementById('detSeg').textContent=d[2]+' · '+d[3];
+  const li=(lbl,val,base)=>`<div class="lbl">${lbl}</div><div class="val num">${fmt(val)}</div><div class="pct num">${base?'&nbsp;':((val/v.m-1)*100).toLocaleString('pt-BR',{maximumFractionDigits:1,signDisplay:'always'})+'%'}</div>`;
+  document.getElementById('detLista').innerHTML =
+    `<div class="base lbl">Tab. 3 New (=078)</div><div class="base val num">${fmt(v.m)}</div><div class="pct">base</div>`+
+    li('Tabela 5',v.t5)+li('Pós-venda',v.pos)+li('Mostruário',v.mos)+li('Funcionários',v.fun)+
+    li('Avaria 51',v.a51)+li('Avaria 52',v.a52)+li('Avaria 53',v.a53);
+  document.getElementById('veu').style.display='block';
+  document.getElementById('det').style.display='block';
+});
+const fecha=()=>{document.getElementById('veu').style.display='none';document.getElementById('det').style.display='none';};
+document.getElementById('veu').onclick=fecha; document.getElementById('fecharDet').onclick=fecha;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')fecha();});
+// copiar CSV
+document.getElementById('copiar').onclick=async()=>{
+  const cab='Codigo;Modelo;Linha;Segmento;Tab3New_078;Tabela5;PosVenda;Mostruario;Funcionarios;Avaria51;Avaria52;Avaria53';
+  const ln=visiveis.map(d=>{const v=calc(d);const n=x=>x.toFixed(2).replace('.',',');
+    return [d[0],d[1],d[2],d[3],n(v.m),n(v.t5),n(v.pos),n(v.mos),n(v.fun),n(v.a51),n(v.a52),n(v.a53)].join(';');});
+  try{await navigator.clipboard.writeText([cab,...ln].join('\n'));
+    const b=document.getElementById('copiar');b.textContent='Copiado ✓';setTimeout(()=>b.textContent='Copiar CSV',1600);}
+  catch(e){alert('Não foi possível copiar — selecione a tabela manualmente.');}
+};
+// navegação
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  document.querySelectorAll('.tela').forEach(t=>t.classList.toggle('on',t.id==='tela-'+b.dataset.tela));
+});
+// ADM
+document.getElementById('entrar').onclick=()=>{
+  if(document.getElementById('codigo').value==='ctrl2026'){
+    document.getElementById('gate').style.display='none';
+    document.getElementById('painelParam').style.display='block';
+    document.getElementById('erroCod').style.display='none';
+  } else document.getElementById('erroCod').style.display='block';
+};
+document.getElementById('codigo').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('entrar').click();});
+document.querySelectorAll('#painelParam input[data-p]').forEach(inp=>inp.addEventListener('input',()=>{
+  const v=parseFloat(String(inp.value).replace(',','.'));
+  if(!isNaN(v)&&v>0){P[inp.dataset.p]=v;render();}
+}));
+document.getElementById('restaurar').onclick=()=>{P={...OFICIAL};
+  document.querySelectorAll('#painelParam input[data-p]').forEach(i=>i.value=OFICIAL[i.dataset.p]);render();};
+document.getElementById('sair').onclick=()=>{P={...OFICIAL};
+  document.querySelectorAll('#painelParam input[data-p]').forEach(i=>i.value=OFICIAL[i.dataset.p]);
+  document.getElementById('codigo').value='';
+  document.getElementById('gate').style.display='block';
+  document.getElementById('painelParam').style.display='none';render();};
+render();
+// ---- SUFRAMA ----
+const linhasS=[...new Set(SUFRAMA.map(d=>d[2]))];
+let fLinS=null, termoS='', visS=[];
+function renderS(){
+  chip(document.getElementById('chipsLinhaS'), linhasS, ()=>fLinS, v=>fLinS=v ? v : null);
+  const t=termoS.trim().toLowerCase();
+  visS = SUFRAMA.filter(d=>(!fLinS||d[2]===fLinS)&&(!t||d[1].toLowerCase().includes(t)||d[0].toLowerCase().includes(t)));
+  document.getElementById('contaS').textContent = visS.length+' de '+SUFRAMA.length+' produtos';
+  document.getElementById('corpoS').innerHTML = visS.map(d=>{
+    const [cod,desc,lin,base,p228,sem]=d;
+    const nova = base!=null ? base*(1+P.acr) : p228;
+    const delta = (p228 && base!=null) ? (nova/p228-1) : null;
+    let bd='';
+    if(p228==null) bd+='<span class="badge b-incl">INCLUSÃO</span>';
+    if(sem) bd+='<span class="badge b-sem">SEM 078</span>';
+    return `<tr style="cursor:default"><td class="cod">${cod}</td><td><span class="mod">${desc}</span>${bd}<br><span class="seg">${lin}</span></td>`+
+      `<td class="dest num">${fmt(nova)}</td><td class="num">${p228!=null?fmt(p228):'—'}</td>`+
+      `<td class="num">${delta!=null?(delta*100).toLocaleString('pt-BR',{maximumFractionDigits:1,signDisplay:'always'})+'%':(p228==null?'nova':'mantida')}</td></tr>`;
+  }).join('');
+}
+document.getElementById('qS').addEventListener('input',e=>{termoS=e.target.value;renderS();});
+document.getElementById('copiarS').onclick=async()=>{
+  const cab='Codigo;Modelo;Linha;TabelaSuframa;TOTVS_hoje;Delta_pct';
+  const ln=visS.map(d=>{const nova=d[3]!=null?d[3]*(1+P.acr):d[4];
+    const dl=(d[4]&&d[3]!=null)?((nova/d[4]-1)*100).toFixed(1).replace('.',','):'';
+    return [d[0],d[1],d[2],nova.toFixed(2).replace('.',','),d[4]!=null?d[4].toFixed(2).replace('.',','):'',dl].join(';');});
+  try{await navigator.clipboard.writeText([cab,...ln].join('\n'));
+    const b=document.getElementById('copiarS');b.textContent='Copiado ✓';setTimeout(()=>b.textContent='Copiar CSV',1600);}
+  catch(e){alert('Não foi possível copiar.');}
+};
+const _render = render;
+render = function(){ _render(); renderS(); };
+renderS();
+</script>
+
+<div style="position:fixed;right:14px;bottom:14px;z-index:99">
+  <button onclick="sair()" style="cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3)">Sair ⎋</button>
+</div>
+</body></html>
