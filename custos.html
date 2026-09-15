@@ -1,0 +1,1304 @@
+<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html{visibility:hidden}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>guardaPagina();</script>
+</head><body>
+<meta charset="utf-8">
+<title>Custo de Aquisição 2025×2026</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#FAF9F7; --surface:#FFFFFF; --surface2:#F3F1EE;
+  --ink:#1C1B1A; --ink2:#6B6560; --ink3:#98918B;
+  --line:#E7E3DF; --line2:#D8D3CE;
+  --brand:#D71920; --brand-ink:#B3131A;
+  --up:#B45309; --up-bg:#FDF3E7; --down:#0F766E; --down-bg:#EAF5F3;
+  --amber:#B45309; --amber-bg:#FDF3E7; --ok:#15803D; --ok-bg:#EAF3EC; --mut-bg:#F0EEEB;
+  --side:#141414; --side-ink:#F5F3F1; --side-ink2:#A39D98; --side-line:#2A2A2A;
+  --shadow:0 1px 2px rgba(28,27,26,.05), 0 4px 14px rgba(28,27,26,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#151413; --surface:#1E1D1B; --surface2:#262421;
+    --ink:#EDEAE6; --ink2:#A8A29C; --ink3:#7A756F;
+    --line:#33302C; --line2:#403C37;
+    --brand:#E8474D; --brand-ink:#F06A6F;
+    --up:#E8A254; --up-bg:#33261A; --down:#4FC2B4; --down-bg:#16302D;
+    --amber:#E8A254; --amber-bg:#33261A; --ok:#6FBF83; --ok-bg:#1C2E21; --mut-bg:#2B2926;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#151413; --surface:#1E1D1B; --surface2:#262421;
+  --ink:#EDEAE6; --ink2:#A8A29C; --ink3:#7A756F;
+  --line:#33302C; --line2:#403C37;
+  --brand:#E8474D; --brand-ink:#F06A6F;
+  --up:#E8A254; --up-bg:#33261A; --down:#4FC2B4; --down-bg:#16302D;
+  --amber:#E8A254; --amber-bg:#33261A; --ok:#6FBF83; --ok-bg:#1C2E21; --mut-bg:#2B2926;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box; margin:0; padding:0}
+body{background:var(--ground); color:var(--ink);
+  font:15px/1.55 "IBM Plex Sans","Segoe UI",system-ui,sans-serif; min-height:100vh}
+.app{display:flex; min-height:100vh}
+.side{width:232px; flex:0 0 232px; background:var(--side); color:var(--side-ink);
+  display:flex; flex-direction:column; padding:22px 0 18px; position:sticky; top:0; height:100vh}
+.logo{padding:0 22px 20px; border-bottom:1px solid var(--side-line)}
+.logo .mark{font:800 22px/1 "Archivo",sans-serif; letter-spacing:.04em; color:#fff}
+.logo .mark b{color:#E8474D}
+.logo .sub{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--side-ink2); margin-top:5px}
+nav{display:flex; flex-direction:column; gap:2px; padding:16px 12px}
+nav button{all:unset; cursor:pointer; display:flex; align-items:center; gap:10px;
+  padding:9px 12px; border-radius:6px; color:var(--side-ink2); font:500 14px "IBM Plex Sans",sans-serif}
+nav button:hover{background:#1F1F1F; color:var(--side-ink)}
+nav button:focus-visible{outline:2px solid #E8474D; outline-offset:2px}
+nav button.on{background:#232323; color:#fff; box-shadow:inset 3px 0 0 #D71920}
+nav button.adm{display:none}
+body.is-adm nav button.adm{display:flex}
+nav .tag{margin-left:auto; font-size:10px; letter-spacing:.08em; padding:2px 7px; border-radius:99px; background:#2E2E2E; color:var(--side-ink2)}
+.side .foot{margin-top:auto; padding:14px 22px 0; border-top:1px solid var(--side-line);
+  font:400 11px/1.6 "IBM Plex Mono",monospace; color:var(--side-ink2)}
+.side .perfil{display:inline-block; margin-top:6px; padding:2px 8px; border-radius:99px; background:#2E2E2E; color:#fff; font-size:10px; letter-spacing:.1em; text-transform:uppercase}
+.pbtn{all:unset; cursor:pointer; display:inline-block; margin-top:7px; margin-left:6px; padding:3px 10px;
+  border:1px solid var(--side-line); border-radius:99px; color:var(--side-ink2);
+  font:600 10.5px "IBM Plex Sans",sans-serif; letter-spacing:.06em}
+.pbtn:hover{color:#fff; border-color:#4A4A4A}
+.pbtn:focus-visible{outline:2px solid #E8474D; outline-offset:2px}
+#pform input{width:110px; padding:4px 8px; border-radius:6px; border:1px solid var(--side-line);
+  background:#1F1F1F; color:#fff; font:500 12px "IBM Plex Mono",monospace}
+#pform input:focus-visible{outline:2px solid #E8474D}
+.perro{color:#E8474D; font-size:10.5px; margin-top:4px}
+main{flex:1; min-width:0; padding:30px 36px 60px}
+.view{display:none; max-width:1120px}
+.view.on{display:block}
+h1{font:700 26px/1.2 "Archivo",sans-serif; letter-spacing:.005em; text-wrap:balance}
+.crumb{font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--ink2); margin-bottom:6px}
+.lede{color:var(--ink2); margin-top:8px; max-width:72ch}
+h2{font:700 17px/1.3 "Archivo",sans-serif; margin:34px 0 12px}
+h2:first-of-type{margin-top:26px}
+.tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:14px; margin-top:22px}
+.tile{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px 18px; box-shadow:var(--shadow)}
+.tile .k{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink2)}
+.tile .v{font:700 26px/1.15 "Archivo",sans-serif; margin-top:7px; font-variant-numeric:tabular-nums}
+.tile .d{font-size:12.5px; color:var(--ink2); margin-top:5px}
+.tile .v .unit{font:600 13px "IBM Plex Sans",sans-serif; color:var(--ink2)}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); overflow:hidden}
+.tblwrap{overflow-x:auto}
+table{border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums}
+th{font:600 11px "IBM Plex Sans",sans-serif; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink2); text-align:right; padding:11px 14px; border-bottom:1px solid var(--line2);
+  white-space:nowrap; background:var(--surface2)}
+th:first-child{text-align:left}
+td{padding:10px 14px; border-bottom:1px solid var(--line); text-align:right; white-space:nowrap}
+td:first-child{text-align:left}
+tr.skurow{cursor:pointer}
+tr.skurow:hover td{background:var(--surface2)}
+tr.skurow:focus-visible{outline:2px solid var(--brand); outline-offset:-2px}
+.sku{font-weight:600}
+.sku .code{display:block; font:400 11px "IBM Plex Mono",monospace; color:var(--ink3); margin-top:1px}
+.num{font-weight:500}
+.big{font-weight:700}
+.delta-up{color:var(--up); font-weight:600}
+.delta-down{color:var(--down); font-weight:600}
+.delta-zero{color:var(--ink3)}
+.dbar{display:inline-flex; align-items:center; width:104px; height:12px; vertical-align:middle}
+.dbar .half{position:relative; flex:1; height:6px; background:var(--mut-bg); border-radius:3px; overflow:hidden}
+.dbar .half+.half{margin-left:2px}
+.dbar .fill{position:absolute; top:0; height:100%; border-radius:3px}
+.dbar .neg .fill{right:0; background:var(--down)}
+.dbar .pos .fill{left:0; background:var(--up)}
+.badge{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600;
+  padding:2px 8px; border-radius:99px; letter-spacing:.02em; white-space:nowrap}
+.badge .dot{width:6px; height:6px; border-radius:99px; background:currentColor}
+.b-ok{color:var(--ok); background:var(--ok-bg)}
+.b-amber{color:var(--amber); background:var(--amber-bg)}
+.b-mut{color:var(--ink2); background:var(--mut-bg)}
+tr.exp td{background:var(--surface2); padding:16px 18px; white-space:normal}
+.expgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px 22px; max-width:960px}
+.expgrid .cell .l{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink2)}
+.expgrid .cell .r{font-size:14px; margin-top:2px; font-variant-numeric:tabular-nums}
+.src{margin-top:12px; font:400 12px/1.6 "IBM Plex Mono",monospace; color:var(--ink2)}
+.note{font-size:12.5px; color:var(--ink2); margin-top:10px; max-width:82ch}
+.legendline{display:flex; flex-wrap:wrap; gap:16px; align-items:center; font-size:12.5px; color:var(--ink2); margin:12px 2px 10px}
+.legendline .sw{display:inline-block; width:10px; height:10px; border-radius:3px; vertical-align:-1px; margin-right:5px}
+.legendline .ln{display:inline-block; width:18px; height:0; border-top:2px solid var(--brand); vertical-align:3px; margin-right:5px}
+.legendline .lnd{display:inline-block; width:18px; height:0; border-top:2px dashed var(--ink2); vertical-align:3px; margin-right:5px}
+.pgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:12px; margin-top:14px}
+.pcard{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:13px 15px}
+.pcard label{display:block; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink2)}
+.pcard input{width:100%; margin-top:7px; padding:7px 10px; border:1px solid var(--line2); border-radius:6px;
+  background:var(--ground); color:var(--ink); font:600 15px "IBM Plex Sans",sans-serif; font-variant-numeric:tabular-nums}
+.pcard input:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
+.pcard .hint{font-size:11.5px; color:var(--ink3); margin-top:6px; line-height:1.45}
+.pcard.locked input{background:var(--mut-bg); color:var(--ink2)}
+.groupbar{display:flex; align-items:center; gap:10px; margin:26px 0 4px}
+.groupbar .chip{font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase; padding:3px 10px; border-radius:99px}
+.chip.verde{background:var(--ok-bg); color:var(--ok)}
+.chip.amarelo{background:var(--amber-bg); color:var(--amber)}
+.groupbar .t{font-size:13px; color:var(--ink2)}
+.btn{all:unset; cursor:pointer; font:600 13px "IBM Plex Sans",sans-serif; color:var(--ink);
+  border:1px solid var(--line2); background:var(--surface); border-radius:7px; padding:8px 16px}
+.btn:hover{background:var(--surface2)}
+.btn:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+.flag{background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--brand);
+  border-radius:8px; padding:13px 16px; margin:10px 0}
+.flag b{font-weight:600}
+.small{font-size:12.5px; color:var(--ink2)}
+code{font:400 12.5px "IBM Plex Mono",monospace; background:var(--mut-bg); padding:1px 6px; border-radius:4px}
+.mono{font-family:"IBM Plex Mono",monospace}
+.formula{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px 18px;
+  font:500 13.5px/1.8 "IBM Plex Mono",monospace; overflow-x:auto; white-space:nowrap}
+ul{padding-left:20px; display:grid; gap:6px}
+/* simulador */
+.formcard{background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow);
+  padding:16px 18px; margin-top:20px}
+.formcard .fh{font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink2); font-weight:600; margin-bottom:12px}
+.fgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px 16px; align-items:end}
+.fgrid .fld label{display:block; font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink2)}
+.fgrid .fld input, .fgrid .fld select{width:100%; margin-top:6px; padding:8px 10px; border:1px solid var(--line2);
+  border-radius:6px; background:var(--ground); color:var(--ink); font:600 14px "IBM Plex Sans",sans-serif; font-variant-numeric:tabular-nums}
+.fgrid .fld input:focus-visible, .fgrid .fld select:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
+.fgrid .fld .fh2{font-size:10.5px; color:var(--ink3); margin-top:4px}
+.switch{display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-top:8px; user-select:none; position:relative}
+.fgrid .fld .switch input, .switch input{position:absolute; opacity:0; width:0; height:0; margin:0; padding:0; border:0}
+.switch .trk{width:38px; height:20px; border-radius:99px; background:var(--line2); position:relative; transition:background .15s}
+.switch .trk::after{content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px;
+  background:var(--surface); box-shadow:0 1px 2px rgba(0,0,0,.25); transition:left .15s}
+.switch input:checked + .trk{background:var(--brand)}
+.switch input:checked + .trk::after{left:20px}
+.switch input:focus-visible + .trk{outline:2px solid var(--brand); outline-offset:2px}
+.kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(168px,1fr)); gap:12px; margin-top:14px}
+.kpi{background:var(--surface); border:1px solid var(--line); border-top:3px solid var(--kc,var(--line2));
+  border-radius:10px; padding:12px 14px; box-shadow:var(--shadow)}
+.kpi .k{font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink2); font-weight:600}
+.kpi .v{font:700 21px/1.2 "Archivo",sans-serif; margin-top:6px; font-variant-numeric:tabular-nums}
+.kpi .d{font-size:11px; color:var(--ink3); margin-top:3px}
+.panelgrid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px}
+@media (max-width:1080px){.panelgrid{grid-template-columns:1fr}}
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); padding:16px 18px}
+.ph{display:flex; align-items:center; gap:9px; margin-bottom:12px}
+.ph .n{width:22px; height:22px; border-radius:99px; background:var(--brand); color:#fff; font:700 12px/22px "Archivo",sans-serif; text-align:center}
+.ph .t{font:700 13px "Archivo",sans-serif; letter-spacing:.08em; text-transform:uppercase}
+.grpcols{display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:0 22px}
+.grp h4{font-size:10.5px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink2); margin:10px 0 6px;
+  border-bottom:1px solid var(--line); padding-bottom:5px}
+.kv{display:flex; justify-content:space-between; gap:10px; padding:3.5px 0; font-size:13.5px; font-variant-numeric:tabular-nums}
+.kv .l{color:var(--ink2)}
+.kv .r{font-weight:500; white-space:nowrap}
+.kv.sub .r,.kv.sub .l{font-weight:600; color:var(--ink)}
+.kv.sub{border-top:1px solid var(--line); margin-top:3px; padding-top:6px}
+.kv.tot{background:var(--surface2); border-radius:7px; padding:8px 10px; margin-top:8px; font-weight:700}
+.kv.tot .l{color:var(--ink)}
+.kv .neg{color:var(--down); font-weight:600}
+.kv.hl{background:var(--up-bg); border-radius:7px; padding:8px 10px; margin-top:8px}
+.kv.hl .l,.kv.hl .r{color:var(--up); font-weight:700}
+.kv.ok{background:var(--ok-bg); border-radius:7px; padding:8px 10px; margin-top:8px}
+.kv.ok .l,.kv.ok .r{color:var(--ok); font-weight:700}
+.donutrow{display:flex; gap:18px; align-items:center; flex-wrap:wrap; margin-top:14px; border-top:1px solid var(--line); padding-top:14px}
+.donutrow svg{flex:0 0 auto}
+.dleg{display:grid; gap:5px; font-size:12.5px; min-width:180px}
+.dleg .li{display:flex; align-items:center; gap:7px; font-variant-numeric:tabular-nums}
+.dleg .sw{width:10px; height:10px; border-radius:3px; flex:0 0 auto}
+.dleg .pc{margin-left:auto; font-weight:600}
+details.simparams{margin-top:14px; background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow)}
+details.simparams summary{cursor:pointer; padding:13px 18px; font-weight:600; font-size:13.5px; list-style:none; display:flex; align-items:center; gap:10px}
+details.simparams summary::before{content:"▸"; color:var(--brand); transition:transform .15s}
+details.simparams[open] summary::before{transform:rotate(90deg)}
+details.simparams .inner{padding:2px 18px 16px}
+.gaugecard{background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); padding:16px 18px}
+.gbar{height:10px; border-radius:99px; background:var(--mut-bg); position:relative; margin-top:12px; overflow:hidden}
+.gbar .fill{position:absolute; left:0; top:0; height:100%; border-radius:99px}
+.gbar-meta{position:relative; height:14px}
+.gbar-meta .tick{position:absolute; top:-12px; width:2px; height:14px; background:var(--ink2)}
+.simfoot{display:flex; flex-wrap:wrap; gap:8px 18px; margin-top:12px; font:400 12px/1.6 "IBM Plex Mono",monospace; color:var(--ink2)}
+.kpi .pc{font-size:12px; font-weight:600; color:var(--ink2); margin-left:6px}
+.kpi .v .cur{font:600 11px "IBM Plex Sans",sans-serif; color:var(--ink3); margin-right:3px}
+.kpi .v .num{white-space:nowrap}
+/* slider de margem (gauge interativo) */
+.mslider{-webkit-appearance:none; appearance:none; width:100%; height:10px; border-radius:99px;
+  background:linear-gradient(to right, var(--gfill,var(--ok)) 0%, var(--gfill,var(--ok)) var(--gpos,50%), var(--mut-bg) var(--gpos,50%));
+  outline:none; margin-top:12px; cursor:ew-resize}
+.mslider::-webkit-slider-thumb{-webkit-appearance:none; width:22px; height:22px; border-radius:99px;
+  background:var(--surface); border:3px solid var(--gfill,var(--ok)); box-shadow:0 1px 4px rgba(0,0,0,.3); cursor:grab}
+.mslider::-moz-range-thumb{width:16px; height:16px; border-radius:99px; background:var(--surface);
+  border:3px solid var(--gfill,var(--ok)); box-shadow:0 1px 4px rgba(0,0,0,.3); cursor:grab}
+.mslider:focus-visible{outline:2px solid var(--brand); outline-offset:3px}
+/* visão comparativa */
+.comptbl td:first-child{color:var(--ink2)}
+.comptbl tr.sec td{font-weight:700; background:var(--surface2); color:var(--ink)}
+.comptbl tr.tot td{font-weight:700; border-top:2px solid var(--line2); background:var(--surface2)}
+.comptbl tr.maxdelta td{background:var(--up-bg); border-top:1px solid var(--up); border-bottom:1px solid var(--up)}
+.comptbl tr.maxdelta td:first-child{font-weight:700; color:var(--up)}
+.hbar{display:inline-block; height:8px; border-radius:3px; vertical-align:middle; min-width:2px}
+/* veredito executivo */
+.vhead{display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:10px 0 4px}
+.vhead .box{background:var(--surface2); border-radius:9px; padding:10px 16px}
+.vhead .box .l{font-size:10px; letter-spacing:.11em; text-transform:uppercase; color:var(--ink2); font-weight:600}
+.vhead .box .n{font:700 22px/1.2 "Archivo",sans-serif; font-variant-numeric:tabular-nums; margin-top:2px}
+.vhead .seta{font-size:22px; color:var(--ink3)}
+.vchip{font:700 15px "Archivo",sans-serif; padding:8px 14px; border-radius:9px}
+.vchip.up{background:var(--up-bg); color:var(--up)}
+.vchip.down{background:var(--down-bg); color:var(--down)}
+.vq{font:700 13px "Archivo",sans-serif; letter-spacing:.06em; text-transform:uppercase; color:var(--ink2); margin:18px 0 10px}
+.vstep{display:grid; grid-template-columns:30px 1fr; gap:12px; padding:11px 0; border-top:1px solid var(--line)}
+.vstep .rank{width:26px; height:26px; border-radius:99px; background:var(--brand); color:#fff;
+  font:700 13px/26px "Archivo",sans-serif; text-align:center}
+.vstep .tt{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+.vstep .tt b{font-size:14.5px}
+.vstep .tt .val{font-weight:700; font-variant-numeric:tabular-nums}
+.vstep .tt .shr{font-size:12px; color:var(--ink2)}
+.vstep .vbarw{height:7px; border-radius:99px; background:var(--mut-bg); margin:7px 0 6px; max-width:420px; overflow:hidden}
+.vstep .vbar{height:100%; border-radius:99px}
+.vstep .expl{font-size:13px; color:var(--ink2); max-width:74ch; line-height:1.5}
+.vdolar{margin-top:14px; background:var(--surface2); border-radius:9px; padding:12px 16px; font-size:13px; line-height:1.55; max-width:86ch}
+.vdolar b:first-child{font-family:"Archivo",sans-serif}
+.vaviso{margin-top:10px; font-size:12.5px; color:var(--amber); font-weight:600}
+.chartwrap{background:var(--surface); border:1px solid var(--line); border-radius:10px; box-shadow:var(--shadow); padding:18px}
+.chartwrap svg{width:100%; height:auto; display:block}
+@media (max-width:860px){
+  .app{flex-direction:column}
+  .side{width:100%; flex:none; height:auto; position:static; padding:14px 0}
+  nav{flex-direction:row; flex-wrap:wrap}
+  .side .foot{display:none}
+  main{padding:22px 16px 48px}
+}
+@media (prefers-reduced-motion: no-preference){
+  .view.on{animation:fade .18s ease}
+  @keyframes fade{from{opacity:0; transform:translateY(3px)} to{opacity:1}}
+}
+</style>
+
+<div class="app">
+  <aside class="side">
+    <div class="logo">
+      <div class="mark">AMVOX<b>.</b></div>
+      <div class="sub">Custo de Aquisição</div>
+    </div>
+    <nav id="nav">
+      <button class="on" data-v="sim">Simulador</button>
+      <button data-v="comp">Visão Comparativa</button>
+      <button data-v="frete">Frete real × projetado</button>
+      <button class="adm" data-v="central">Visão Central</button>
+      <button class="adm" data-v="params">Parâmetros</button>
+      <button class="adm" data-v="fontes">Fontes &amp; Status</button>
+      <button class="adm" data-v="metodo">Metodologia</button>
+      <button class="adm" data-v="acesso">Acesso de Usuários</button>
+    </nav>
+    <div class="foot"><span id="versao"></span> · dados EIC<br>processos até 09/09/2026<br>
+      <span class="perfil" id="perfil"></span>
+      <button class="pbtn" id="btnperfil" type="button">Trocar perfil</button>
+      <div id="pform" hidden style="margin-top:8px">
+        <input id="pcode" type="password" placeholder="código ADM" autocomplete="off" aria-label="Código do perfil ADM">
+        <button class="pbtn" id="pok" type="button">Entrar</button>
+        <div id="perro" class="perro" hidden>código incorreto</div>
+      </div></div>
+  </aside>
+
+  <main>
+    <!-- ================= SIMULADOR ================= -->
+    <section class="view on" id="v-sim">
+      <div class="crumb">Importação · Custo &amp; preço</div>
+      <h1>Simulador de Custo e Preço</h1>
+      <p class="lede">Escolha o produto — o sistema preenche o resto com o EIC (frete real, FOB do processo)
+      e com os parâmetros vigentes. Automático é automático; parâmetro é parâmetro.</p>
+
+      <div class="formcard">
+        <div class="fh">Dados do SKU / Produto</div>
+        <div class="fgrid">
+          <div class="fld" style="grid-column:span 2; min-width:220px">
+            <label for="simsku">SKU / Produto</label>
+            <select id="simsku"></select>
+          </div>
+          <div class="fld"><label for="simqty">Qtd/ctr</label>
+            <input id="simqty" inputmode="numeric"><div class="fh2">capacidade do contêiner dedicado</div></div>
+          <div class="fld"><label for="simuf">UF destino</label>
+            <select id="simuf"><option>BA</option><option>SP</option><option>MG</option><option>ES</option><option>PB</option><option>PE</option><option>CE</option></select>
+            <div class="fh2">tabela ICMS por UF: v. definitiva</div></div>
+          <div class="fld"><label for="simcli">Cliente (opcional)</label>
+            <input id="simcli" placeholder="v. definitiva"><div class="fh2">amarra VPC do cadastro: v. definitiva</div></div>
+          <div class="fld"><label>Aplicar VPC</label>
+            <label class="switch"><input type="checkbox" id="simvpc"><span class="trk"></span><span id="simvpclbl">não</span></label>
+            <div class="fh2">inicia em zero; ligar aplica o % do parâmetro</div></div>
+        </div>
+      </div>
+
+      <div class="kpis" id="simkpis"></div>
+
+      <div class="panelgrid">
+        <div class="panel">
+          <div class="ph"><span class="n">1</span><span class="t">Formação do custo</span></div>
+          <div class="grpcols" id="simcusto"></div>
+          <div class="simfoot" id="simfonte"></div>
+        </div>
+        <div class="panel">
+          <div class="ph"><span class="n">2</span><span class="t">Formação do preço</span></div>
+          <div class="fgrid" style="margin-bottom:10px">
+            <div class="fld"><label for="simprec">Preço de venda s/ IPI (R$)</label>
+              <input id="simprec" inputmode="decimal"><div class="fh2" id="simprechint"></div></div>
+            <div class="fld"><label for="simipi">IPI de saída %</label>
+              <input id="simipi" inputmode="decimal"><div class="fh2">padrão = pauta do NCM</div></div>
+          </div>
+          <div id="simpreco"></div>
+          <div class="donutrow"><div id="simdonut"></div><div class="dleg" id="simdleg"></div></div>
+        </div>
+      </div>
+
+      <details class="simparams">
+        <summary>Parâmetros da simulação — premissas do preço (edite e recalcula)</summary>
+        <div class="inner"><div class="fgrid">
+          <div class="fld"><label for="sp-dolar">Taxa dólar</label><input id="sp-dolar" inputmode="decimal"><div class="fh2">padrão FIXO 5,75 (definição 26/08) — editável p/ simular</div></div>
+          <div class="fld"><label for="sp-vpc">VPC % s/ preço</label><input id="sp-vpc" inputmode="decimal"><div class="fh2">inicia em 0; típico do cadastro = 8,5%</div></div>
+          <div class="fld"><label for="sp-pis">PIS saída %</label><input id="sp-pis" inputmode="decimal"></div>
+          <div class="fld"><label for="sp-cof">COFINS saída %</label><input id="sp-cof" inputmode="decimal"></div>
+          <div class="fld"><label for="sp-icms">ICMS saída %</label><input id="sp-icms" inputmode="decimal"><div class="fh2">0% = incentivo BA</div></div>
+          <div class="fld"><label for="sp-dmaq">Despesa da máquina</label>
+            <select id="sp-dmaq"><option value="25">27% — Modelo 2025</option><option value="26">16% — Modelo 2026</option><option value="custom">Outro (editável)</option></select></div>
+          <div class="fld" id="fld-dmaqc" hidden><label for="sp-dmaqc">Despesa da máquina — outro %</label><input id="sp-dmaqc" inputmode="decimal"></div>
+          <div class="fld"><label for="sp-meta">Meta de EBITDA %</label><input id="sp-meta" inputmode="decimal"></div>
+        </div></div>
+      </details>
+
+      <h2><span style="display:inline-flex;align-items:center;gap:9px"><span class="ph" style="margin:0"><span class="n">3</span></span>Análise da simulação</span></h2>
+      <div class="tiles" id="simanalise"></div>
+      <div class="gaugecard" style="margin-top:14px" id="simgauge"></div>
+
+      <p class="note">IPI, PIS e COFINS da importação são recuperáveis (crédito espelho — líquido zero); o II não é.
+      Somente despesas que <b>agregam ao custo do produto</b> (cadastro EIC) compõem o custo; multas, demurrage e
+      complemento de armazenagem vão direto a resultado. O EBITDA desta tela é a <b>visão gerencial do simulador</b>
+      (parâmetros acima) — a MC oficial segue nas 2 visões (Estimativa × DRE).</p>
+      <div id="simpisos"></div>
+    </section>
+
+    <!-- ================= VISÃO CENTRAL ================= -->
+    <section class="view" id="v-central">
+      <div class="crumb">Controladoria · Importação</div>
+      <h1>Modelo 2025 × Modelo 2026 — onde mora a diferença</h1>
+      <p class="lede">Mesma estrutura de cálculo nas duas colunas (CIF × dólar fixo 5,75 × II 18% + despesas
+      que agregam custo, por contêiner). O que muda é a origem das variáveis: o <b>modelo 2025</b> usa as
+      premissas da planilha da Diretoria (frete projetado US$ 5.000/ctr, FOB da lista) e o <b>modelo 2026</b>
+      usa o EIC ao vivo (frete real da despesa 102, FOB somado dos componentes, adicional de frete real).</p>
+      <div class="tiles" id="tiles"></div>
+      <h2>Comparativo por SKU</h2>
+      <div class="legendline">
+        <span><span class="sw" style="background:var(--down)"></span>custo 2026 menor que 2025</span>
+        <span><span class="sw" style="background:var(--up)"></span>custo 2026 maior que 2025</span>
+        <span class="badge b-ok"><span class="dot"></span>vivo</span>
+        <span class="badge b-amber"><span class="dot"></span>processo &gt; 90 dias</span>
+        <span class="badge b-mut"><span class="dot"></span>sem processo 2026 (usa premissa)</span>
+        <span>· clique na linha para abrir variável a variável</span>
+      </div>
+      <div class="card"><div class="tblwrap">
+        <table id="tbl">
+          <thead><tr>
+            <th>SKU</th><th>Qtd/ctr</th><th>FOB 2025 US$</th><th>FOB vivo US$</th>
+            <th>Frete real US$/ctr</th><th>Custo 2025 R$</th><th>Custo 2026 R$</th>
+            <th>Δ R$</th><th>Δ %</th><th style="text-align:center">Δ</th><th>Status</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+      <p class="note" id="centralnote"></p>
+      <h2>Fora da planilha 2025 (sem premissa de comparação)</h2>
+      <div class="card"><div class="tblwrap">
+        <table id="tbl2">
+          <thead><tr>
+            <th>SKU</th><th>Qtd/ctr</th><th>FOB vivo US$</th><th>Frete real US$/ctr</th>
+            <th>Custo 2026 R$</th><th>Custo vigente no guia R$</th><th>Δ vs guia</th><th>Status</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+      <p class="note">ACA 1101 no guia = custo real de entrada ago/26 (265,61) · ACA 1402 no guia = premissa
+      CKD + 35% (483,73). A coluna "Custo 2026" projeta a <i>reposição</i> pelo padrão oficial — não substitui o custo contábil.</p>
+    </section>
+
+    <!-- ================= VISÃO COMPARATIVA ================= -->
+    <section class="view" id="v-comp">
+      <div class="crumb">Diretoria · Modelo a modelo</div>
+      <h1>Visão Comparativa — planilha 2025 × modelo 2026</h1>
+      <p class="lede">Cópia fiel da estrutura da planilha da Diretoria (por contêiner), lado a lado com o
+      modelo 2026 — onde as naturezas automáticas (frete real, FOB vivo, adicional de frete, Siscomex fora)
+      divergem das premissas antigas. A linha com <b>maior delta</b> fica destacada.</p>
+      <div class="formcard" style="max-width:460px">
+        <div class="fh">Produto</div>
+        <div class="fgrid"><div class="fld"><label for="compsku">SKU</label><select id="compsku"></select>
+          <div class="fh2" id="compfonte"></div></div></div>
+      </div>
+      <div class="flag" id="compveredito" style="margin-top:14px"></div>
+      <div class="card" style="margin-top:14px"><div class="tblwrap">
+        <table class="comptbl" id="comptbl">
+          <thead><tr><th>Natureza (por contêiner)</th><th>Modelo 2025 (planilha)</th><th>Modelo 2026 (automático)</th><th>Δ %</th><th style="text-align:left">Peso do delta</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+      <p class="note">IPI, PIS e COFINS da importação aparecem como na planilha (entram e são 100% creditados —
+      líquido zero nos dois modelos). Rateio INMETRO/ANATEL zerado como no original. Barras laranjas = natureza
+      encareceu no 2026; teal = barateou.</p>
+    </section>
+
+    <!-- ================= FRETE ================= -->
+    <section class="view" id="v-frete">
+      <div class="crumb">A variável que manda no custo</div>
+      <h1>Frete projetado × frete internacional real</h1>
+      <p class="lede">Cada ponto é um processo de importação real (frete da despesa 102 ÷ contêineres do processo,
+      embarques desde jul/2025). A linha vermelha é a média mensal; a tracejada, o frete projetado fixo de
+      US$ 5.000 usado no modelo 2025.</p>
+      <div class="tiles" id="fretetiles"></div>
+      <h2>Flutuação por processo — jul/2025 a set/2026</h2>
+      <div class="legendline">
+        <span><span class="sw" style="background:var(--ink3); border-radius:99px"></span>processo (frete US$/ctr)</span>
+        <span><span class="ln"></span>média mensal</span>
+        <span><span class="lnd"></span>projetado 2025 (US$ 5.000)</span>
+        <span>· passe o mouse nos pontos para data e valor</span>
+      </div>
+      <div class="chartwrap" id="fchart"></div>
+      <p class="note">Três regimes: até fev/26 o frete real rodava a US$ 2.000–2.750/ctr (o projetado de 5.000 era
+      conservador); mar–abr subiu a ~3.500; a partir de jun/26 (guerra) saltou para ~7.900–8.000 — 58% acima do
+      projetado. Embarques de set/26 são previsões de ETD já registradas no EIC.</p>
+
+      <h2>O mesmo produto, ao mesmo preço de tabela: lucro num mês, prejuízo no outro</h2>
+      <p class="note" style="margin-top:0">EBITDA mês a mês usando o <b>frete médio real de cada mês</b>,
+      com preço fixo de tabela — referência = preço projetado para a <b>MC mínima da linha</b> (ÁUDIO 30% ·
+      demais 20%), calculado no frete projetado de 5.000. A flutuação do frete sozinha alterna o resultado —
+      é isso que justifica revisar a régua quando o frete muda de regime.</p>
+      <div class="formcard" style="max-width:420px; margin-top:10px">
+        <div class="fgrid"><div class="fld"><label for="fretesku">SKU</label><select id="fretesku"></select>
+          <div class="fh2" id="freteskuhint"></div></div></div>
+      </div>
+      <div class="chartwrap" style="margin-top:12px" id="fmchart"></div>
+    </section>
+
+    <!-- ================= PARÂMETROS ================= -->
+    <section class="view" id="v-params">
+      <div class="crumb">Parâmetros do modelo</div>
+      <h1>Parâmetros</h1>
+      <p class="lede">Edite e todas as telas recalculam na hora. Verde = premissas globais (revisão periódica).
+      Amarelo = específicos por produto, preenchidos automaticamente do EIC no refresh.</p>
+      <div class="groupbar"><span class="chip verde">Grupo verde</span><span class="t">fixos estimados globais</span>
+        <button class="btn" id="reset" style="margin-left:auto">Restaurar padrão</button></div>
+      <div class="pgrid" id="pgrid"></div>
+      <div class="groupbar"><span class="chip amarelo">Grupo amarelo</span><span class="t">por produto — fonte automática EIC (SW8 · SWD 102/333 · SYD)</span></div>
+      <p class="note">Qtd/contêiner = capacidade do contêiner <b>dedicado</b> ao SKU (hipótese de custo unitário,
+      mesmo quando o embarque real vem misto). FOB 2025 e qtd/ctr são ajustáveis; frete real e datas são leitura do EIC.</p>
+      <div class="card" style="margin-top:12px"><div class="tblwrap">
+        <table id="tbl3">
+          <thead><tr><th>SKU</th><th>Qtd/ctr</th><th>FOB 2025 US$</th><th>FOB vivo US$ (EIC)</th><th>Frete real (EIC)</th><th>Adic. frete R$/ctr (333)</th><th>Processo</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+    </section>
+
+    <!-- ================= FONTES & STATUS ================= -->
+    <section class="view" id="v-fontes">
+      <div class="crumb">Rastreabilidade</div>
+      <h1>Fontes &amp; Status</h1>
+      <p class="lede">Cada número nasce de um campo do Protheus/EIC, com processo e data. Base somente leitura.</p>
+      <h2>Regra de agregação — o que entra no custo</h2>
+      <div class="flag"><b>Somente despesas que agregam ao custo do produto</b> (cadastro EIC <code>SYB010.YB_BASECUS = Sim</code>,
+        revisão Silvio 11/08/2026) compõem o modelo 2026. FOB, frete, seguro e impostos (1xx/2xx) agregam por natureza.
+        <b>Ficam de fora (vão a resultado):</b> Taxa Siscomex (309), multas (411/421/423–428), complemento de armazenagem (418),
+        demurrage (714), diária de transporte (429), laudo RF (430), deferimento de LI (416).
+        ⚠️ A planilha 2025 incluía o Siscomex no custo — o modelo 2025 o mantém por fidelidade histórica; o 2026 exclui.</div>
+      <div class="flag"><b>Adicional de frete (333) agrega custo e não tinha linha na planilha 2025</b> (linha esquecida —
+        decisão: sem correspondente 2025). No 2026 entra pelo valor real do processo quando existente
+        (3150: 1.677/ctr · 1305: 4.110/ctr) ou pela média dos embarques 2026 (R$ 2.554/ctr, 143 contêineres).
+        Processos recentes ainda não têm 333 — as complementares chegam depois da nacionalização (custo inicial sobe).</div>
+      <h2>Descobertas desta extração</h2>
+      <div class="flag">⚠️ <b>Em conferência com a Importação (refresh 09/09):</b> os processos
+        <code>SZQR26081129A</code> (ATX 1508, 4 ctrs — US$ 16.587/ctr) e <code>SZQR26081133A</code>
+        (ACA 301, 3 ctrs — US$ 32.782/ctr) registram frete (despesa 102 = <code>W6_VLFRECC</code>)
+        muito acima dos pares da mesma janela (~8–9,5 mil, embarques 26–31/08). São os valores
+        REAIS registrados no EIC — exibidos como estão; se houver erro de digitação, o próximo
+        refresh corrige. O fallback de frete (SKUs sem processo) exclui esses dois.</div>
+      <div class="flag"><b>Frete real = despesa 102 da <code>SWD010</code></b> (tela Importação Analítico).
+        Validado em 4 processos: <code>WD_VALOR_R(102) ÷ taxa = W6_VLFRECC</code> ao centavo. US$/ctr = 102 ÷ contêineres.</div>
+      <div class="flag"><b>II real confirmado em 18%</b> — despesa 201 do processo exemplo = exatos 18% do CIF.
+        O campo <code>W8_VLII</code> zerado era só rateio por item não populado.</div>
+      <div class="flag"><b>FOB completo = soma dos componentes do processo</b> (CKD + painel; parafusos ≤US$0,08 fora,
+        por imaterialidade). ATX 3108 = 62,00 (lista 61,99) · 1600 = 39,50 (39,49) · 2200 = 45,50 (45,45) · 2108 = 47,50 (47,43).
+        <b>A lista FOB do time está atual</b> — a diferença entre modelos mora no frete.</div>
+      <div class="flag"><b>Qtd/contêiner do ACA 181 e ACA 301 observada no EIC:</b> contêiner único com o produto completo
+        → <b>4.900/ctr (181)</b> e <b>2.600/ctr (301)</b>. Premissa confirmada: contêiner dedicado (custo unitário na
+        hipótese de vir só com o produto).</div>
+      <div class="flag"><b>Armadilha de código:</b> o prefixo 005 não espelha o acabado — <code>005503B75</code> é o CKD do
+        ACA 5500 NEW X (o STRONDO III é <code>005503C05</code>; o GIGANTE III é <code>005503C02</code>).</div>
+      <h2>Fonte por SKU</h2>
+      <div class="card"><div class="tblwrap">
+        <table id="tbl4">
+          <thead><tr><th>SKU</th><th>Código EIC</th><th>Processo (HAWB)</th><th>Emissão</th><th>Frete real</th><th>Status</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+      <h2>Premissa × real — despesas do processo exemplo</h2>
+      <p class="note">TYGZSEYTN26060029 (ACA 1402, 2 contêineres, DI 26BR00013268440). Valores por contêiner.</p>
+      <div class="card" style="margin-top:12px"><div class="tblwrap">
+        <table>
+          <thead><tr><th>Despesa</th><th>Agrega custo?</th><th>Premissa verde R$/ctr</th><th>Real R$/ctr</th><th>Δ</th></tr></thead>
+          <tbody id="tbl5"></tbody>
+        </table>
+      </div></div>
+    </section>
+
+    <!-- ================= METODOLOGIA ================= -->
+    <section class="view" id="v-metodo">
+      <div class="crumb">Padrão oficial 26/08/2026</div>
+      <h1>Metodologia</h1>
+      <p class="lede">Estrutura por contêiner, depois dividida pela quantidade — validada pela NF real de nacionalização
+      do ACA 1305 (R$ 397,31/un = CIF + II 18%, erro do modelo −0,7%).</p>
+      <h2>Fórmula (idêntica nos dois modelos)</h2>
+      <div class="formula">custo/un = (FOB + frete/qtd) × (1+seguro) × dólar × (1 + II)<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + AFRMM×frete×dólar/qtd + Magic×FOB×dólar + courrier/EBS×frete×dólar/qtd<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; + fixos/qtd &nbsp;[2026: sem Siscomex, + adicional de frete real]</div>
+      <h2>Definições vigentes</h2>
+      <ul>
+        <li><b>Dólar fixo 5,75</b> em todas as versões (definição 1 de 26/08 — não automatizar).</li>
+        <li><b>Frete:</b> modelo 2025 = projetado US$ 5.000/ctr · modelo 2026 = real do EIC (despesa 102 do processo mais recente).</li>
+        <li><b>Só despesa que agrega custo entra</b> (cadastro <code>YB_BASECUS</code>): o 2026 exclui Siscomex e inclui o
+          adicional de frete (333, sem correspondente 2025); multas/demurrage/complemento de armazenagem nunca entram.</li>
+        <li><b>IPI, PIS e COFINS da importação são recuperáveis</b> — creditados, líquido zero.</li>
+        <li><b>Qtd/contêiner = capacidade dedicada</b> (hipótese de custo unitário, mesmo em embarque misto); constante entre os modelos.</li>
+        <li><b>Sem comparação com SB9 histórico</b> (definição 3) — o foco é custo estimado de reposição.</li>
+        <li><b>Despesa da máquina</b>: 27% (2025) e 16% (MC Estimativa) são parâmetros editáveis — não entram no custo de aquisição.</li>
+        <li><b>Preço de venda inicial do Simulador = preço projetado para a MC MÍNIMA da linha</b>: 30% na linha
+          ÁUDIO, 20% nas demais linhas. Trocar de SKU recalcula o padrão; o campo segue editável e a barra de
+          margem também recalcula o preço. Régua de divisores do guia (0,514/0,473/0,432 p/ MC 30/35/40; escala
+          linear → MC 20 = 0,596).</li>
+        <li><b>Duas margens, duas lentes (auditável):</b> <b>Margem Ctb. Bruta (MC) — régua do guia</b> é a MESMA métrica do guia de
+          bolso (inversa exata do piso: digitar o piso MC30/35/40 devolve 30/35/40% quando o custo é o mesmo);
+          <b>EBITDA</b> é a lente gerencial, que desconta também a despesa da máquina e usa os parâmetros
+          desta página. Se o preço do guia impresso devolver MC menor aqui, a causa é o CUSTO: o guia foi
+          calculado com o custo da época e o simulador usa o custo vigente de reposição.</li>
+      </ul>
+      <h2>Limitações do protótipo</h2>
+      <ul>
+        <li>Dados <b>embutidos na publicação</b> (retrato do EIC de 09/09/2026). Refresh com VPN via
+          <code>dashboard_custo_2025x2026_refresh.py</code> + republicação — o navegador não acessa o Protheus.</li>
+        <li>ATX 3200 e ACA 1201 sem processo EIC completo em 2026 — usam FOB da lista e frete = mediana dos processos vivos.</li>
+        <li>Perfil de acesso do protótipo é por link (ver Acesso de Usuários) — controle real por usuário entra na versão definitiva.</li>
+      </ul>
+    </section>
+
+    <!-- ================= ACESSO ================= -->
+    <section class="view" id="v-acesso">
+      <div class="crumb">Administração</div>
+      <h1>Acesso de Usuários</h1>
+      <p class="lede">No protótipo o perfil é definido pelo link: o endereço normal abre o perfil
+      <b>consulta</b> (Simulador + Visão Comparativa + gráfico de frete); o endereço com o sufixo ADM abre
+      o restante — Visão Central, parâmetros globais, fontes e metodologia. O sufixo aparece só nesta tela,
+      que é exclusiva do ADM.</p>
+      <div class="flag"><b>Um só endereço para todos:</b> a página abre no perfil consulta; o botão
+        <b>"Trocar perfil"</b> no rodapé do menu pede o código ADM (<code>ctrl2026</code>) e libera o restante —
+        "Sair do ADM" volta ao perfil consulta. O sufixo <code>#ctrl2026</code> no endereço continua funcionando
+        como atalho. O modo fica gravado na sessão do navegador (fechar a aba encerra).</div>
+      <div class="flag">⚠️ Isso é um <b>controle de conveniência do protótipo</b>, não segurança: quem tiver o sufixo
+        entra. Na versão definitiva o controle será por usuário autenticado com perfis
+        (Diretoria · Controladoria · Importação · Consulta) e trilha de alterações de parâmetros.</div>
+      <p class="note">O compartilhamento da própria página continua controlado pelo dono no menu de
+      compartilhamento do artifact — sem o link, ninguém acessa nada.</p>
+    </section>
+  </main>
+</div>
+
+<script>
+"use strict";
+const VERSAO = "v0.17 · refresh 09/09/2026";
+document.getElementById("versao").textContent = VERSAO;
+/* ===== perfil (protótipo): link normal = consulta · #ctrl2026 = ADM ===== */
+let ADM = false;
+function aplicaPerfil(){
+  if (location.hash.replace("#","") === "ctrl2026") sessionStorage.setItem("perfil","adm");
+  ADM = sessionStorage.getItem("perfil") === "adm";
+  document.body.classList.toggle("is-adm", ADM);
+  document.getElementById("perfil").textContent = ADM ? "perfil: ADM" : "perfil: consulta";
+  document.getElementById("btnperfil").textContent = ADM ? "Sair do ADM" : "Trocar perfil";
+  if (typeof renderSim === "function" && document.getElementById("simsku").options.length) renderSim();
+}
+window.addEventListener("hashchange", aplicaPerfil);
+/* botão trocar perfil: ADM → volta a consulta; consulta → pede o código */
+document.getElementById("btnperfil").addEventListener("click", ()=>{
+  if (ADM){
+    sessionStorage.setItem("perfil","consulta");
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+    aplicaPerfil();
+    const atual = document.querySelector(".view.on");
+    const btn = document.querySelector(`#nav button[data-v="${atual.id.slice(2)}"]`);
+    if (btn && btn.classList.contains("adm")) document.querySelector('#nav button[data-v="sim"]').click();
+  } else {
+    const f = document.getElementById("pform");
+    f.hidden = !f.hidden;
+    if (!f.hidden) document.getElementById("pcode").focus();
+  }
+});
+function tentaADM(){
+  const inp = document.getElementById("pcode"), err = document.getElementById("perro");
+  if (inp.value === "ctrl2026"){
+    inp.value = ""; err.hidden = true; document.getElementById("pform").hidden = true;
+    sessionStorage.setItem("perfil","adm"); aplicaPerfil();
+  } else { err.hidden = false; inp.select(); }
+}
+document.getElementById("pok").addEventListener("click", tentaADM);
+document.getElementById("pcode").addEventListener("keydown", ev=>{ if(ev.key==="Enter") tentaADM(); });
+aplicaPerfil();
+
+/* ===== retrato EIC (refresh via script com VPN; ver Metodologia) ===== */
+const FRETE_FALLBACK = 8690; // mediana dos vivos (exclui ATX 3150 jan/26 e os 2 processos em conferência: SZQR26081129A/SZQR26081133A)
+const SKUS = [
+ {sku:"ATX 3200 PANCADÃO †", cod:"—", q:360, usd25:60.99, usd26:null, frete:null, adic:null, hawb:null, dt:"—", st:"sem"},
+ {sku:"ATX 3108 QUADRADINHO †", cod:"005566022", q:335, usd25:61.99, usd26:61.99, frete:9493.93, adic:null, tx:5.1273, hawb:"SZQR26081110A", dt:"20/08/26", st:"vivo"},
+ {sku:"ATX 3150 PESADÃO", cod:"005566005", q:280, usd25:56.55, usd26:57.0, frete:1616.72, adic:1676.59, tx:5.2447, hawb:"TYGZSENSA26010005A", dt:"20/01/26", st:"antigo"},
+ {sku:"ATX 1508 QUADRADINHO", cod:"005566017", q:645, usd25:40.99, usd26:40.99, frete:16587.0, adic:null, tx:5.1604, hawb:"SZQR26081129A", dt:"19/08/26", st:"vivo"},
+ {sku:"ATX 2200 PANCADÃO", cod:"005566019", q:480, usd25:45.45, usd26:45.44, frete:7275.0, adic:null, tx:5.1859, hawb:"TYGZSENSA26070012A", dt:"07/08/26", st:"vivo"},
+ {sku:"ATX 2108 QUADRADINHO", cod:"005566014", q:480, usd25:47.43, usd26:47.42, frete:7287.5, adic:null, tx:5.078, hawb:"TYGZSENSA26070011A", dt:"19/07/26", st:"vivo"},
+ {sku:"ATX 1600 PANCADÃO", cod:"005566015", q:650, usd25:39.49, usd26:39.49, frete:9320.95, adic:null, tx:5.1816, hawb:"TYGZSESHK26080078A", dt:"28/08/26", st:"vivo"},
+ {sku:"ACA 5500 PAREDÃO NEW X", cod:"005503B75", q:132, usd25:120.99, usd26:120.99, frete:9317.47, adic:null, tx:5.1816, hawb:"TYGZSESHK26080081A", dt:"29/08/26", st:"vivo"},
+ {sku:"ACA 1305 NAVE †", cod:"005503B43", q:730, usd25:56.9, usd26:56.9, frete:6897.43, adic:4109.75, tx:5.0727, hawb:"ZSSZX26051481", dt:"29/05/26", st:"antigo"},
+ {sku:"ACA 1201 FESTA BEAT †", cod:"—", q:1100, usd25:35.0, usd26:null, frete:null, adic:null, hawb:null, dt:"—", st:"sem"},
+ {sku:"ACA 181 MINI GIGANTE †", cod:"005503C01", q:4900, usd25:8.12, usd26:8.11, frete:8061.68, adic:null, tx:5.1642, hawb:"SZQR26080947A", dt:"25/08/26", st:"vivo", qeic:true},
+ {sku:"ACA 301 GIGANTE III †", cod:"005503C02", q:2600, usd25:10.47, usd26:10.46, frete:32782.0, adic:null, tx:5.1604, hawb:"SZQR26081133A", dt:"20/08/26", st:"vivo", qeic:true},
+];
+const EXTRAS = [
+ {sku:"ACA 1101 BLACK DUPLO 8", cod:"005503A67", q:746, usd26:33.6, frete:6830.0, adic:null, tx:5.1285, hawb:"TYGZSESHK26080028", dt:"31/07/26", guia:265.61, gnota:"custo real entrada ago/26", st:"vivo"},
+ {sku:"ACA 1402 TITAN BLACK", cod:"005503A68", q:470, usd26:42.0, frete:9494.0, adic:null, tx:5.1642, hawb:"SZQR26080811", dt:"19/08/26", guia:483.73, gnota:"premissa CKD + 35%", st:"vivo"},
+];
+/* frete real por processo: [AAAAMMDD embarque, US$/ctr, ctrs] — despesa 102/W6_VLFRECC, filtro >= 500 */
+const FRETES = [["20250730",4964.75],["20250810",832.58],["20250810",2763.89],["20250824",4247.0],["20250824",2954.76],["20250824",2946.3],["20250906",3211.66],["20250927",2930.0],["20251002",3036.63],["20251002",3013.39],["20251004",2790.0],["20251010",3030.0],["20251019",2250.0],["20251021",3096.32],["20251025",2146.75],["20251025",2057.57],["20251025",987.53],["20251026",2899.78],["20251105",2746.78],["20251111",2742.13],["20251120",2520.28],["20251130",1946.29],["20251201",1934.58],["20251201",1921.62],["20251203",2497.07],["20251209",3655.54],["20251209",1950.0],["20251212",2281.57],["20251217",1950.0],["20251222",1875.01],["20251223",2185.38],["20251224",2138.84],["20251229",1870.67],["20251229",1876.06],["20251231",2398.94],["20260106",2048.04],["20260122",1650.0],["20260123",2505.0],["20260123",2543.56],["20260126",1671.36],["20260126",1581.53],["20260126",1670.49],["20260126",1616.72],["20260126",502.16],["20260126",1784.36],["20260126",2500.0],["20260126",2500.0],["20260126",2466.28],["20260126",2500.0],["20260126",2500.0],["20260126",2466.28],["20260128",1737.2],["20260203",2022.28],["20260203",2033.79],["20260203",1965.76],["20260203",2072.53],["20260203",1957.29],["20260213",1893.47],["20260216",1950.0],["20260216",1948.11],["20260222",2333.0],["20260328",3548.46],["20260411",3544.59],["20260420",3500.0],["20260605",6982.21],["20260606",7268.73],["20260607",6458.2],["20260609",6897.43],["20260614",8477.84],["20260615",7094.43],["20260618",8881.88],["20260618",9033.72],["20260620",8968.12],["20260620",8060.3],["20260620",7207.75],["20260622",8456.41],["20260627",8696.8],["20260627",8762.0],["20260629",8338.3],["20260703",9499.85],["20260703",9464.67],["20260722",7144.0],["20260723",7287.5],["20260723",8200.0],["20260723",8175.0],["20260725",7700.0],["20260727",7081.33],["20260727",7229.0],["20260727",7244.0],["20260727",7236.0],["20260727",8205.0],["20260730",8095.68],["20260730",7300.0],["20260803",8200.0],["20260805",5325.0],["20260808",7290.0],["20260817",7566.67],["20260817",6500.0],["20260817",6500.0],["20260820",7275.0],["20260822",8344.0],["20260826",16587.0],["20260826",8061.68],["20260826",5329.0],["20260826",9494.0],["20260827",32782.0],["20260828",9493.93],["20260829",9344.0],["20260831",9320.95],["20260831",9317.47],["20260916",6830.0],["20260921",8000.0]];
+
+const DEFAULTS = {dolar:5.75, freteProj:5000, seg:0.0008, afrmm:0.08, magic:0.01, courr:0.06,
+  transp:1642, despacho:600, siscomex:154, bl:580, armaz:1100, capataz:1590, descons:250,
+  adic333:2554, ii:0.18, dmaq25:0.27, dmaqMC:0.16};
+let P = {...DEFAULTS};
+const PMETA = [
+ ["dolar","Taxa dólar","Padrão FIXO 5,75 (definição 26/08) — editável para simular cenário; Restaurar padrão volta a 5,75. Igual nos dois modelos.",false],
+ ["freteProj","Frete projetado 2025 (US$/ctr)","Premissa da planilha da Diretoria. O modelo 2026 usa o frete REAL do EIC.",false],
+ ["ii","II (pauta SYD, s/ CIF)","18% confirmado no real (despesa 201).",false],
+ ["seg","Seguro (s/ FOB+frete)","Fração decimal (0,0008 = 0,08%).",false],
+ ["afrmm","AFRMM (s/ frete)","Agrega custo (405 = Sim). Real observado: 8,35%.",false],
+ ["magic","Magic (s/ FOB)","Premissa.",false],
+ ["courr","Courrier/IOF + EBS (s/ frete R$)","2% + 4%.",false],
+ ["adic333","Adicional de frete R$/ctr (333) — só 2026","Agrega custo; linha esquecida na planilha 2025 (sem correspondente). Default = média real dos embarques 2026 (2.554; 143 ctrs — refresh 09/09). Quando o processo do SKU já tem 333, o valor real do processo prevalece.",false],
+ ["transp","Fixo: transporte porto→Amvox R$ (406)","Agrega. Real do exemplo: 1.887/ctr.",false],
+ ["despacho","Fixo: despachante R$ (404)","Agrega. Real: 250/ctr.",false],
+ ["siscomex","Fixo: Siscomex R$ (309) — só 2025","NÃO agrega custo (cadastro = Não; vai a resultado). Mantido apenas no modelo 2025 por fidelidade à planilha.",false],
+ ["bl","Fixo: liberação BL R$","Premissa da planilha.",false],
+ ["armaz","Fixo: armazenagem portuária R$ (402)","Agrega. Real: 2.393/ctr no exemplo. O COMPLEMENTO (418) não agrega e fica fora.",false],
+ ["capataz","Fixo: capatazia R$ (310)","Agrega. Real: 1.817/ctr.",false],
+ ["descons","Fixo: desconsolidação R$","Premissa da planilha.",false],
+ ["dmaq25","Despesa da máquina 2025 (s/ venda)","Parâmetro editável (decisão da retomada). Não entra no custo de aquisição.",false],
+ ["dmaqMC","Despesa fixa MC Estimativa (s/ venda)","Parâmetro editável. Convive com o 27% até revisão.",false],
+];
+const fixos = modo => P.transp+P.despacho+P.bl+P.armaz+P.capataz+P.descons + (modo==="25" ? P.siscomex : 0);
+const adic = (s,modo) => modo==="26" ? (s && s.adic!=null ? s.adic : P.adic333) : 0;
+function custoM(usd, frete, q, modo, s){
+  return (usd + frete/q)*(1+P.seg)*P.dolar*(1+P.ii)
+       + (frete*P.afrmm*P.dolar)/q + usd*P.magic*P.dolar
+       + (frete*P.dolar*P.courr)/q + (fixos(modo)+adic(s,modo))/q;
+}
+const fmt = (v,d=2) => v==null ? "—" : v.toLocaleString("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d});
+const pct = v => (v>0?"+":"")+ (100*v).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})+"%";
+const pct0 = v => (100*v).toLocaleString("pt-BR",{maximumFractionDigits:2})+"%";
+function badge(st, qeic){
+  let b = st==="vivo" ? '<span class="badge b-ok"><span class="dot"></span>vivo</span>'
+        : st==="antigo" ? '<span class="badge b-amber"><span class="dot"></span>&gt; 90 dias</span>'
+        : '<span class="badge b-mut"><span class="dot"></span>sem processo</span>';
+  if(qeic) b += ' <span class="badge b-ok">qtd/ctr do EIC</span>';
+  return b;
+}
+function dbar(d, max){
+  const w = Math.min(Math.abs(d)/max,1)*100;
+  return `<span class="dbar" role="img" aria-label="delta ${pct(d)}">
+    <span class="half neg">${d<0?`<span class="fill" style="width:${w}%"></span>`:""}</span>
+    <span class="half pos">${d>0?`<span class="fill" style="width:${w}%"></span>`:""}</span></span>`;
+}
+function vals(s){
+  const usd26 = s.usd26 ?? s.usd25, frete26 = s.frete ?? FRETE_FALLBACK;
+  return {usd26v:usd26, frete26, c25: custoM(s.usd25, P.freteProj, s.q, "25", s),
+          c26: custoM(usd26, frete26, s.q, "26", s)};
+}
+function expCell(l, a, b, d){
+  const cls = d>0.001?"delta-up":(d<-0.001?"delta-down":"delta-zero");
+  const dd = Math.abs(d)<=0.001 ? "=" : pct(d);
+  return `<div class="cell"><div class="l">${l}</div><div class="r">${a} → <b>${b}</b> <span class="${cls}">${dd}</span></div></div>`;
+}
+const tile = (k,v,d)=>`<div class="tile"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div></div>`;
+
+function render(){
+  const rows = SKUS.map(s=>{ const v=vals(s); return {...s, ...v, dR:v.c26-v.c25, dP:v.c26/v.c25-1}; });
+  const maxD = Math.max(...rows.map(r=>Math.abs(r.dP)));
+  document.querySelector("#tbl tbody").innerHTML = rows.map((r,i)=>{
+    const cls = r.dP>0.001?"delta-up":(r.dP<-0.001?"delta-down":"delta-zero");
+    const arrow = r.dP>0.001?"▲":(r.dP<-0.001?"▼":"–");
+    return `<tr class="skurow" tabindex="0" data-i="${i}" aria-expanded="false">
+      <td class="sku">${r.sku}<span class="code">${r.cod}</span></td>
+      <td class="num">${fmt(r.q,0)}</td><td class="num">${fmt(r.usd25)}</td>
+      <td class="num">${r.usd26==null?'<span class="delta-zero">= lista</span>':fmt(r.usd26)}</td>
+      <td class="num">${r.frete==null?`<span class="delta-zero">${fmt(FRETE_FALLBACK,0)}*</span>`:fmt(r.frete26,0)}</td>
+      <td class="num">${fmt(r.c25)}</td><td class="big">${fmt(r.c26)}</td>
+      <td class="${cls}">${(r.dR>0?"+":"")+fmt(r.dR)}</td>
+      <td class="${cls}">${arrow} ${pct(r.dP)}</td>
+      <td style="text-align:center">${dbar(r.dP,maxD)}</td>
+      <td>${badge(r.st,r.qeic)}</td></tr>
+    <tr class="exp" hidden><td colspan="11">
+      <div class="expgrid">
+        ${expCell("FOB US$", fmt(r.usd25), fmt(r.usd26v), r.usd26v/r.usd25-1)}
+        ${expCell("Frete US$/ctr", fmt(P.freteProj,0), fmt(r.frete26,0), r.frete26/P.freteProj-1)}
+        ${expCell("Adic. frete R$/ctr", "—", fmt(adic(r,"26"),0), 0)}
+        ${expCell("Dólar", fmt(P.dolar), fmt(P.dolar), 0)}
+        ${expCell("II s/ CIF", pct0(P.ii), pct0(P.ii), 0)}
+        ${expCell("Qtd/ctr", fmt(r.q,0), fmt(r.q,0), 0)}
+        ${expCell("Fixos R$/ctr", fmt(fixos("25"),0), fmt(fixos("26"),0), fixos("26")/fixos("25")-1)}
+      </div>
+      <div class="src">${r.hawb ? `fonte: SW8/SWD 102·333 · processo ${r.hawb} · emissão ${r.dt} · código ${r.cod}`
+        : `sem processo EIC completo em 2026 — FOB da lista do time (26/08) e frete = mediana dos processos vivos (${fmt(FRETE_FALLBACK,0)})`}</div>
+    </td></tr>`;
+  }).join("");
+  document.querySelectorAll("#tbl tr.skurow").forEach(tr=>{
+    const open = ()=>{ const e=tr.nextElementSibling; const h=e.hidden; e.hidden=!h; tr.setAttribute("aria-expanded", h?"true":"false"); };
+    tr.addEventListener("click", open);
+    tr.addEventListener("keydown", ev=>{ if(ev.key==="Enter"||ev.key===" "){ev.preventDefault(); open();} });
+  });
+  const comProc = rows.filter(r=>r.frete!=null);
+  const freteMed = comProc.reduce((a,r)=>a+r.frete26,0)/comProc.length;
+  const dMed = rows.reduce((a,r)=>a+r.dP,0)/rows.length;
+  const nUp = rows.filter(r=>r.dP>0.001).length;
+  document.getElementById("tiles").innerHTML =
+    tile("Frete projetado 2025", fmt(P.freteProj,0)+' <span class="unit">US$/ctr</span>', "premissa da planilha da Diretoria")
+   +tile("Frete real médio (EIC)", fmt(freteMed,0)+' <span class="unit">US$/ctr</span>', `${comProc.length} SKUs com processo · faixa ${fmt(Math.min(...comProc.map(r=>r.frete26)),0)}–${fmt(Math.max(...comProc.map(r=>r.frete26)),0)}`)
+   +tile("Δ médio de custo 2026 vs 2025", `<span class="${dMed>0?'delta-up':'delta-down'}">${pct(dMed)}</span>`, `${nUp} de ${rows.length} SKUs encarecem na reposição`)
+   +tile("FOB: lista × EIC", "≤ 1,2%", "a lista do time está atual — a diferença entre modelos mora no frete");
+  document.getElementById("centralnote").innerHTML =
+    "* sem processo EIC completo em 2026 — frete = mediana dos processos vivos. † = itens com custo projetado no guia de bolso. "
+   +"O ATX 3150 usa o frete REAL do último processo (jan/26, US$ 1.617/ctr, pré-guerra): retrato honesto do EIC — nova compra virá mais cara.";
+  document.querySelector("#tbl2 tbody").innerHTML = EXTRAS.map(x=>{
+    const c26 = custoM(x.usd26, x.frete, x.q, "26", x), d = c26/x.guia-1;
+    return `<tr><td class="sku">${x.sku}<span class="code">${x.cod}</span></td>
+      <td class="num">${fmt(x.q,0)}</td><td class="num">${fmt(x.usd26)}</td><td class="num">${fmt(x.frete,0)}</td>
+      <td class="big">${fmt(c26)}</td><td class="num">${fmt(x.guia)} <span class="delta-zero">(${x.gnota})</span></td>
+      <td class="${d>0?'delta-up':'delta-down'}">${d>0?"▲":"▼"} ${pct(d)}</td><td>${badge(x.st)}</td></tr>`;
+  }).join("");
+  document.querySelector("#tbl3 tbody").innerHTML = SKUS.map((s,i)=>`<tr>
+    <td class="sku">${s.sku}</td>
+    <td><input style="width:88px;text-align:right" data-edit="q" data-i="${i}" value="${s.q}" inputmode="numeric" aria-label="Qtd por contêiner de ${s.sku}"></td>
+    <td><input style="width:88px;text-align:right" data-edit="usd25" data-i="${i}" value="${s.usd25}" inputmode="decimal" aria-label="FOB 2025 de ${s.sku}"></td>
+    <td class="num">${s.usd26==null?"—":fmt(s.usd26)}</td>
+    <td class="num">${s.frete==null?"—":fmt(s.frete,0)}</td>
+    <td class="num">${s.adic==null?'<span class="delta-zero">média '+fmt(P.adic333,0)+'</span>':fmt(s.adic,0)}</td>
+    <td class="mono" style="font-size:11.5px;color:var(--ink2)">${s.hawb??"—"} ${s.hawb?("· "+s.dt):""}</td></tr>`).join("");
+  document.querySelectorAll("#tbl3 input").forEach(inp=>inp.addEventListener("change", ()=>{
+    const s = SKUS[+inp.dataset.i]; const v = parseFloat(String(inp.value).replace(",","."));
+    if(isFinite(v) && v>0){ s[inp.dataset.edit==="q"?"q":"usd25"] = v; render(); } else { inp.value = s[inp.dataset.edit==="q"?"q":"usd25"]; }
+  }));
+  document.querySelector("#tbl4 tbody").innerHTML = SKUS.concat(EXTRAS.map(x=>({...x, usd25:null}))).map(s=>`<tr>
+    <td class="sku">${s.sku}</td><td class="mono">${s.cod}</td>
+    <td class="mono">${s.hawb??"—"}</td><td>${s.dt}</td>
+    <td class="num">${s.frete==null?"—":fmt(s.frete,0)+" US$/ctr"}</td><td>${badge(s.st,s.qeic)}</td></tr>`).join("");
+  renderSim(); renderComp(); renderFrete(); renderFreteMargem();
+}
+/* ===== SIMULADOR (custo + preço) ===== */
+const ALL = SKUS.concat(EXTRAS.map(x=>({...x, usd25:null, semLista:true})));
+/* estado da simulação: SKU corrente + campos editados pelo usuário (null = padrão) */
+/* Defaults por definição do Silvio: VPC inicia ZERO (toggle desligado E % zerado; 8,5% é o
+   típico do cadastro, digitar quando aplicável) · meta EBITDA 9% */
+const SIM = {i:0, qty:null, price:null, ipi:null, vpcOn:false, dmaq:"25", dmaqCustom:20,
+             vpcPct:0, pisS:1.65, cofS:7.6, icmsS:0, meta:9};
+const dmaqAtual = () => SIM.dmaq==="25" ? P.dmaq25 : (SIM.dmaq==="26" ? P.dmaqMC : SIM.dmaqCustom/100);
+const dmaqRotulo = () => SIM.dmaq==="25" ? " (Modelo 2025)" : (SIM.dmaq==="26" ? " (Modelo 2026)" : " (outro)");
+/* MC mínima por linha (definição Silvio): ÁUDIO = 30% · demais linhas = 20%.
+   Divisor da régua do guia é linear em MC (0,514/0,473/0,432 p/ 30/35/40) → divisor(m) = 0,760 − 0,82·m */
+const mcMin = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.30 : 0.20;
+const divMC = m => 0.760 - 0.82*m;
+const precoMC = (ct, m) => ct*1.01/divMC(m);
+const kv = (l,r,cls="") => `<div class="kv ${cls}"><span class="l">${l}</span><span class="r">${r}</span></div>`;
+const R$ = v => "R$ "+fmt(v);
+function renderSimOptions(){
+  const opts = ALL.map((s,i)=>`<option value="${i}">${s.sku}</option>`).join("");
+  document.getElementById("simsku").innerHTML = opts;
+  document.getElementById("compsku").innerHTML = opts;
+  document.getElementById("fretesku").innerHTML = opts;
+}
+/* SKU GLOBAL: selecionar em qualquer tela sincroniza as demais — a análise segue o mesmo produto */
+function setSku(i){
+  SIM.i = i; SIM.qty = null; SIM.price = null; SIM.ipi = null;
+  ["simsku","compsku","fretesku"].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el && el.options.length) el.value = String(i);
+  });
+  renderSim(); renderComp(); renderFrete(); renderFreteMargem();
+}
+function simCalc(){
+  const s = ALL[SIM.i];
+  const usd = s.usd26 ?? s.usd25, f = s.frete ?? FRETE_FALLBACK, q = s.q;
+  const fobR = usd*P.dolar;
+  const freteR = (f/q)*P.dolar;
+  const segR = (usd+f/q)*P.seg*P.dolar;
+  const cifR = fobR+freteR+segR;
+  const ii = cifR*P.ii;
+  const afrmm = f*P.afrmm*P.dolar/q;
+  const magic = usd*P.magic*P.dolar;
+  const courr = f*P.dolar*P.courr/q;
+  const fixosUn = fixos("26")/q;
+  const adicUn = adic(s,"26")/q;
+  const ct = cifR+ii+afrmm+magic+courr+fixosUn+adicUn; /* = custoM(...,"26") */
+  /* impostos recuperáveis da importação (SYD NCM 85198190) — crédito espelho, líquido 0 */
+  const ipiImp = (cifR+ii)*0.1625, pisImp = cifR*0.021, cofImp = cifR*0.0965;
+  const c25 = s.usd25!=null ? custoM(s.usd25, P.freteProj, q, "25", s) : null;
+  /* preço padrão = preço projetado p/ a MC MÍNIMA da linha (ÁUDIO 30% · demais 20%) */
+  const mcAlvo = mcMin(s);
+  const pisoDef = precoMC(ct, mcAlvo);
+  const price = SIM.price ?? Math.round(pisoDef*100)/100;
+  const ipiS = (SIM.ipi ?? 16.25)/100;
+  const vpc = SIM.vpcOn ? price*SIM.vpcPct/100 : 0;
+  const impS = price*(SIM.pisS+SIM.cofS+SIM.icmsS)/100;
+  const dmaqPct = dmaqAtual();
+  const dmaqV = price*dmaqPct;
+  const cv = ct+vpc+dmaqV;
+  const lucroV = price - impS - cv;
+  /* MC pela régua do guia de bolso — inversa exata do piso: MC = (0,760 − 1,01·CT/P) ÷ 0,82.
+     Auditável: digitar o piso MC30/35/40 devolve exatamente 30/35/40%. */
+  const mcGuia = (0.760 - 1.01*ct/price)/0.82;
+  const qty = SIM.qty ?? q;
+  return {s, usd, f, q, fobR, freteR, segR, cifR, ii, afrmm, magic, courr, fixosUn, adicUn, ct,
+          ipiImp, pisImp, cofImp, c25, price, pisoDef, mcAlvo, ipiS, vpc, impS, dmaqPct, dmaqV, cv,
+          lucroV, marg: lucroV/price, mcGuia, qty};
+}
+function donut(parts, total){
+  const Rr=52, C=2*Math.PI*Rr; let off=0;
+  const segs = parts.filter(p=>p.v>0.0001).map(p=>{
+    const frac = p.v/total, len = frac*C;
+    const el = `<circle r="${Rr}" cx="70" cy="70" fill="none" stroke="${p.c}" stroke-width="22"
+      stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"
+      transform="rotate(-90 70 70)"><title>${p.n}: ${pct0(frac)}</title></circle>`;
+    off += len; return el;
+  }).join("");
+  return `<svg width="140" height="140" viewBox="0 0 140 140" role="img" aria-label="Composição do preço">${segs}
+    <text x="70" y="66" text-anchor="middle" font-size="13" font-weight="700" fill="var(--ink)">100%</text>
+    <text x="70" y="82" text-anchor="middle" font-size="10" fill="var(--ink2)">do preço</text></svg>`;
+}
+function renderSim(){
+  const el = document.getElementById("simsku"); if(!el || !el.options.length) return;
+  const d = simCalc(); const s = d.s;
+  /* inputs refletem estado */
+  document.getElementById("simqty").value = fmt(d.qty,0);
+  document.getElementById("simprec").value = fmt(d.price);
+  document.getElementById("simipi").value = fmt((SIM.ipi ?? 16.25),2);
+  document.getElementById("sp-dolar").value = fmt(P.dolar,2);
+  document.getElementById("simprechint").textContent =
+    `padrão = preço projetado p/ MC ${Math.round(d.mcAlvo*100)}% (mínimo da linha ${ (d.s.linha||"ÁUDIO") }): R$ ${fmt(d.pisoDef)}`;
+  document.getElementById("simvpclbl").textContent = SIM.vpcOn ? "sim" : "não";
+  /* KPIs */
+  const kcol = (c)=>`style="--kc:${c}"`;
+  const Rk = v => `<span class="cur">R$</span><span class="num">${fmt(v)}</span>`;
+  document.getElementById("simkpis").innerHTML =
+    `<div class="kpi" ${kcol("var(--ink3)")}><div class="k">Custo Produto (CT)</div><div class="v">${Rk(d.ct)}<span class="pc">${pct0(d.ct/d.price)}</span></div><div class="d">% do preço s/ IPI</div></div>`
+   +`<div class="kpi" ${kcol("var(--amber)")}><div class="k">Custo Venda (CV)</div><div class="v">${Rk(d.cv)}<span class="pc">${pct0(d.cv/d.price)}</span></div><div class="d">CT + VPC + desp. máquina · % do preço</div></div>`
+   +`<div class="kpi" ${kcol("var(--brand)")}><div class="k">Preço venda s/ IPI</div><div class="v">${Rk(d.price)}<span class="pc">100%</span></div><div class="d">editável — ou arraste a barra de margem</div></div>`
+   +`<div class="kpi" ${kcol("var(--brand)")}><div class="k">Preço venda c/ IPI</div><div class="v">${Rk(d.price*(1+d.ipiS))}<span class="pc">+${fmt(SIM.ipi ?? 16.25,2)}%</span></div><div class="d">IPI de saída</div></div>`
+   +`<div class="kpi" ${kcol(d.mcGuia>=d.mcAlvo?"var(--ok)":"var(--up)")}><div class="k">Margem Ctb. Bruta (MC)</div><div class="v"><span style="color:${d.mcGuia>=d.mcAlvo?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.mcGuia,-9.99))}</span><span class="pc">mín ${Math.round(d.mcAlvo*100)}%</span></div><div class="d">régua do guia de bolso — auditável</div></div>`
+   +`<div class="kpi" ${kcol(d.marg>=SIM.meta/100?"var(--ok)":"var(--up)")}><div class="k">EBITDA</div><div class="v"><span style="color:${d.marg>=SIM.meta/100?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.marg,-9.99))}</span><span class="pc">${(d.marg*100-SIM.meta)>=0?"+":""}${fmt(d.marg*100-SIM.meta,1)} p.p.</span></div><div class="d">gerencial (desconta desp. máquina) · meta ${fmt(SIM.meta,1)}%</div></div>`;
+  /* ① formação do custo — grupos como no excel */
+  document.getElementById("simcusto").innerHTML =
+    `<div class="grp"><h4>Importação (por unidade)</h4>
+      ${kv("FOB", R$(d.fobR))}
+      ${kv("Frete marítimo (real EIC)", R$(d.freteR))}
+      ${kv("Seguro / financeiro", R$(d.segR))}
+      ${kv("= CIF", R$(d.cifR), "sub")}
+      ${kv("AFRMM "+pct0(P.afrmm)+" s/ frete", R$(d.afrmm))}
+      ${kv("Magic "+pct0(P.magic)+" s/ FOB", R$(d.magic))}
+      ${kv("Courrier / EBS", R$(d.courr))}
+      ${kv("Fixos que agregam ÷ qtd", R$(d.fixosUn))}
+      ${kv("Adicional de frete (333)", R$(d.adicUn))}
+      ${kv("TOTAL IMPORTAÇÃO (ex-II)", R$(d.ct-d.ii), "tot")}</div>
+    <div class="grp"><h4>Impostos da importação</h4>
+      ${kv("I.I. "+pct0(P.ii)+" s/ CIF", R$(d.ii))}
+      ${kv("IPI 16,25%", R$(d.ipiImp))}
+      ${kv("PIS 2,10%", R$(d.pisImp))}
+      ${kv("COFINS 9,65%", R$(d.cofImp))}
+      <h4>Créditos (recuperáveis)</h4>
+      ${kv("(−) IPI", `<span class="neg">−${fmt(d.ipiImp)}</span>`)}
+      ${kv("(−) PIS", `<span class="neg">−${fmt(d.pisImp)}</span>`)}
+      ${kv("(−) COFINS", `<span class="neg">−${fmt(d.cofImp)}</span>`)}
+      ${kv("IMPOSTOS LÍQUIDOS (só II fica)", R$(d.ii), "tot")}</div>
+    <div class="grp"><h4>Resumo do custo</h4>
+      ${kv("Total importação (ex-II)", R$(d.ct-d.ii))}
+      ${kv("I.I. (não recuperável)", R$(d.ii))}
+      ${kv("Impostos recuperáveis (líquido)", "R$ 0,00")}
+      ${kv("CUSTO TOTAL PRODUTO (CT)", R$(d.ct), "tot")}
+      ${ADM && d.c25!=null ? kv("Modelo 2025 (premissas planilha)", `${R$(d.c25)} · <span class="${d.ct>d.c25?'delta-up':'delta-down'}">${pct(d.ct/d.c25-1)}</span>`, "hl") : ""}</div>`;
+  document.getElementById("simfonte").innerHTML = s.hawb
+    ? `<span>fonte: SW8/SWD 102·333 · ${s.hawb} · ${s.dt}</span><span>qtd/ctr ${fmt(s.q,0)}${s.qeic?" (EIC, ctr dedicado)":" (lista do time)"}</span><span>${s.adic!=null?"333 real do processo":"333 = média 2026"}</span>`
+    : `<span>sem processo EIC completo em 2026 — FOB da lista · frete = mediana dos vivos (${fmt(FRETE_FALLBACK,0)})</span>`;
+  /* ② formação do preço */
+  document.getElementById("simpreco").innerHTML =
+    kv("Preço de venda s/ IPI", R$(d.price))
+   +kv("IPI de saída "+fmt(SIM.ipi ?? 16.25,2)+"%", R$(d.price*d.ipiS))
+   +kv("Preço de venda c/ IPI", R$(d.price*(1+d.ipiS)), "sub")
+   +kv("(−) Impostos de saída (PIS "+fmt(SIM.pisS,2)+"% + COFINS "+fmt(SIM.cofS,2)+"% + ICMS "+fmt(SIM.icmsS,2)+"%)", R$(d.impS))
+   +kv("(−) VPC "+(SIM.vpcOn? fmt(SIM.vpcPct,2)+"%":"(desligado)"), R$(d.vpc))
+   +kv("(−) Despesa da máquina "+pct0(d.dmaqPct)+dmaqRotulo(), R$(d.dmaqV))
+   +kv("(−) Custo do produto (CT)", R$(d.ct))
+   +kv("CUSTO DA VENDA (CV = CT + VPC + desp. máquina)", R$(d.cv), "tot")
+   +kv("LUCRO · EBITDA", `${R$(d.lucroV)} · ${pct0(d.marg)}`, d.lucroV>=0?"ok":"hl")
+   +kv("Margem Ctb. Bruta (MC) pela régua do guia (a este preço, com o custo vigente)", pct0(d.mcGuia), d.mcGuia>=d.mcAlvo?"ok":"hl");
+  /* donut composição do preço */
+  const parts = [
+    {n:"Custo produto (CT)", v:d.ct, c:"var(--ink3)"},
+    {n:"Impostos de saída", v:d.impS, c:"var(--amber)"},
+    {n:"VPC", v:d.vpc, c:"var(--down)"},
+    {n:"Despesa da máquina", v:d.dmaqV, c:"var(--line2)"},
+    {n:"Lucro", v:Math.max(d.lucroV,0), c:"var(--ok)"},
+  ];
+  document.getElementById("simdonut").innerHTML = donut(parts, d.price);
+  document.getElementById("simdleg").innerHTML = parts.map(p=>
+    `<div class="li"><span class="sw" style="background:${p.c}"></span>${p.n}<span class="pc">${pct0(p.v/d.price)}</span></div>`).join("")
+    + (d.lucroV<0?`<div class="li" style="color:var(--up)">⚠ prejuízo de ${fmt(-d.lucroV)}/un neste preço</div>`:"");
+  /* ③ análise (× quantidade) */
+  const chinaUn = d.fobR+d.magic, impUn = d.freteR+d.segR+d.ii+d.afrmm+d.courr+d.adicUn, brUn = d.fixosUn;
+  const rec = d.price*d.qty;
+  document.getElementById("simanalise").innerHTML =
+    tile("Receita s/ IPI", R$(rec)+' <span class="unit">100%</span>', fmt(d.qty,0)+" un × "+fmt(d.price))
+   +tile("Lucro da simulação", `<span style="color:${d.lucroV>=0?'var(--ok)':'var(--up)'}">${R$(d.lucroV*d.qty)}</span> <span class="unit">${pct0(d.marg)}</span>`, "EBITDA % · após impostos, VPC e desp. máquina")
+   +tile("Custo China (FOB+Magic)", R$(chinaUn*d.qty)+` <span class="unit">${pct0(chinaUn/d.ct)}</span>`, "% do CT · "+fmt(chinaUn)+" /un")
+   +tile("Custo importação", R$(impUn*d.qty)+` <span class="unit">${pct0(impUn/d.ct)}</span>`, "% do CT · frete + seguro + II + AFRMM + courrier + 333")
+   +tile("Custo Brasil (fixos)", R$(brUn*d.qty)+` <span class="unit">${pct0(brUn/d.ct)}</span>`, "% do CT · transporte, armazenagem, capatazia…")
+   +tile("VPC total", R$(d.vpc*d.qty)+` <span class="unit">${pct0(d.vpc/d.price)}</span>`, SIM.vpcOn? "% do preço" : "desligado");
+  /* gauge margem × meta — ARRASTÁVEL: mover a barra fixa a margem e recalcula o PREÇO */
+  const mPct = Math.max(0, Math.min(d.marg*100, 30)), metaPct = Math.min(SIM.meta, 30);
+  const diff = d.marg*100 - SIM.meta;
+  const gcol = diff>=0?'var(--ok)':'var(--up)';
+  document.getElementById("simgauge").innerHTML = `
+    <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px">
+      <div><div class="k" style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink2)">EBITDA — arraste para simular (recalcula o preço)</div>
+        <div style="font:700 26px 'Archivo'; color:${gcol}" id="gm-val">${pct0(d.marg)}</div></div>
+      <div style="text-align:right"><div class="small">META ${fmt(SIM.meta,1)}%</div>
+        <div style="font-weight:700; color:${gcol}" id="gm-diff">${diff>=0?"+":""}${fmt(diff,1)} p.p.</div>
+        <div class="small">preço resultante: <b id="gm-price">${R$(d.price)}</b></div></div>
+    </div>
+    <input type="range" class="mslider" id="simslider" min="0" max="30" step="0.1" value="${mPct.toFixed(1)}"
+      style="--gpos:${(mPct/30*100).toFixed(1)}%; --gfill:${gcol}" aria-label="EBITDA alvo — arraste para recalcular o preço">
+    <div class="gbar-meta"><span class="tick" style="left:${(metaPct/30*100).toFixed(1)}%"></span>
+      <span class="small" style="position:absolute; left:0">0%</span><span class="small" style="position:absolute; right:0">30%</span></div>`;
+  const sl = document.getElementById("simslider");
+  const precoDaMargem = m => {
+    const t = (SIM.pisS+SIM.cofS+SIM.icmsS)/100, vpcr = SIM.vpcOn? SIM.vpcPct/100:0;
+    const den = 1 - t - vpcr - dmaqAtual() - m;
+    return den > 0.03 ? Math.round((d.ct/den)*100)/100 : null;
+  };
+  sl.addEventListener("input", ev=>{ /* durante o arrasto: só rótulos, sem recriar o slider */
+    const m = (+ev.target.value)/100, p = precoDaMargem(m);
+    if(p==null) return;
+    SIM.price = p;
+    const c = (m*100-SIM.meta)>=0 ? "var(--ok)" : "var(--up)";
+    ev.target.style.setProperty("--gpos", (m/0.30*100).toFixed(1)+"%");
+    ev.target.style.setProperty("--gfill", c);
+    document.getElementById("gm-val").textContent = pct0(m); document.getElementById("gm-val").style.color = c;
+    document.getElementById("gm-diff").textContent = ((m*100-SIM.meta)>=0?"+":"")+fmt(m*100-SIM.meta,1)+" p.p.";
+    document.getElementById("gm-diff").style.color = c;
+    document.getElementById("gm-price").textContent = R$(p);
+  });
+  sl.addEventListener("change", ()=>renderSim()); /* ao soltar: recalcula tudo */
+  /* pisos (só ADM) */
+  document.getElementById("simpisos").innerHTML = ADM ? `
+    <h2>Pisos de preço com o custo vigente (só ADM)</h2>
+    <div class="tiles">${tile("Piso MC 30%", R$(d.ct*1.01/0.514), "régua do guia de bolso")
+      +tile("Piso MC 35%", R$(d.ct*1.01/0.473), "")
+      +tile("Piso MC 40%", R$(d.ct*1.01/0.432), "")}</div>` : "";
+}
+/* fiação dos campos do simulador */
+function simNum(id, fn){
+  document.getElementById(id).addEventListener("change", ev=>{
+    const v = parseFloat(String(ev.target.value).replace(/\./g,"").replace(",","."));
+    if(isFinite(v)){ fn(v); } renderSim(); renderFreteMargem();
+  });
+}
+function wireSim(){
+  ["simsku","compsku","fretesku"].forEach(id=>
+    document.getElementById(id).addEventListener("change", ev=>setSku(parseInt(ev.target.value,10))));
+  simNum("simqty", v=>{ if(v>0) SIM.qty=v; });
+  simNum("simprec", v=>{ if(v>0) SIM.price=v; });
+  simNum("simipi", v=>{ if(v>=0) SIM.ipi=v; });
+  document.getElementById("simvpc").addEventListener("change", ev=>{ SIM.vpcOn=ev.target.checked; renderSim(); renderFreteMargem(); });
+  document.getElementById("sp-dmaq").addEventListener("change", ev=>{
+    SIM.dmaq=ev.target.value;
+    document.getElementById("fld-dmaqc").hidden = SIM.dmaq!=="custom";
+    renderSim(); renderFreteMargem();
+  });
+  document.getElementById("sp-dmaqc").value = fmt(SIM.dmaqCustom,2);
+  simNum("sp-dmaqc", v=>{ if(v>=0) SIM.dmaqCustom=v; });
+  /* dólar: parâmetro global — editar aqui recalcula TODAS as telas */
+  document.getElementById("sp-dolar").value = fmt(P.dolar,2);
+  document.getElementById("sp-dolar").addEventListener("change", ev=>{
+    const v = parseFloat(String(ev.target.value).replace(/\./g,"").replace(",","."));
+    if(isFinite(v) && v>0){ P.dolar=v; renderParams(); render(); } else { ev.target.value = fmt(P.dolar,2); }
+  });
+  [["sp-vpc","vpcPct"],["sp-pis","pisS"],["sp-cof","cofS"],["sp-icms","icmsS"],["sp-meta","meta"]].forEach(([id,k])=>{
+    document.getElementById(id).value = fmt(SIM[k],2);
+    simNum(id, v=>{ if(v>=0) SIM[k]=v; });
+  });
+}
+/* ===== VISÃO COMPARATIVA (cópia fiel da planilha 2025 × modelo 2026, por contêiner) ===== */
+function renderComp(){
+  const sel = document.getElementById("compsku"); if(!sel || !sel.options.length) return;
+  const s = ALL[+sel.value || 0];
+  const q = s.q, u25 = s.usd25 ?? s.usd26, u26 = s.usd26 ?? s.usd25;
+  const f25 = P.freteProj, f26 = s.frete ?? FRETE_FALLBACK;
+  const D = P.dolar, a26 = adic(s,"26");
+  /* helpers por contêiner */
+  const fob = u => u*q;                       /* US$ */
+  const seg = (u,f) => (fob(u)+f)*P.seg;      /* US$ */
+  const cifU = (u,f) => fob(u)+f+seg(u,f);    /* US$ */
+  const cifR = (u,f) => cifU(u,f)*D;          /* R$ */
+  const ii  = (u,f) => cifR(u,f)*P.ii;
+  const ipiI = (u,f) => (cifR(u,f)+ii(u,f))*0.1625, pisI = (u,f)=>cifR(u,f)*0.021, cofI=(u,f)=>cifR(u,f)*0.0965;
+  const rows = [
+    ["FOB (qtd × US$)", fob(u25), fob(u26), "US$"],
+    ["Frete marítimo — projetado × REAL EIC", f25, f26, "US$"],
+    ["Seguro / financeiro "+pct0(P.seg), seg(u25,f25), seg(u26,f26), "US$"],
+    ["= CIF", cifU(u25,f25), cifU(u26,f26), "US$", "sec"],
+    ["Taxa dólar", D, D, "x"],
+    ["= CIF em R$", cifR(u25,f25), cifR(u26,f26), "R$", "sec"],
+    ["Imposto de Importação "+pct0(P.ii)+" s/ CIF", ii(u25,f25), ii(u26,f26), "R$"],
+    ["IPI importação 16,25% (creditado)", ipiI(u25,f25), ipiI(u26,f26), "R$"],
+    ["PIS importação 2,10% (creditado)", pisI(u25,f25), pisI(u26,f26), "R$"],
+    ["COFINS importação 9,65% (creditado)", cofI(u25,f25), cofI(u26,f26), "R$"],
+    ["(−) Créditos IPI/PIS/COFINS", -(ipiI(u25,f25)+pisI(u25,f25)+cofI(u25,f25)), -(ipiI(u26,f26)+pisI(u26,f26)+cofI(u26,f26)), "R$"],
+    ["AFRMM "+pct0(P.afrmm)+" s/ frete", f25*P.afrmm*D, f26*P.afrmm*D, "R$"],
+    ["Magic "+pct0(P.magic)+" s/ FOB", fob(u25)*P.magic*D, fob(u26)*P.magic*D, "R$"],
+    ["Courrier/IOF + EBS "+pct0(P.courr)+" s/ frete R$", f25*D*P.courr, f26*D*P.courr, "R$"],
+    ["Transporte porto → Amvox", P.transp, P.transp, "R$"],
+    ["Despachante", P.despacho, P.despacho, "R$"],
+    ["Taxa Siscomex — 2026 NÃO agrega custo", P.siscomex, 0, "R$"],
+    ["Taxa liberação BL", P.bl, P.bl, "R$"],
+    ["Armazenagem portuária", P.armaz, P.armaz, "R$"],
+    ["Capatazia", P.capataz, P.capataz, "R$"],
+    ["Desconsolidação", P.descons, P.descons, "R$"],
+    ["Adicional de frete (333) — linha esquecida no 2025", 0, a26, "R$"],
+    ["Rateio INMETRO/ANATEL", 0, 0, "R$"],
+  ];
+  const c25 = s.usd25!=null ? custoM(u25, f25, q, "25", s) : custoM(u26, f25, q, "25", s);
+  const c26 = custoM(u26, f26, q, "26", s);
+  rows.push(["CUSTO TOTAL DO CONTÊINER", c25*q, c26*q, "R$", "tot"]);
+  rows.push(["÷ Qtd/ctr "+fmt(q,0)+" = CUSTO UNITÁRIO", c25, c26, "R$", "tot"]);
+  /* delta e destaque da maior NATUREZA (ignora subtotais/totais; linhas em US$ pesadas ×dólar) */
+  const pesoR = ([n,a,b,un,cls]) => (cls || a===b) ? 0 : Math.abs(b-a)*(un==="US$"?D:1);
+  const deltas = rows.map(pesoR);
+  const maxAbs = Math.max(...deltas), iMax = deltas.indexOf(maxAbs);
+  document.querySelector("#comptbl tbody").innerHTML = rows.map(([n,a,b,un,cls],idx)=>{
+    const d = (a!==0 && a!=null) ? b/a-1 : (b!==0 ? null : 0);
+    const dTxt = a===b ? '<span class="delta-zero">=</span>'
+      : d==null ? '<span class="delta-up">novo no 2026</span>'
+      : `<span class="${d>0?'delta-up':'delta-down'}">${d>0?"▲":"▼"} ${pct(d)}</span>`;
+    const w = maxAbs>0 ? deltas[idx]/maxAbs*120 : 0;
+    const bar = (cls||a===b) ? "" :
+      `<span class="hbar" style="width:${w.toFixed(0)}px; background:${b>a?'var(--up)':'var(--down)'}"></span>`;
+    return `<tr class="${cls||""} ${idx===iMax?"maxdelta":""}">
+      <td>${n}${idx===iMax?' <span class="badge b-amber">maior delta</span>':""}</td>
+      <td class="num">${un==="x"?fmt(a):((un==="US$"?"US$ ":"R$ ")+fmt(a))}</td>
+      <td class="num">${un==="x"?fmt(b):((un==="US$"?"US$ ":"R$ ")+fmt(b))}</td>
+      <td>${dTxt}</td><td style="text-align:left">${bar}</td></tr>`;
+  }).join("");
+  document.getElementById("compfonte").textContent = s.hawb
+    ? `2026 automático do EIC: processo ${s.hawb} (${s.dt})${s.usd25==null?" · SKU fora da planilha 2025 (coluna 2025 usa o FOB vivo com as premissas antigas)":""}`
+    : "sem processo EIC completo — 2026 usa FOB da lista e frete pela mediana dos vivos";
+  /* ===== VEREDITO EXECUTIVO — decompõe o delta projetado × realizado por motor ===== */
+  const dTot = c26 - c25;
+  const dFrete = custoM(u25, f26, q, "25", s) - c25;                 /* só o frete muda */
+  const dFob   = custoM(u26, f25, q, "25", s) - c25;                 /* só o FOB muda */
+  const dRegra = (a26 - P.siscomex)/q;                               /* 333 entra · Siscomex sai */
+  const dResto = dTot - dFrete - dFob - dRegra;                      /* interações (miúdo) */
+  const explFrete = f26>f25
+    ? `O contêiner que a planilha projetava a US$ ${fmt(f25,0)} está chegando a US$ ${fmt(f26,0)} no embarque real — e cada uma das ${fmt(q,0)} unidades do contêiner paga um pedaço dessa alta.`
+    : `O embarque real deste SKU saiu a US$ ${fmt(f26,0)} por contêiner, abaixo do projetado de US$ ${fmt(f25,0)} — cada unidade fica com um pedaço dessa economia.`;
+  const explFob = Math.abs(u26/u25-1)<0.02
+    ? `O preço do produto na fábrica (FOB) praticamente não mudou (US$ ${fmt(u25)} → ${fmt(u26)}). Não é ele que explica a diferença.`
+    : `O preço do produto na fábrica mudou: US$ ${fmt(u25)} na lista → US$ ${fmt(u26)} no processo real.`;
+  const explRegra = `O modelo novo reconhece uma despesa que acontece de verdade mas não tinha linha na planilha antiga (adicional de frete, R$ ${fmt(a26,0)} por contêiner) e tira do custo uma taxa que vai direto para despesa (Siscomex). Só entra no custo o que agrega custo ao produto.`;
+  const motores = [
+    {n:"Frete marítimo", v:dFrete, expl:explFrete},
+    {n:"Preço do produto (FOB)", v:dFob, expl:explFob},
+    {n:"Regra do que vira custo", v:dRegra, expl:explRegra},
+  ].sort((x,y)=>Math.abs(y.v)-Math.abs(x.v));
+  const somaAbs = motores.reduce((a,m)=>a+Math.abs(m.v),0) || 1;
+  const steps = motores.map((m,i)=>{
+    const share = Math.abs(m.v)/somaAbs;
+    const quase = Math.abs(m.v)<0.5;
+    return `<div class="vstep"><div class="rank">${i+1}</div><div>
+      <div class="tt"><b>${m.n}</b>
+        <span class="val ${quase?'delta-zero':(m.v>0?'delta-up':'delta-down')}">${quase?"≈ R$ 0,00":(m.v>0?"+":"−")+"R$ "+fmt(Math.abs(m.v))+" por unidade"}</span>
+        ${quase?"":`<span class="shr">${Math.round(share*100)}% da diferença</span>`}</div>
+      <div class="vbarw"><div class="vbar" style="width:${Math.max(share*100,2).toFixed(0)}%; background:${quase?'var(--line2)':(m.v>0?'var(--up)':'var(--down)')}"></div></div>
+      <div class="expl">${m.expl}</div></div></div>`;
+  }).join("");
+  /* sensibilidade ao dólar: tudo exceto fixos/adicional em R$ escala com a taxa */
+  const sensDolar = Math.abs((c26 - (fixos("26")+a26)/q)/P.dolar*0.10);
+  const sobe = dTot>=0;
+  document.getElementById("compveredito").innerHTML =
+    `<div class="ph" style="margin-bottom:2px"><span class="n">★</span><span class="t">Veredito executivo — ${s.sku}</span></div>
+     <div class="vhead">
+       <div class="box"><div class="l">Custo projetado (planilha 2025)</div><div class="n">R$ ${fmt(c25)}</div></div>
+       <div class="seta">→</div>
+       <div class="box"><div class="l">Custo realizado (EIC 2026)</div><div class="n">R$ ${fmt(c26)}</div></div>
+       <div class="vchip ${sobe?'up':'down'}">${sobe?"▲":"▼"} ${pct(c26/c25-1)} · ${sobe?"+":"−"}R$ ${fmt(Math.abs(dTot))}/un</div>
+     </div>
+     <div class="vq">De onde vem essa diferença de R$ ${fmt(Math.abs(dTot))} por unidade?</div>
+     ${steps}
+     ${Math.abs(dResto)>1?`<div class="expl small" style="margin-top:8px; color:var(--ink3)">Efeitos combinados entre as variáveis completam a conta: ${dResto>=0?"+":"−"}R$ ${fmt(Math.abs(dResto))}/un.</div>`:""}
+     <div class="vdolar"><b>E o dólar?</b> ${P.dolar===5.75
+       ? `Nesta comparação ele <b>não pesa</b> — os dois modelos usam a mesma taxa fixa de 5,75, por definição da Diretoria, justamente para tirar uma variável da conta. Mas vale saber o tamanho dele: cada <b>10 centavos</b> a mais na taxa encarecem este produto em <b>R$ ${fmt(sensDolar)} por unidade</b> (${pct0(sensDolar/c26)}). Dólar e frete são as duas variáveis que mais mudam um custo entre a projeção e a chegada.`
+       : `Atenção: a taxa está <b>simulada em ${fmt(P.dolar)}</b> nos dois modelos (o padrão oficial é 5,75). Cada 10 centavos na taxa movem este custo em R$ ${fmt(sensDolar)} por unidade.`}
+       <div style="margin-top:7px; font-size:11.5px; color:var(--ink3)">${s.tx
+         ? `Nota (só para análise): dólar fixo 5,75 × dólar do último processo deste SKU (${s.dt}): ${fmt(s.tx,4)} — o fixo está ${pct(5.75/s.tx-1)} acima do praticado.`
+         : `Nota (só para análise): dólar fixo 5,75 × dólar médio de mercado 3m (SM2, leitura 24/08): 5,1215 — o fixo está +12,3% acima; a taxa do processo deste SKU entra no próximo refresh.`}</div></div>
+     ${s.st==="antigo"?`<div class="vaviso">⚠️ O frete real deste SKU vem de um processo com mais de 90 dias — a próxima compra tende a vir no regime de frete atual, mais caro.</div>`:""}
+     ${s.st==="sem"?`<div class="vaviso">⚠️ Este SKU ainda não tem processo de importação completo em 2026 — o frete usado é a mediana dos processos recentes; confirmar no próximo embarque.</div>`:""}`;
+}
+/* ===== FRETE MÉDIO MENSAL × MARGEM A PREÇO FIXO ===== */
+function renderFreteMargem(){
+  const el = document.getElementById("fmchart"); if(!el) return;
+  const selFm = document.getElementById("fretesku");
+  const s = (selFm.options.length && selFm.value !== "") ? ALL[parseInt(selFm.value,10)] : SKUS[1];
+  const usd = s.usd26 ?? s.usd25, q = s.q;
+  const byM = {};
+  FRETES.forEach(([dt,f])=>{ const k=dt.slice(0,6); (byM[k]=byM[k]||[]).push(f); });
+  const months = Object.keys(byM).sort();
+  const MN = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  /* preço fixo de tabela: preço projetado p/ a MC mínima da linha, no frete projetado */
+  const ct0 = custoM(usd, P.freteProj, q, "26", s);
+  const priceRef = precoMC(ct0, mcMin(s));
+  const t = (SIM.pisS+SIM.cofS+SIM.icmsS)/100, vpcr = SIM.vpcOn? SIM.vpcPct/100:0, dm = dmaqAtual();
+  const margs = months.map(k=>{
+    const fm = byM[k].reduce((a,b)=>a+b,0)/byM[k].length;
+    const ct = custoM(usd, fm, q, "26", s);
+    return {k, fm, m: (priceRef*(1-t-vpcr-dm) - ct)/priceRef};
+  });
+  const W=920, H=300, mL=64, mR=16, mT=20, mB=40, pw=W-mL-mR, ph=H-mT-mB;
+  const lo = Math.min(...margs.map(x=>x.m), 0)-0.02, hi = Math.max(...margs.map(x=>x.m))+0.02;
+  const Y = v => mT + ph*(1-(v-lo)/(hi-lo));
+  const bw = pw/months.length*0.62;
+  let grid="";
+  for(let v=Math.ceil(lo*10)/10; v<=hi; v+=0.05){
+    grid += `<line x1="${mL}" y1="${Y(v)}" x2="${W-mR}" y2="${Y(v)}" stroke="var(--line)"/>
+      <text x="${mL-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--ink2)">${Math.round(v*100)}%</text>`;
+  }
+  const bars = margs.map((x,i)=>{
+    const cx = mL + pw*(i+0.5)/months.length;
+    const y0 = Y(0), y1 = Y(x.m);
+    const pos = x.m>=0;
+    return `<rect x="${(cx-bw/2).toFixed(1)}" y="${Math.min(y0,y1).toFixed(1)}" width="${bw.toFixed(1)}"
+      height="${Math.max(Math.abs(y0-y1),1).toFixed(1)}" rx="3" fill="${pos?'var(--ok)':'var(--up)'}">
+      <title>${MN[+x.k.slice(4,6)-1]}/${x.k.slice(2,4)} — frete médio US$ ${Math.round(x.fm).toLocaleString("pt-BR")}/ctr → margem ${pct0(x.m)}</title></rect>
+      <text x="${cx.toFixed(1)}" y="${(pos?y1-5:y1+13).toFixed(1)}" text-anchor="middle" font-size="10.5" font-weight="600"
+        fill="${pos?'var(--ok)':'var(--up)'}">${Math.round(x.m*100)}%</text>
+      <text x="${cx.toFixed(1)}" y="${H-mB+16}" text-anchor="middle" font-size="10.5" fill="var(--ink2)">${MN[+x.k.slice(4,6)-1]}/${x.k.slice(2,4)}</text>`;
+  }).join("");
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="EBITDA mês a mês com preço fixo, variando só o frete médio real">
+    ${grid}
+    <line x1="${mL}" y1="${Y(0)}" x2="${W-mR}" y2="${Y(0)}" stroke="var(--ink2)" stroke-width="1.6"/>
+    ${bars}
+    <text x="${mL}" y="${mT-6}" font-size="11" fill="var(--ink2)">EBITDA ao preço fixo de ${R$(priceRef)} (MC ${Math.round(mcMin(s)*100)}% @frete ${fmt(P.freteProj,0)})</text>
+  </svg>`;
+  document.getElementById("freteskuhint").textContent =
+    `preço fixo de referência: ${R$(priceRef)} · desp. máquina ${pct0(dmaqAtual())}${dmaqRotulo()} · VPC ${SIM.vpcOn?fmt(SIM.vpcPct,2)+"%":"off"}`;
+}
+/* ===== GRÁFICO DO FRETE ===== */
+function renderFrete(){
+  const el = document.getElementById("fchart"); if(!el) return;
+  const W=920, H=380, mL=64, mR=16, mT=18, mB=44;
+  const pw = W-mL-mR, ph = H-mT-mB;
+  const d0 = new Date(2025,6,1), d1 = new Date(2026,9,1);
+  const X = t => mL + pw * (t - d0) / (d1 - d0);
+  const ymax = 10000, Y = v => mT + ph * (1 - v/ymax);
+  const pdate = s => new Date(+s.slice(0,4), +s.slice(4,6)-1, +s.slice(6,8));
+  const pts = FRETES.map(([d,f])=>({t:pdate(d), f, d}));
+  const byM = {};
+  pts.forEach(p=>{ const k=p.d.slice(0,6); (byM[k]=byM[k]||[]).push(p.f); });
+  const months = Object.keys(byM).sort();
+  const MN = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
+  const mline = months.map(k=>{
+    const t = new Date(+k.slice(0,4), +k.slice(4,6)-1, 15);
+    return {x:X(t), y:Y(byM[k].reduce((a,b)=>a+b,0)/byM[k].length), k};
+  });
+  let grid="", xlab="";
+  for(let v=0; v<=ymax; v+=2500){
+    grid += `<line x1="${mL}" y1="${Y(v)}" x2="${W-mR}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/>
+      <text x="${mL-8}" y="${Y(v)+4}" text-anchor="end" font-size="11" fill="var(--ink2)">${v.toLocaleString("pt-BR")}</text>`;
+  }
+  for(let m=0; m<15; m++){
+    const t = new Date(2025,6+m,1);
+    if(t>=d1) break;
+    if(m%2===0) xlab += `<text x="${X(new Date(t.getFullYear(),t.getMonth(),15))}" y="${H-mB+18}" text-anchor="middle" font-size="11" fill="var(--ink2)">${MN[t.getMonth()]}/${String(t.getFullYear()).slice(2)}</text>`;
+  }
+  const dots = pts.map(p=>`<circle cx="${X(p.t).toFixed(1)}" cy="${Y(p.f).toFixed(1)}" r="3.4" fill="var(--ink3)" fill-opacity=".5">
+      <title>${p.d.slice(6,8)}/${p.d.slice(4,6)}/${p.d.slice(2,4)} — US$ ${p.f.toLocaleString("pt-BR",{maximumFractionDigits:0})}/ctr</title></circle>`).join("");
+  const path = mline.map((p,i)=>(i?"L":"M")+p.x.toFixed(1)+","+p.y.toFixed(1)).join(" ");
+  const mdots = mline.map(p=>`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.2" fill="var(--brand)" stroke="var(--surface)" stroke-width="2">
+      <title>média ${MN[+p.k.slice(4,6)-1]}/${p.k.slice(2,4)}: US$ ${Math.round(byM[p.k].reduce((a,b)=>a+b,0)/byM[p.k].length).toLocaleString("pt-BR")}/ctr (${byM[p.k].length} proc.)</title></circle>`).join("");
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Frete real por processo × frete projetado de 5.000 dólares por contêiner">
+    ${grid}${xlab}
+    <line x1="${mL}" y1="${Y(P.freteProj)}" x2="${W-mR}" y2="${Y(P.freteProj)}" stroke="var(--ink2)" stroke-width="2" stroke-dasharray="7 5"/>
+    <text x="${W-mR-4}" y="${Y(P.freteProj)-7}" text-anchor="end" font-size="11.5" font-weight="600" fill="var(--ink2)">projetado ${fmt(P.freteProj,0)}</text>
+    ${dots}
+    <path d="${path}" fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linejoin="round"/>
+    ${mdots}
+    <text x="${mL}" y="${mT-4}" font-size="11" fill="var(--ink2)">US$/contêiner</text>
+  </svg>`;
+  const ult = byM["202608"] ? Math.round(byM["202608"].reduce((a,b)=>a+b,0)/byM["202608"].length) : null;
+  const pre = byM["202601"] ? Math.round(byM["202601"].reduce((a,b)=>a+b,0)/byM["202601"].length) : null;
+  /* card de impacto segue o SKU do seletor da aba */
+  const selF = document.getElementById("fretesku");
+  const sSel = (selF && selF.options.length && selF.value !== "") ? ALL[parseInt(selF.value,10)] : SKUS[1];
+  const usdSel = sSel.usd26 ?? sSel.usd25, freteSel = sSel.frete ?? FRETE_FALLBACK;
+  const cProj = custoM(usdSel, P.freteProj, sSel.q, "26", sSel);
+  const cReal = custoM(usdSel, freteSel, sSel.q, "26", sSel);
+  const dImp = cReal/cProj-1;
+  document.getElementById("fretetiles").innerHTML =
+    tile("Média jan/26 (pré-guerra)", (pre? pre.toLocaleString("pt-BR") : "—")+' <span class="unit">US$/ctr</span>', "frete real abaixo do projetado")
+   +tile("Média ago/26 (guerra)", (ult? ult.toLocaleString("pt-BR") : "—")+' <span class="unit">US$/ctr</span>', ult? pct0(ult/P.freteProj-1)+" acima do projetado "+fmt(P.freteProj,0) : "")
+   +tile("Impacto no "+sSel.sku.replace(" †",""), `<span class="${dImp>=0?'delta-up':'delta-down'}">${pct(dImp)}</span>`, `custo ${fmt(cProj)} @${fmt(P.freteProj,0)} → ${fmt(cReal)} @${fmt(freteSel,0)} (frete real${sSel.frete?"":" — mediana"})`);
+}
+/* premissa × real (processo exemplo, por ctr) */
+const PXR = [
+ ["Frete marítimo (102)","frete/seguro: agregam por natureza","projetado 5.000 US$","8.697 US$",.739],
+ ["Capatazia (310)","Sim","1.590","1.817",.143],
+ ["Armazenagem portuária (402)","Sim","1.100","2.393",1.175],
+ ["Transporte interno (406)","Sim","1.642","1.887",.149],
+ ["Despachante (404)","Sim","600","250",-.583],
+ ["Agenciamento marítimo (419)","Sim","— (sem premissa)","260",null],
+ ["Adicional de frete (333)","Sim — só no modelo 2026","— (sem premissa 2025)","4.860",null],
+ ["AFRMM (405)","Sim","8% do frete","8,35%",.044],
+ ["Taxa Siscomex (309)","NÃO — vai a resultado (fora do custo 2026)","154 (só modelo 2025)","77",null],
+ ["Complemento armazenagem (418)","NÃO — vai a resultado","fora do custo","fora do custo",null],
+ ["Demurrage (714) · multas (423/424)","NÃO — vão a resultado","fora do custo","fora do custo",null],
+];
+document.getElementById("tbl5").innerHTML = PXR.map(([n,ag,a,b,d])=>`<tr>
+  <td>${n}</td><td class="small" style="text-align:left">${ag}</td><td class="num">${a}</td><td class="num">${b}</td>
+  <td class="${d==null?'delta-zero':(d>0?'delta-up':'delta-down')}">${d==null?"—":(d>0?"▲ ":"▼ ")+pct(Math.abs(d)*(d>0?1:-1))}</td></tr>`).join("");
+/* parâmetros verdes */
+function renderParams(){
+  document.getElementById("pgrid").innerHTML = PMETA.map(([key,label,hint,lock])=>`
+    <div class="pcard ${lock?"locked":""}"><label for="p-${key}">${label}</label>
+    <input id="p-${key}" value="${P[key]}" ${lock?"readonly":""} inputmode="decimal">
+    <div class="hint">${hint}${lock?" (travado)":""}</div></div>`).join("");
+  PMETA.forEach(([key,,,lock])=>{
+    if(lock) return;
+    document.getElementById("p-"+key).addEventListener("change", ev=>{
+      const v = parseFloat(String(ev.target.value).replace(",","."));
+      if(isFinite(v) && v>=0){ P[key]=v; render(); } else { ev.target.value = P[key]; }
+    });
+  });
+}
+document.getElementById("reset").addEventListener("click", ()=>{ P={...DEFAULTS}; renderParams(); render(); });
+document.getElementById("nav").addEventListener("click", ev=>{
+  const b = ev.target.closest("button"); if(!b) return;
+  document.querySelectorAll("#nav button").forEach(x=>x.classList.toggle("on", x===b));
+  document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on", v.id==="v-"+b.dataset.v));
+});
+renderSimOptions(); wireSim(); renderParams(); render();
+</script>
+
+
+
+<div style="position:fixed;right:14px;bottom:14px;z-index:99">
+  <button onclick="sair()" style="cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3)">Sair ⎋</button>
+</div>
+</body></html>
