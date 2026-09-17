@@ -180,7 +180,7 @@
 
   <!-- SUFRAMA -->
   <section class="tela" id="tela-suframa">
-    <div class="aviso" style="margin-bottom:12px">Área de incentivo SUFRAMA/ZFM — regra vigente (reunião 16/09/2026): <b>Suframa IPI (229) = tabela base Brasil 078, SEM acréscimo</b> · <b>Suframa ICMS (228)</b> e <b>Suframa ICMS+PIS/COFINS (227) = 078 × (1 + acréscimo 12,77%)</b>. As 3 tabelas existem para a TES determinar os descontos/mensagens fiscais obrigatórios na NF. Frete UF e VPC entram por fora no SFA. ⚠️ A coluna "TOTVS hoje" mostra o cadastro atual — o Δ é o recadastro pendente.</div>
+    <div class="aviso" style="margin-bottom:12px">Área de incentivo SUFRAMA/ZFM — <b>Suframa IPI (229) = tabela base Brasil</b> · <b>Suframa ICMS (228)</b> e <b>Suframa ICMS+PIS/COFINS (227)</b> = tabela base acrescida do <b>% de incremento de margem da região</b>. As 3 tabelas existem para a TES determinar os descontos/mensagens fiscais obrigatórios na NF. Frete UF e VPC entram por fora no SFA. ⚠️ A coluna "TOTVS hoje" mostra o cadastro atual — o Δ é o recadastro pendente.</div>
     <div class="barra">
       <div class="busca"><input id="qS" type="search" placeholder="Buscar por modelo ou código…" aria-label="Buscar produto Suframa"></div>
       <div class="chips" id="chipsTab"></div>
@@ -744,7 +744,10 @@ document.addEventListener('papel-pronto', ()=>{
   const gate = document.getElementById('gate'), painel = document.getElementById('painelParam');
   const navBtn = document.querySelector('nav button[data-tela="parametros"]');
   if (adm){ if(gate) gate.style.display='none'; if(painel) painel.style.display='block'; }
-  else { if(navBtn) navBtn.style.display='none'; const na=document.querySelector('nav button[data-tela=\"auditoria\"]'); if(na) na.style.display='none'; }
+  /* não-ADM (CONSULTA e GERENTE) não vê COMO é calculado: some Parâmetros, Auditoria, Fontes e
+     Metodologia (decisão Silvio 17/09) */
+  else { for (const t of ['parametros','auditoria','fontes','metodologia']){
+    const b=document.querySelector('nav button[data-tela="'+t+'"]'); if(b) b.style.display='none'; } }
 });
 </script>
 </body></html>
