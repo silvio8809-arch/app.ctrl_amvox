@@ -451,6 +451,12 @@ renderA();
 /* papel do LOGIN comanda o acesso aos Parâmetros (aprovado 15/09/2026) */
 document.addEventListener('papel-pronto', ()=>{
   const adm = window.PAPEL === 'ADM';
+  if (window.USUARIO_EMAIL && !document.getElementById('quemlog')){
+    const hd=document.querySelector('header'); const base=hd.querySelector('.data');
+    const s=document.createElement('span'); s.className='data'; s.id='quemlog';
+    s.textContent='👤 '+window.USUARIO_EMAIL+' · '+(window.PAPEL||'CONSULTA');
+    if(base){ base.style.marginLeft='0'; hd.insertBefore(s, base); } else hd.appendChild(s);
+  }
   const gate = document.getElementById('gate'), painel = document.getElementById('painelParam');
   const navBtn = document.querySelector('nav button[data-tela="parametros"]');
   if (adm){ if(gate) gate.style.display='none'; if(painel) painel.style.display='block'; }
