@@ -93,6 +93,10 @@ async function mostraHub(session){
     const papel = (data && data.papel) || 'CONSULTA';
     const el = $('quemPapel'); el.textContent = papel;
     if (papel === 'ADM') el.classList.add('adm');
+    if (papel === 'GERENTE'){
+      const cardCustos = document.querySelector('a.appc[href="custos.html"]');
+      if (cardCustos) cardCustos.style.display='none';
+    }
   }catch(e){ $('quemPapel').textContent = 'CONSULTA'; }
 }
 
