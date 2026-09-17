@@ -373,11 +373,10 @@ document.getElementById('sair').onclick=()=>{P={...OFICIAL};
   document.getElementById('gate').style.display='block';
   document.getElementById('painelParam').style.display='none';render();};
 render();
-// ---- SUFRAMA (3 tabelas — regra 16/09/2026: 229 = 078 pura · 228/227 = 078 × acr) ----
+// ---- SUFRAMA (3 tabelas — regra 16/09/2026) + AUDITORIA (ADM) ----
 const TABS_SUF={'229':{n:'Suframa IPI (229)',acr:false},'228':{n:'Suframa ICMS (228)',acr:true},'227':{n:'Suframa ICMS+PIS/COF (227)',acr:true}};
-let tabSuf='229';
+let tabSuf='229', fLinS=null, termoS='', visS=[];
 const linhasS=[...new Set(SUFRAMA3.map(d=>d[2]))];
-let fLinS=null, termoS='', visS=[];
 function precoNovoS(d){ return TABS_SUF[tabSuf].acr ? d[3]*(1+P.acr) : d[3]; }
 function atualSelS(d){ return ({'227':d[5],'228':d[6],'229':d[7]})[tabSuf]; }
 function renderS(){
@@ -405,12 +404,11 @@ document.getElementById('copiarS').onclick=async()=>{
   const ln=visS.map(d=>{const nova=precoNovoS(d), atual=atualSelS(d);
     const dl=(atual&&nova!=null)?((nova/atual-1)*100).toFixed(1).replace('.',','):'';
     return [d[0],d[1],d[2],nova!=null?nova.toFixed(2).replace('.',','):'',atual!=null?atual.toFixed(2).replace('.',','):'',dl].join(';');});
-  try{await navigator.clipboard.writeText([cab,...ln].join('
-'));
+  try{await navigator.clipboard.writeText([cab,...ln].join('\n'));
     const b=document.getElementById('copiarS');b.textContent='Copiado ✓';setTimeout(()=>b.textContent='Copiar CSV',1600);}
   catch(e){alert('Não foi possível copiar.');}
 };
-// ---- AUDITORIA (ADM) — alterações das tabelas nos últimos 3 meses ----
+// ---- AUDITORIA (ADM) ----
 const NOMES_TAB={'078':'078 Base Brasil','227':'Suframa ICMS+PIS/COF (227)','228':'Suframa ICMS (228)','229':'Suframa IPI (229)'};
 let tabA='todas', visA=[];
 function fdata(v){ return v.slice(6,8)+'/'+v.slice(4,6)+'/'+v.slice(0,4); }
@@ -439,22 +437,10 @@ document.getElementById('copiarA').onclick=async()=>{
     const b=document.getElementById('copiarA');b.textContent='Copiado ✓';setTimeout(()=>b.textContent='Copiar CSV',1600);}
   catch(e){alert('Não foi possível copiar.');}
 };
-renderA();
-const _render = render;
-render = function(){ _render(); renderS(); };
-renderS();});
-document.getElementById('copiarS').onclick=async()=>{
-  const cab='Codigo;Modelo;Linha;TabelaSuframa;TOTVS_hoje;Delta_pct';
-  const ln=visS.map(d=>{const nova=d[3]!=null?d[3]*(1+P.acr):d[4];
-    const dl=(d[4]&&d[3]!=null)?((nova/d[4]-1)*100).toFixed(1).replace('.',','):'';
-    return [d[0],d[1],d[2],nova.toFixed(2).replace('.',','),d[4]!=null?d[4].toFixed(2).replace('.',','):'',dl].join(';');});
-  try{await navigator.clipboard.writeText([cab,...ln].join('\n'));
-    const b=document.getElementById('copiarS');b.textContent='Copiado ✓';setTimeout(()=>b.textContent='Copiar CSV',1600);}
-  catch(e){alert('Não foi possível copiar.');}
-};
-const _render = render;
-render = function(){ _render(); renderS(); };
+const _renderBase = render;
+render = function(){ _renderBase(); renderS(); };
 renderS();
+renderA();
 </script>
 
 <div style="position:fixed;right:14px;bottom:14px;z-index:99">
