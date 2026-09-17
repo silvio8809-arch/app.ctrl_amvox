@@ -1301,6 +1301,11 @@ renderSimOptions(); wireSim(); renderParams(); render();
 /* papel do LOGIN comanda o modo ADM (aprovado 15/09/2026): CONSULTA nem vê o gate */
 document.addEventListener('papel-pronto', ()=>{
   const adm = window.PAPEL === 'ADM';
+  if (window.USUARIO_EMAIL && !document.getElementById('quemlog')){
+    const f=document.querySelector('.side .foot');
+    if(f){ const d=document.createElement('div'); d.id='quemlog'; d.style.cssText='margin-top:7px;word-break:break-all;color:#C9C9C5';
+      d.textContent='👤 '+window.USUARIO_EMAIL; f.appendChild(d); }
+  }
   sessionStorage.setItem('perfil', adm ? 'adm' : 'consulta');
   if (typeof aplicaPerfil === 'function') aplicaPerfil();
   if (!adm){
