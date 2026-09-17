@@ -305,8 +305,17 @@ function badges(d){
 }
 let visiveis=[];
 function render(){
-  chip(document.getElementById('chipsLinha'), linhas, ()=>fLin, v=>fLin=v);
-  chip(document.getElementById('chipsSeg'), segs, ()=>fSeg, v=>fSeg=v);
+  chip(document.getElementById('chipsLinha'), linhas, ()=>fLin, v=>{
+    fLin=v;
+    if (fSeg && v && !PRODUTOS.some(d=>d[2]===v && d[3]===fSeg)) fSeg=null;
+  });
+  const segsVis = fLin ? [...new Set(PRODUTOS.filter(d=>d[2]===fLin).map(d=>d[3]))] : segs;
+  if (fSeg && !segsVis.includes(fSeg)) fSeg=null;
+  chip(document.getElementById('chipsSeg'), segsVis, ()=>fSeg, v=>{
+    fSeg=v;
+    if (v && !fLin){ const dona=PRODUTOS.find(d=>d[3]===v); if(dona) fLin=dona[2]; }
+    if (v===null && arguments.length){} 
+  });
   const t=termo.trim().toLowerCase();
   visiveis = PRODUTOS.filter(d=>(!fLin||d[2]===fLin)&&(!fSeg||d[3]===fSeg)&&(!t||d[1].toLowerCase().includes(t)||d[0].toLowerCase().includes(t)));
   document.getElementById('conta').textContent = visiveis.length+' de '+PRODUTOS.length+' produtos';
@@ -444,6 +453,7 @@ renderA();
 </script>
 
 <div style="position:fixed;right:14px;bottom:14px;z-index:99">
+  <button onclick="location.href='index.html'" style="cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3);margin-right:8px">⇄ Mudar de módulo</button>
   <button onclick="sair()" style="cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3)">Sair ⎋</button>
 </div>
 
