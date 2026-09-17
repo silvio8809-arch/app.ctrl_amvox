@@ -10,6 +10,7 @@ async function guardaPagina(){
     window.PAPEL = (data && data.papel) || 'CONSULTA';
   } catch (e) { window.PAPEL = 'CONSULTA'; }
   sessionStorage.setItem('perfil', window.PAPEL === 'ADM' ? 'adm' : 'consulta');
+  window.USUARIO_EMAIL = session.user.email;
   document.documentElement.style.visibility = 'visible';
   document.dispatchEvent(new CustomEvent('papel-pronto'));
   return session;
