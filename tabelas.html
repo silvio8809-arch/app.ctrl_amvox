@@ -122,11 +122,10 @@
 <main>
   <!-- SIMULADOR PREÇO LÍQUIDO -->
   <section class="tela" id="tela-simulador">
-    <div class="aviso" style="margin-bottom:12px">Simulador de <b>preço líquido Suframa/ZFM</b>: escolha o produto, a tabela do cliente e a UF — o sistema calcula o preço sugerido, os descontos fiscais destacados em NF, o <b>preço líquido</b> e a <b>margem projetada</b>. Valores sem VPC salvo informado.</div>
+    <div class="aviso" style="margin-bottom:12px">Simulador de <b>preço líquido Suframa/ZFM</b>: informe cliente, tabela, UF e VPC no cabeçalho e escolha os produtos <b>linha a linha</b> — o botão <b>➕</b> inclui outro produto na proposta. Cada linha mostra o preço sugerido, os descontos fiscais destacados em NF, o <b>líquido</b> e a <b>margem</b>; o resumo total aparece nos cards abaixo.</div>
     <div class="barra" style="align-items:flex-end">
-      <div class="busca" style="max-width:340px"><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Produto</label>
-        <input id="simSku" list="skuList" placeholder="Digite modelo ou código…" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)">
-        <datalist id="skuList"></datalist></div>
+      <div class="busca" style="max-width:300px"><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Cliente</label>
+        <input id="simCli" placeholder="Nome do cliente" style="width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
       <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Tabela do cliente</label><br>
         <select id="simTab" style="padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)">
           <option value="229">Suframa IPI (229)</option>
@@ -136,34 +135,24 @@
       <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">UF destino</label><br>
         <select id="simUf" style="padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></select></div>
       <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">VPC %</label><br>
-        <input id="simVpc" type="number" step="0.5" value="0" style="width:80px;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);text-align:right;background:var(--panel);color:var(--ink)"></div>
+        <input id="simVpc" type="number" step="0.5" value="0" style="width:80px;text-align:right;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
+      <div class="acao"><button class="btn" id="simProp" style="background:var(--accent);color:#fff;border-color:var(--accent)">📄 Gerar proposta (PDF)</button></div>
     </div>
-    <div id="simVazio" style="color:var(--muted);padding:26px 4px">Escolha um produto acima para simular.</div>
-    <div id="simOut" style="display:none">
-      <div class="barra" style="align-items:flex-end;margin-top:4px">
-        <div class="busca" style="max-width:300px"><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Cliente (p/ proposta)</label>
-          <input id="simCli" placeholder="Nome do cliente" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
-        <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Qtd</label><br>
-          <input id="simQtd" type="number" min="1" value="1" style="width:90px;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);text-align:right;background:var(--panel);color:var(--ink)"></div>
-        <div><button class="btn" id="simAdd">➕ Adicionar à proposta</button></div>
-        <div><button class="btn" id="simProp" style="background:var(--accent);color:#fff;border-color:var(--accent)">📄 Gerar proposta (PDF)</button></div>
-      </div>
-      <div id="propLista" style="display:none;margin-top:10px">
-        <div style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Itens da proposta <span id="propN"></span> <button class="btn" id="propLimpar" style="padding:3px 10px;font-size:11px;margin-left:8px">Limpar</button></div>
-        <div class="tbl-wrap" style="max-width:720px"><table style="min-width:0">
-          <thead><tr><th style="text-align:left">Código</th><th style="text-align:left">Produto</th><th>Qtd</th><th>Líquido un (R$)</th><th></th></tr></thead>
-          <tbody id="propCorpo"></tbody></table></div>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:6px" id="simCards"></div>
-      <div class="tbl-wrap" style="margin-top:14px;max-width:640px">
-        <table style="min-width:0">
-          <thead><tr><th style="text-align:left">Impostos considerados</th><th>Alíquota</th><th>Tratamento</th><th>Valor (R$)</th></tr></thead>
-          <tbody id="simImp"></tbody>
-        </table>
-      </div>
-      <p style="font-size:11.5px;color:var(--muted);margin-top:10px;max-width:78ch">Margem projetada deduz: ICMS 12% e PIS/COFINS 9,25% (repassados como desconto ao cliente OU devidos — efeito idêntico), comissão 3%, devolução 3%, MOD 1% sobre o custo, frete da UF e VPC. Preços base Brasil da tabela 078 vigente; frete pela tabela oficial por UF. Simulação — o pedido real segue o SFA.</p>
+    <datalist id="skuList"></datalist>
+    <div class="tbl-wrap" style="margin-top:12px">
+      <table style="min-width:1150px">
+        <thead><tr>
+          <th>#</th><th style="text-align:left">Produto</th><th>Qtd</th>
+          <th class="dest">Tabela</th><th>VPC</th><th>Frete</th><th>IPI</th><th>Sugerido s/ IPI</th>
+          <th>Desc. ICMS</th><th>Desc. PIS/COF</th><th class="dest">Líquido NF (un)</th><th>Total líquido</th><th>MC %</th><th></th>
+        </tr></thead>
+        <tbody id="simLinhas"></tbody>
+      </table>
     </div>
+    <div id="simCards" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px"></div>
+    <p style="font-size:11.5px;color:var(--muted);margin-top:12px;max-width:78ch">Margem projetada deduz: ICMS 12% e PIS/COFINS 9,25% (repassados como desconto ao cliente OU devidos — efeito idêntico), comissão 3%, devolução 3%, MOD 1% sobre o custo, frete da UF e VPC. Preços base Brasil da tabela 078 vigente; frete pela tabela oficial por UF. Simulação — o pedido real segue o SFA.</p>
   </section>
+
 
 
   <!-- CONSULTA -->
@@ -495,7 +484,7 @@ document.getElementById('copiarA').onclick=async()=>{
     const b=document.getElementById('copiarA');b.textContent='Copiado ✓';setTimeout(()=>b.textContent='Copiar CSV',1600);}
   catch(e){alert('Não foi possível copiar.');}
 };
-// ---- SIMULADOR PREÇO LÍQUIDO (todos os papéis; único acessível ao GERENTE) ----
+// ---- SIMULADOR PREÇO LÍQUIDO (grade multi-item — único acessível ao GERENTE) ----
 (function(){
   const dl=document.getElementById('skuList');
   SIM.forEach(s=>{const o=document.createElement('option'); o.value=s[1]+'  ['+s[0]+']'; dl.appendChild(o);});
@@ -507,48 +496,9 @@ document.getElementById('copiarA').onclick=async()=>{
     const m=txt.match(/\[(\w+)\]\s*$/);
     if(m) return SIM.find(s=>s[0]===m[1]);
     const q=txt.trim().toLowerCase();
+    if(q.length<3) return null;
     return SIM.find(s=>s[1].toLowerCase().includes(q)||s[0].includes(q.toUpperCase()));
   }
-  function card(k,v,destaque,cor){
-    return `<div style="background:${destaque?'var(--accent)':'var(--panel)'};border:1px solid ${destaque?'var(--accent)':'var(--line)'};border-radius:8px;padding:12px 14px${cor?';background:'+cor+';border-color:'+cor:''}">
-      <div style="font:600 10px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:${destaque?'#fff':'var(--muted)'}">${k}</div>
-      <div class="num" style="font:700 20px var(--sans);margin-top:5px;color:${destaque?'#fff':'var(--ink)'}">${v}</div></div>`;
-  }
-  function simula(){
-    const s=achaSku(document.getElementById('simSku').value);
-    const out=document.getElementById('simOut'), vz=document.getElementById('simVazio');
-    if(!s){ out.style.display='none'; vz.style.display='block'; return; }
-    vz.style.display='none'; out.style.display='block';
-    const tab=document.getElementById('simTab').value;
-    const fre=(FRETE_UF.find(x=>x[0]===ufSel.value)||['',0])[1];
-    const vpc=(parseFloat(String(document.getElementById('simVpc').value).replace(',','.'))||0)/100;
-    const [cod,desc,lin,p078,custo,ipi]=s;
-    const base = tab==='229' ? p078 : p078*(1+P.acr);
-    const freteR=base*fre, vpcR=base*vpc, J=base+freteR+vpcR;
-    const ipiCob = tab==='229' ? 0 : J*ipi;
-    const dIcms = (tab==='228'||tab==='227') ? J*0.12 : 0;
-    const dPis  = tab==='227' ? (J-dIcms)*0.0925 : 0;
-    const liquido = J + ipiCob - dIcms - dPis;
-    const icmsMC=J*0.12, pisMC=(J-icmsMC)*0.0925, rl=J-icmsMC-pisMC;
-    const mc = rl - 0.06*J - vpcR - freteR - custo*1.01;
-    const mcp = mc/rl;
-    const corMC = mcp>=0.30 ? '#EAF3EC' : (mcp>=0 ? '#FDF3E7' : '#FDE8E8');
-    document.getElementById('simCards').innerHTML =
-      card('Preço tabela '+tab, fmt(base)) +
-      card('Frete '+ufSel.value+' (R$)', fmt(freteR)) +
-      (vpcR? card('VPC (R$)', fmt(vpcR)) : '') +
-      card('Preço sugerido s/ IPI', fmt(J)) +
-      card('PREÇO LÍQUIDO NF', fmt(liquido), true) +
-      card('Margem projetada', (mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
-    const linha=(n,a,tr,v)=>`<tr><td style="text-align:left">${n}</td><td class="num">${a}</td><td style="text-align:left"><span class="seg">${tr}</span></td><td class="num">${fmt(v)}</td></tr>`;
-    document.getElementById('simImp').innerHTML =
-      linha('IPI (cadastro do produto)', (ipi*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%', tab==='229'?'ISENTO (tabela 229)':'cobrado na NF', ipiCob) +
-      linha('ICMS', '12%', (tab!=='229')?'DESCONTO destacado na NF':'devido pela AMVOX (deduzido na margem)', dIcms||icmsMC) +
-      linha('PIS/COFINS', '9,25% s/ (base − ICMS)', tab==='227'?'DESCONTO destacado na NF':'devido pela AMVOX (deduzido na margem)', dPis||pisMC);
-  }
-
-  // ---- PROPOSTA MULTI-ITEM no layout SFA (grade completa; foco Suframa) ----
-  let PROP_ITENS = [];
   function paramsAtuais(){
     const tab=document.getElementById('simTab').value;
     return { tab, nomeTab:{'229':'Suframa IPI (229)','228':'Suframa ICMS (228)','227':'Suframa ICMS+PIS/COF (227)'}[tab],
@@ -567,36 +517,83 @@ document.getElementById('copiarA').onclick=async()=>{
     const mc=rl-0.06*J-vpcR-freR-custo*1.01;
     return {cod,desc,qtd,base,vpcR,freR,J,ipi,ipiCob,dIcms,dPis,liq,mc,rl,mcp:mc/rl};
   }
-  function renderProp(){
-    const box=document.getElementById('propLista');
-    if(!PROP_ITENS.length){ box.style.display='none'; return; }
-    box.style.display='block';
-    document.getElementById('propN').textContent='('+PROP_ITENS.length+')';
-    const pp=paramsAtuais();
-    document.getElementById('propCorpo').innerHTML = PROP_ITENS.map((it,i)=>{
-      const r=calcItem(it.s, pp, it.qtd);
-      return `<tr><td class="cod" style="text-align:left">${r.cod}</td><td style="text-align:left"><span class="mod">${r.desc}</span></td>`+
-        `<td class="num">${it.qtd}</td><td class="num">${fmt(r.liq)}</td>`+
-        `<td><button class="btn" style="padding:2px 9px;font-size:11px" onclick="removeProp(${i})">✕</button></td></tr>`;
-    }).join('');
+  function card(k,v,destaque,cor){
+    return `<div style="flex:1;min-width:118px;text-align:center;background:${destaque?'var(--accent)':(cor||'var(--panel)')};border:1px solid ${destaque?'var(--accent)':(cor||'var(--line)')};border-radius:8px;padding:10px 8px">
+      <div style="font:600 9.5px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:${destaque?'#fff':'var(--muted)'}">${k}</div>
+      <div class="num" style="font:700 ${destaque?'19px':'16px'} var(--sans);margin-top:4px;color:${destaque?'#fff':'var(--ink)'};white-space:nowrap">${v}</div></div>`;
   }
-  window.removeProp = i => { PROP_ITENS.splice(i,1); renderProp(); };
-  document.getElementById('propLimpar').onclick = ()=>{ PROP_ITENS=[]; renderProp(); };
-  document.getElementById('simAdd').onclick = ()=>{
-    const s = achaSku(document.getElementById('simSku').value);
-    if(!s){ alert('Escolha um produto primeiro.'); return; }
-    const qtd=Math.max(1, parseInt(document.getElementById('simQtd').value)||1);
-    const j = PROP_ITENS.findIndex(x=>x.s[0]===s[0]);
-    if (j>=0) PROP_ITENS[j].qtd = qtd; else PROP_ITENS.push({s, qtd});
-    renderProp();
-  };
+  // ---- grade: produto escolhido NA LINHA; ➕ inclui outra linha (pedido Silvio 17/09) ----
+  const inSt='box-sizing:border-box;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font:13px var(--body);background:var(--panel);color:var(--ink)';
+  const CELLS=['cTab','cVpc','cFre','cIpi','cSug','cIcms','cPis','cLiq','cTot','cMc'];
+  let LINHAS=[{txt:'',qtd:1}];
+  function montaGrade(foco){
+    const tb=document.getElementById('simLinhas'); tb.innerHTML='';
+    LINHAS.forEach((ln,i)=>{
+      const tr=document.createElement('tr'); tr.style.cursor='default';
+      tr.innerHTML=`<td class="num">${String(i+1).padStart(2,'0')}</td>
+        <td style="text-align:left;min-width:240px"><input class="inSku" list="skuList" placeholder="Modelo ou código…" style="width:100%;${inSt}"></td>
+        <td><input class="inQtd" type="number" min="1" style="width:72px;text-align:right;${inSt}"></td>
+        ${CELLS.map(c=>`<td class="num ${c}">—</td>`).join('')}
+        <td style="white-space:nowrap;text-align:center"><button class="btn bAdd" title="Incluir outro produto" style="padding:3px 10px;font-weight:700">➕</button> <button class="btn bDel" title="Remover linha" style="padding:3px 10px">✕</button></td>`;
+      const inSku=tr.querySelector('.inSku'), inQtd=tr.querySelector('.inQtd');
+      inSku.value=ln.txt; inQtd.value=ln.qtd;
+      inSku.addEventListener('input',()=>{ln.txt=inSku.value;recalc();});
+      inQtd.addEventListener('input',()=>{ln.qtd=Math.max(1,parseInt(inQtd.value)||1);recalc();});
+      tr.querySelector('.bAdd').onclick=()=>{ LINHAS.splice(i+1,0,{txt:'',qtd:1}); montaGrade(i+1); };
+      tr.querySelector('.bDel').onclick=()=>{ if(LINHAS.length>1) LINHAS.splice(i,1); else LINHAS[0]={txt:'',qtd:1}; montaGrade(); };
+      tb.appendChild(tr);
+    });
+    if(foco!==undefined){ const el=tb.querySelectorAll('.inSku')[foco]; if(el) el.focus(); }
+    recalc();
+  }
+  function itensValidos(){
+    const out=[]; LINHAS.forEach(ln=>{ const s=achaSku(ln.txt); if(s) out.push({s, qtd:ln.qtd}); }); return out;
+  }
+  function recalc(){
+    const pp=paramsAtuais();
+    const trs=[...document.getElementById('simLinhas').children];
+    const rs=[];
+    trs.forEach((tr,i)=>{
+      const s=achaSku(LINHAS[i].txt);
+      const set=(c,v)=>{ tr.querySelector('.'+c).textContent=v; };
+      const mcEl=tr.querySelector('.cMc');
+      if(!s){ CELLS.forEach(c=>set(c,'—')); mcEl.style.background=''; return; }
+      const r=calcItem(s, pp, LINHAS[i].qtd); rs.push(r);
+      set('cTab',fmt(r.base)); set('cVpc',r.vpcR?fmt(r.vpcR):'—'); set('cFre',fmt(r.freR));
+      set('cIpi',pp.tab==='229'?'ISENTO':fmt(r.ipiCob)); set('cSug',fmt(r.J));
+      set('cIcms',r.dIcms?'−'+fmt(r.dIcms):'—'); set('cPis',r.dPis?'−'+fmt(r.dPis):'—');
+      set('cLiq',fmt(r.liq)); tr.querySelector('.cLiq').style.fontWeight='700';
+      set('cTot',fmt(r.liq*r.qtd));
+      mcEl.textContent=(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+      mcEl.style.background = r.mcp>=0.30?'#EAF3EC':(r.mcp>=0?'#FDF3E7':'#FDE8E8');
+    });
+    const box=document.getElementById('simCards');
+    if(!rs.length){ box.innerHTML='<div style="color:var(--muted);font-size:13px;padding:4px 2px">Escolha ao menos um produto na grade para ver o resumo da proposta.</div>'; return; }
+    const tot=rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
+      a.ipi+=r.ipiCob*r.qtd; a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
+      {qtd:0,sug:0,icms:0,pis:0,ipi:0,liq:0,mc:0,rl:0});
+    const mcpT=tot.mc/tot.rl;
+    const corMC = mcpT>=0.30 ? '#EAF3EC' : (mcpT>=0 ? '#FDF3E7' : '#FDE8E8');
+    box.innerHTML =
+      card('Itens', rs.length) +
+      card('Qtd total', tot.qtd.toLocaleString('pt-BR')) +
+      card('Sugerido s/ IPI', fmt(tot.sug)) +
+      card('IPI', tot.ipi?'+'+fmt(tot.ipi):'ISENTO') +
+      card('Desc. ICMS', tot.icms?'−'+fmt(tot.icms):'—') +
+      card('Desc. PIS/COF', tot.pis?'−'+fmt(tot.pis):'—') +
+      card('PREÇO LÍQUIDO TOTAL DA NF', fmt(tot.liq), true) +
+      card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
+  }
+  montaGrade();
+  ['simTab','simUf','simVpc'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener('input',recalc); el.addEventListener('change',recalc);
+  });
+
+  // ---- PROPOSTA PDF no layout SFA (grade completa; foco Suframa) ----
   document.getElementById('simProp').onclick = function(){
-    let itens = PROP_ITENS.slice();
-    if(!itens.length){
-      const s = achaSku(document.getElementById('simSku').value);
-      if(!s){ alert('Adicione ao menos um item à proposta.'); return; }
-      itens=[{s, qtd: Math.max(1, parseInt(document.getElementById('simQtd').value)||1)}];
-    }
+    const itens = itensValidos();
+    if(!itens.length){ alert('Adicione ao menos um produto à grade.'); return; }
     const pp=paramsAtuais();
     const cli=(document.getElementById('simCli').value||'—').toUpperCase();
     const rs = itens.map(it=>calcItem(it.s, pp, it.qtd));
@@ -714,11 +711,8 @@ table{width:100%;border-collapse:collapse}
     if(!w){ alert('Habilite pop-ups para gerar a proposta.'); return; }
     w.document.write(html); w.document.close();
   };
-  ['simSku','simTab','simUf','simVpc'].forEach(id=>{
-    const el=document.getElementById(id);
-    el.addEventListener('input',()=>{simula();renderProp();}); el.addEventListener('change',()=>{simula();renderProp();});
-  });
 })();
+
 
 const _renderBase = render;
 render = function(){ _renderBase(); renderS(); };
