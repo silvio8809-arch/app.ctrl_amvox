@@ -150,7 +150,7 @@
       </table>
     </div>
     <div id="simCards" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px"></div>
-    <p style="font-size:11.5px;color:var(--muted);margin-top:12px;max-width:78ch">Margem projetada deduz: ICMS 12% e PIS/COFINS 9,25% (repassados como desconto ao cliente OU devidos — efeito idêntico), comissão 3%, devolução 3%, MOD 1% sobre o custo, frete da UF e VPC. Preços base Brasil da tabela 078 vigente; frete pela tabela oficial por UF. Simulação — o pedido real segue o SFA.</p>
+    <p id="notaMetod" style="font-size:11.5px;color:var(--muted);margin-top:12px;max-width:78ch">Margem projetada deduz: ICMS 12% e PIS/COFINS 9,25% (repassados como desconto ao cliente OU devidos — efeito idêntico), comissão 3%, devolução 3%, MOD 1% sobre o custo, frete da UF e VPC. Preços base Brasil da tabela 078 vigente; frete pela tabela oficial por UF. Simulação — o pedido real segue o SFA.</p>
   </section>
 
 
@@ -747,7 +747,8 @@ document.addEventListener('papel-pronto', ()=>{
   /* não-ADM (CONSULTA e GERENTE) não vê COMO é calculado: some Parâmetros, Auditoria, Fontes e
      Metodologia (decisão Silvio 17/09) */
   else { for (const t of ['parametros','auditoria','fontes','metodologia']){
-    const b=document.querySelector('nav button[data-tela="'+t+'"]'); if(b) b.style.display='none'; } }
+    const b=document.querySelector('nav button[data-tela="'+t+'"]'); if(b) b.style.display='none'; }
+    const nm=document.getElementById('notaMetod'); if(nm) nm.style.display='none'; }
 });
 </script>
 </body></html>
