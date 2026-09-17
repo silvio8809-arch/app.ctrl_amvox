@@ -18,6 +18,10 @@ input:focus{outline:2px solid var(--accent)}
   font:700 14px 'Archivo',sans-serif;letter-spacing:.05em;cursor:pointer}
 .btn:hover{background:#B3131A}
 .ghost{background:none;border:0;color:#9A9A97;font:600 12px inherit;cursor:pointer;margin-top:14px;text-decoration:underline}
+.pww{position:relative}
+.pww input{padding-right:46px}
+.pweye{position:absolute;right:5px;top:50%;transform:translateY(-50%);background:none;border:0;cursor:pointer;font-size:17px;color:#9A9A97;padding:6px 8px;line-height:1}
+.pweye:hover{color:#fff}
 .msg{margin-top:14px;font-size:13px;color:#9A9A97;min-height:18px}
 .msg.err{color:#FF7A7E}
 .msg.ok{color:#7BD88F}
@@ -45,7 +49,8 @@ input:focus{outline:2px solid var(--accent)}
 <div class="card" id="cardLogin">
   <div id="fLogin">
     <label for="em">E-mail</label><input id="em" type="email" autocomplete="username">
-    <label for="pw">Senha</label><input id="pw" type="password" autocomplete="current-password">
+    <label for="pw">Senha</label>
+    <div class="pww"><input id="pw" type="password" autocomplete="current-password"><button type="button" class="pweye" data-alvo="pw" aria-label="Mostrar senha" title="Mostrar/ocultar senha">👁</button></div>
     <button class="btn" id="bEntrar">Entrar</button>
     <button class="ghost" id="bEsqueci">Esqueci / quero definir minha senha</button>
     <div style="margin-top:16px;padding-top:14px;border-top:1px solid #2C2C30">
@@ -58,8 +63,10 @@ input:focus{outline:2px solid var(--accent)}
   </div>
   <div id="fSenha" style="display:none">
     <p style="font-size:14px;color:#C9C9C5">Bem-vindo! Defina a sua senha de acesso.</p>
-    <label for="np">Nova senha (mín. 8 caracteres)</label><input id="np" type="password" autocomplete="new-password">
-    <label for="np2">Repita a senha</label><input id="np2" type="password" autocomplete="new-password">
+    <label for="np">Nova senha (mín. 8 caracteres)</label>
+    <div class="pww"><input id="np" type="password" autocomplete="new-password"><button type="button" class="pweye" data-alvo="np" aria-label="Mostrar senha" title="Mostrar/ocultar senha">👁</button></div>
+    <label for="np2">Repita a senha</label>
+    <div class="pww"><input id="np2" type="password" autocomplete="new-password"><button type="button" class="pweye" data-alvo="np2" aria-label="Mostrar senha" title="Mostrar/ocultar senha">👁</button></div>
     <button class="btn" id="bSalvarSenha">Salvar senha e entrar</button>
     <div class="msg" id="mSenha"></div>
   </div>
@@ -83,6 +90,12 @@ input:focus{outline:2px solid var(--accent)}
 "use strict";
 const $=id=>document.getElementById(id);
 const ehConvite = /type=(invite|recovery|signup)/.test(location.hash);
+
+/* olhinho: mostrar/ocultar senha (pedido Silvio 17/09) */
+document.querySelectorAll('.pweye').forEach(b=>{
+  b.onclick = ()=>{ const i=$(b.dataset.alvo); const mostra = i.type==='password';
+    i.type = mostra?'text':'password'; b.textContent = mostra?'🙈':'👁'; i.focus(); };
+});
 
 async function mostraHub(session){
   $('cardLogin').style.display='none';
@@ -114,7 +127,8 @@ SB.auth.onAuthStateChange(async (event, session)=>{
 
 $('bEntrar').onclick = async ()=>{
   const m=$('mLogin'); m.className='msg'; m.textContent='Entrando…';
-  const { error } = await SB.auth.signInWithPassword({ email:$('em').value.trim(), password:$('pw').value });
+  /* trim também na senha: copiar/colar de e-mail/WhatsApp costuma trazer espaço ou quebra de linha */
+  const { error } = await SB.auth.signInWithPassword({ email:$('em').value.trim(), password:$('pw').value.trim() });
   if (error){ m.className='msg err'; m.textContent = 'Não foi possível entrar: e-mail ou senha incorretos.'; }
 };
 $('pw').addEventListener('keydown', e=>{ if(e.key==='Enter') $('bEntrar').click(); });
@@ -128,7 +142,7 @@ $('bEsqueci').onclick = async ()=>{
 };
 
 $('bSalvarSenha').onclick = async ()=>{
-  const m=$('mSenha'); const p1=$('np').value, p2=$('np2').value;
+  const m=$('mSenha'); const p1=$('np').value.trim(), p2=$('np2').value.trim();
   if (p1.length<8){ m.className='msg err'; m.textContent='A senha precisa ter pelo menos 8 caracteres.'; return; }
   if (p1!==p2){ m.className='msg err'; m.textContent='As senhas não conferem.'; return; }
   m.className='msg'; m.textContent='Salvando…';
