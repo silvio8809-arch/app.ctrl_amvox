@@ -729,8 +729,9 @@ renderA();
 /* papel do LOGIN comanda o acesso aos Parâmetros (aprovado 15/09/2026) */
 document.addEventListener('papel-pronto', ()=>{
   const adm = window.PAPEL === 'ADM';
+  /* GERENTE vê todas as abas de consulta (decisão Silvio 17/09); Parâmetros/Auditoria seguem
+     só do ADM (bloco abaixo). Mantido: abre direto no Simulador, sua ferramenta principal. */
   if (window.PAPEL === 'GERENTE'){
-    document.querySelectorAll('nav button').forEach(b=>{ if(b.dataset.tela!=='simulador') b.style.display='none'; });
     const bs=document.querySelector('nav button[data-tela="simulador"]');
     if(bs) bs.click();
   }
