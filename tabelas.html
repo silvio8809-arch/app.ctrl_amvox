@@ -145,7 +145,14 @@
           <input id="simCli" placeholder="Nome do cliente" style="width:100%;box-sizing:border-box;padding:9px 12px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
         <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Qtd</label><br>
           <input id="simQtd" type="number" min="1" value="1" style="width:90px;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);text-align:right;background:var(--panel);color:var(--ink)"></div>
+        <div><button class="btn" id="simAdd">➕ Adicionar à proposta</button></div>
         <div><button class="btn" id="simProp" style="background:var(--accent);color:#fff;border-color:var(--accent)">📄 Gerar proposta (PDF)</button></div>
+      </div>
+      <div id="propLista" style="display:none;margin-top:10px">
+        <div style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Itens da proposta <span id="propN"></span> <button class="btn" id="propLimpar" style="padding:3px 10px;font-size:11px;margin-left:8px">Limpar</button></div>
+        <div class="tbl-wrap" style="max-width:720px"><table style="min-width:0">
+          <thead><tr><th style="text-align:left">Código</th><th style="text-align:left">Produto</th><th>Qtd</th><th>Líquido un (R$)</th><th></th></tr></thead>
+          <tbody id="propCorpo"></tbody></table></div>
       </div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-top:6px" id="simCards"></div>
       <div class="tbl-wrap" style="margin-top:14px;max-width:640px">
@@ -540,31 +547,81 @@ document.getElementById('copiarA').onclick=async()=>{
       linha('PIS/COFINS', '9,25% s/ (base − ICMS)', tab==='227'?'DESCONTO destacado na NF':'devido pela AMVOX (deduzido na margem)', dPis||pisMC);
   }
 
-  // Proposta no layout SFA (aprovado 10/09; adaptação Suframa) — imprime/salva em PDF
-  document.getElementById('simProp').onclick = function(){
-    const s = achaSku(document.getElementById('simSku').value);
-    if(!s){ alert('Escolha um produto primeiro.'); return; }
+  // ---- PROPOSTA MULTI-ITEM no layout SFA (grade completa; foco Suframa) ----
+  let PROP_ITENS = [];
+  function paramsAtuais(){
     const tab=document.getElementById('simTab').value;
-    const nomeTab={'229':'Suframa IPI (229)','228':'Suframa ICMS (228)','227':'Suframa ICMS+PIS/COF (227)'}[tab];
-    const uf=document.getElementById('simUf').value;
-    const fre=(FRETE_UF.find(x=>x[0]===uf)||['',0])[1];
-    const vpc=(parseFloat(String(document.getElementById('simVpc').value).replace(',','.'))||0)/100;
-    const qtd=Math.max(1, parseInt(document.getElementById('simQtd').value)||1);
-    const cli=(document.getElementById('simCli').value||'—').toUpperCase();
+    return { tab, nomeTab:{'229':'Suframa IPI (229)','228':'Suframa ICMS (228)','227':'Suframa ICMS+PIS/COF (227)'}[tab],
+      uf:document.getElementById('simUf').value,
+      fre:(FRETE_UF.find(x=>x[0]===document.getElementById('simUf').value)||['',0])[1],
+      vpc:(parseFloat(String(document.getElementById('simVpc').value).replace(',','.'))||0)/100 };
+  }
+  function calcItem(s, pp, qtd){
     const [cod,desc,lin,p078,custo,ipi]=s;
-    const base = tab==='229' ? p078 : p078*(1+P.acr);
-    const vpcR=base*vpc, freR=base*fre, J=base+vpcR+freR;
-    const ipiCob = tab==='229'?0:J*ipi;
-    const dIcms=(tab!=='229')?J*0.12:0, dPis=(tab==='227')?(J-dIcms)*0.0925:0;
+    const base = pp.tab==='229' ? p078 : p078*(1+P.acr);
+    const vpcR=base*pp.vpc, freR=base*pp.fre, J=base+vpcR+freR;
+    const ipiCob = pp.tab==='229'?0:J*ipi;
+    const dIcms=(pp.tab!=='229')?J*0.12:0, dPis=(pp.tab==='227')?(J-dIcms)*0.0925:0;
     const liq=J+ipiCob-dIcms-dPis;
     const icmsMC=J*0.12, pisMC=(J-icmsMC)*0.0925, rl=J-icmsMC-pisMC;
-    const mc=rl-0.06*J-vpcR-freR-custo*1.01, mcp=mc/rl;
-    const sem = mcp>=0.30?['ok','NA META']:(mcp>=0?['warn','ABAIXO META']:['bad','PREJUÍZO']);
+    const mc=rl-0.06*J-vpcR-freR-custo*1.01;
+    return {cod,desc,qtd,base,vpcR,freR,J,ipi,ipiCob,dIcms,dPis,liq,mc,rl,mcp:mc/rl};
+  }
+  function renderProp(){
+    const box=document.getElementById('propLista');
+    if(!PROP_ITENS.length){ box.style.display='none'; return; }
+    box.style.display='block';
+    document.getElementById('propN').textContent='('+PROP_ITENS.length+')';
+    const pp=paramsAtuais();
+    document.getElementById('propCorpo').innerHTML = PROP_ITENS.map((it,i)=>{
+      const r=calcItem(it.s, pp, it.qtd);
+      return `<tr><td class="cod" style="text-align:left">${r.cod}</td><td style="text-align:left"><span class="mod">${r.desc}</span></td>`+
+        `<td class="num">${it.qtd}</td><td class="num">${fmt(r.liq)}</td>`+
+        `<td><button class="btn" style="padding:2px 9px;font-size:11px" onclick="removeProp(${i})">✕</button></td></tr>`;
+    }).join('');
+  }
+  window.removeProp = i => { PROP_ITENS.splice(i,1); renderProp(); };
+  document.getElementById('propLimpar').onclick = ()=>{ PROP_ITENS=[]; renderProp(); };
+  document.getElementById('simAdd').onclick = ()=>{
+    const s = achaSku(document.getElementById('simSku').value);
+    if(!s){ alert('Escolha um produto primeiro.'); return; }
+    const qtd=Math.max(1, parseInt(document.getElementById('simQtd').value)||1);
+    const j = PROP_ITENS.findIndex(x=>x.s[0]===s[0]);
+    if (j>=0) PROP_ITENS[j].qtd = qtd; else PROP_ITENS.push({s, qtd});
+    renderProp();
+  };
+  document.getElementById('simProp').onclick = function(){
+    let itens = PROP_ITENS.slice();
+    if(!itens.length){
+      const s = achaSku(document.getElementById('simSku').value);
+      if(!s){ alert('Adicione ao menos um item à proposta.'); return; }
+      itens=[{s, qtd: Math.max(1, parseInt(document.getElementById('simQtd').value)||1)}];
+    }
+    const pp=paramsAtuais();
+    const cli=(document.getElementById('simCli').value||'—').toUpperCase();
+    const rs = itens.map(it=>calcItem(it.s, pp, it.qtd));
+    const tot = rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
+      a.ipi+=r.ipiCob*r.qtd; a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
+      {qtd:0,sug:0,icms:0,pis:0,ipi:0,liq:0,mc:0,rl:0});
+    const mcpT=tot.mc/tot.rl;
+    const semT = mcpT>=0.30?['ok','NA META']:(mcpT>=0?['warn','ABAIXO META']:['bad','PREJUÍZO']);
     const ag=new Date(); const p2=n=>String(n).padStart(2,'0');
     const num='SIM-'+ag.getFullYear()+p2(ag.getMonth()+1)+p2(ag.getDate())+'-'+p2(ag.getHours())+p2(ag.getMinutes());
     const dt=p2(ag.getDate())+'/'+p2(ag.getMonth()+1)+'/'+ag.getFullYear();
     const quem=window.USUARIO_EMAIL||'—';
     const brf=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+    const pcf=v=>(v*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';
+    let linhas='', mlin='';
+    rs.forEach((r,i)=>{
+      linhas+=`<tr><td class=c>${String(i+1).padStart(2,'0')}</td><td class=mono>${r.cod}</td><td>${r.desc}</td><td class=c>PC</td><td class=r>${r.qtd}</td>`+
+        `<td class="r tab">R$ ${brf(r.base)}</td><td class="r add">+R$ ${brf(r.vpcR)}</td><td class="r add">+R$ ${brf(r.freR)}</td>`+
+        `<td class="r add">${pp.tab==='229'?'ISENTO':'+R$ '+brf(r.ipiCob)}</td><td class=r>R$ ${brf(r.J)}</td>`+
+        `<td class="r sufc">${r.dIcms?'−R$ '+brf(r.dIcms):'—'}</td><td class="r sufc">${r.dPis?'−R$ '+brf(r.dPis):'—'}</td>`+
+        `<td class="r neg">R$ ${brf(r.liq)}</td><td class=r><b>R$ ${brf(r.liq*r.qtd)}</b></td></tr>`;
+      const sm = r.mcp>=0.30?['ok','NA META']:(r.mcp>=0?['warn','ABAIXO META']:['bad','PREJUÍZO']);
+      mlin+=`<tr><td>${r.desc}</td><td class=r>R$ ${brf(r.liq)}</td><td class=r><b>${(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</b></td>`+
+        `<td class=c><span class="tag ${sm[0]}">${sm[1]}</span></td></tr>`;
+    });
     const html=`<!doctype html><html><head><meta charset="utf-8"><title>${num}</title><style>
 *{box-sizing:border-box} body{margin:0;font:10px/1.35 "Helvetica Neue",Arial,sans-serif;color:#1a1a1a}
 .page{padding:14px 16px}
@@ -580,18 +637,23 @@ document.getElementById('copiarA').onclick=async()=>{
 .sec{font-size:10px;font-weight:800;text-transform:uppercase;margin:6px 0 4px}
 table{width:100%;border-collapse:collapse}
 .itens th{background:#2b2b2b;color:#fff;font-size:7.6px;font-weight:700;padding:4px 3px;text-align:center;text-transform:uppercase}
-.itens th.thtab{background:#0f3d24}
+.itens th.thtab{background:#0f3d24}.itens th.thsuf{background:#7a1418}
 .itens td{border-bottom:1px solid #ececec;padding:4px 3px;font-size:8.4px}
+.itens tr:nth-child(even) td{background:#fafafa}
 .c{text-align:center}.r{text-align:right;white-space:nowrap}.add{color:#c0392b}.neg{font-weight:800}
 .tab{font-weight:800;background:#eef7f1!important;color:#0f3d24}
+.sufc{background:#fdf3f4!important;color:#7a1418;font-weight:700}
 .mono{font-family:Menlo,monospace;font-size:8px}
-.suf{background:#fdf3f4;border:1px solid #f0c9cc;border-radius:3px;margin-top:8px;padding:7px 9px}
-.suf table td{font-size:8.6px;padding:2.5px 4px;border-bottom:1px solid #f3dfe1}
 .liqbox{display:flex;background:#f2f8f4;border:1px solid #cfe6d8;border-radius:3px;margin-top:8px;padding:6px 4px}
 .liqbox>div{flex:1;text-align:center;border-right:1px solid #e2eee7}
 .liqbox>div:last-child{border-right:none}
 .liqbox span{display:block;font-size:7px;color:#777;text-transform:uppercase}
 .liqbox b{font-size:9.5px}.liqbox .tot{flex:1.7;background:#eaf5ee;border-radius:2px}.liqbox .tot b{font-size:12px;font-weight:800}
+.cols{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-top:10px}
+.tt{border:1px solid #d8d8d8;border-radius:3px;padding:7px 8px}
+.marg th{background:#f0f0f0;font-size:7.6px;text-transform:uppercase;padding:3px;color:#444}
+.marg td{border-bottom:1px solid #eee;padding:3px;font-size:8.4px}
+.marg .tr td{background:#f7f7f7;border-top:1.5px solid #ccc}
 .tag{display:inline-block;padding:1px 6px;border-radius:8px;font-size:7.4px;font-weight:800}
 .tag.ok{background:#C6EACE;color:#14532d}.tag.warn{background:#FFEB9C;color:#7a5b00}.tag.bad{background:#FFC7CE;color:#8b1a1a}
 .aviso{border:1.5px solid #D71920;background:#fdf3f4;border-radius:3px;padding:7px 9px;margin-top:9px;font-size:8.8px;line-height:1.45}
@@ -600,7 +662,7 @@ table{width:100%;border-collapse:collapse}
 @page{size:A4 landscape;margin:0}
 </style></head><body><div class=page>
 <div class=hdr><div><div class=t1>PROPOSTA COMERCIAL — SIMULAÇÃO SUFRAMA</div>
- <div class=t2>Nº ${num} · ${dt} · gerada no Simulador de Preço Líquido</div></div>
+ <div class=t2>Nº ${num} · ${dt} · Simulador de Preço Líquido</div></div>
  <div class=hr><div class=marca>AMVOX</div><div class=t3>app.ctrl · Controladoria</div></div></div><div class=filete></div>
 <div class=grid4>
  <div class=box><div class=bt>Resumo</div>
@@ -611,45 +673,50 @@ table{width:100%;border-collapse:collapse}
  <div class=box><div class=bt>Cliente</div>
   <div class=f><span>Nome</span><b>${cli}</b></div>
   <div class=f><span>Área</span><b>SUFRAMA / ZFM</b></div>
-  <div class=f><span>UF destino</span><b>${uf}</b></div></div>
+  <div class=f><span>UF destino</span><b>${pp.uf}</b></div></div>
  <div class=box><div class=bt>Condições</div>
-  <div class=f><span>Tabela de preço</span><b>${nomeTab}</b></div>
-  <div class=f><span>VPC</span><b>${(vpc*100).toLocaleString('pt-BR',{maximumFractionDigits:2})}%</b></div>
-  <div class=f><span>Frete UF (SZ4)</span><b>${(fre*100).toLocaleString('pt-BR',{maximumFractionDigits:2})}%</b></div>
+  <div class=f><span>Tabela de preço</span><b>${pp.nomeTab}</b></div>
+  <div class=f><span>VPC</span><b>${pcf(pp.vpc)}</b></div>
+  <div class=f><span>Frete UF (SZ4)</span><b>${pcf(pp.fre)}</b></div>
   <div class=f><span>Validade</span><b>30 dias</b></div></div>
 </div>
-<div class=sec>Item da proposta — padrão do quadro de produtos do SFA</div>
+<div class=sec>Itens da proposta (${rs.length}) — grade do SFA + tratamento fiscal Suframa por item</div>
 <table class=itens><thead><tr><th>#</th><th>PRODUTO</th><th>DESCRIÇÃO</th><th>UM</th><th>QTD</th>
- <th class=thtab>TABELA</th><th>% VPC</th><th>VPC</th><th>FRETE</th><th>IPI</th>
- <th>SUGERIDO</th><th>NEGOCIADO</th><th>% DESC</th><th>TOTAL</th><th>TOTAL C/ IPI</th></tr></thead>
-<tbody><tr><td class=c>01</td><td class=mono>${cod}</td><td>${desc}</td><td class=c>PC</td><td class=r>${qtd}</td>
- <td class="r tab">R$ ${brf(base)}</td><td class=c>${(vpc*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</td>
- <td class="r add">+R$ ${brf(vpcR)}</td><td class="r add">+R$ ${brf(freR)}</td>
- <td class="r add">${tab==='229'?'ISENTO':'+R$ '+brf(ipiCob)}</td>
- <td class=r>R$ ${brf(J)}</td><td class="r neg">R$ ${brf(J)}</td><td class=c>0%</td>
- <td class=r>R$ ${brf(J*qtd)}</td><td class=r><b>R$ ${brf((J+ipiCob)*qtd)}</b></td></tr></tbody></table>
-<div class=suf><div class=bt style="border-color:#f0c9cc">Tratamento fiscal Suframa — descontos destacados na NF (${nomeTab})</div>
- <table><tr><td>IPI (${(ipi*100).toLocaleString('pt-BR',{maximumFractionDigits:2})}% do cadastro)</td><td class=r>${tab==='229'?'ISENTO (tabela 229)':'cobrado: +R$ '+brf(ipiCob)+'/un'}</td></tr>
- <tr><td>Desconto ICMS 12%</td><td class=r>${dIcms?'−R$ '+brf(dIcms)+'/un':'não se aplica nesta tabela'}</td></tr>
- <tr><td>Desconto PIS/COFINS 9,25% s/ (base − ICMS)</td><td class=r>${dPis?'−R$ '+brf(dPis)+'/un':'não se aplica nesta tabela'}</td></tr></table></div>
+ <th class=thtab>TABELA</th><th>VPC</th><th>FRETE</th><th>IPI</th><th>SUGERIDO s/ IPI</th>
+ <th class=thsuf>DESC. ICMS</th><th class=thsuf>DESC. PIS/COF</th><th class=thsuf>LÍQUIDO NF (un)</th><th>TOTAL LÍQUIDO</th></tr></thead>
+<tbody>${linhas}</tbody></table>
 <div class=liqbox>
- <div><span>QTD</span><b>${qtd}</b></div>
- <div><span>SUGERIDO s/ IPI (un)</span><b>R$ ${brf(J)}</b></div>
- <div><span>LÍQUIDO NF (un)</span><b>R$ ${brf(liq)}</b></div>
- <div class=tot><span>PREÇO LÍQUIDO TOTAL DA NF</span><b>R$ ${brf(liq*qtd)}</b></div>
- <div><span>MARGEM PROJETADA</span><b><span class="tag ${sem[0]}">${(mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}% · ${sem[1]}</span></b></div></div>
-<div class=nota>Margem projetada da Controladoria: deduz ICMS 12% e PIS/COFINS 9,25% (repassados em NF ou devidos), frete da UF, VPC, MOD 1% s/ custo e demais deduções variáveis. Preço base Brasil = tabela 078 vigente na data.</div>
-<div class=aviso>⚠️ <b>DOCUMENTO DE SIMULAÇÃO</b> — não substitui a proposta oficial numerada (PROP-ano-nº) emitida pela Controladoria. O pedido deve ser digitado no SFA com a tabela <b>${nomeTab}</b>, VPC e frete exatamente como acima, sob pena de recálculo automático das condições.</div>
+ <div><span>ITENS</span><b>${rs.length}</b></div>
+ <div><span>QTD TOTAL</span><b>${tot.qtd}</b></div>
+ <div><span>SUGERIDO s/ IPI</span><b>R$ ${brf(tot.sug)}</b></div>
+ <div><span>IPI</span><b class=add>${tot.ipi?'+R$ '+brf(tot.ipi):'ISENTO'}</b></div>
+ <div><span>DESC. ICMS</span><b>${tot.icms?'−R$ '+brf(tot.icms):'—'}</b></div>
+ <div><span>DESC. PIS/COF</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
+ <div class=tot><span>PREÇO LÍQUIDO TOTAL DA NF</span><b>R$ ${brf(tot.liq)}</b></div></div>
+<div class=cols>
+ <div class=tt><div class=bt>Análise de margem — Controladoria</div>
+  <table class=marg><thead><tr><th>Item</th><th>Líquido un</th><th>MC %</th><th>Status</th></tr></thead>
+  <tbody>${mlin}<tr class=tr><td><b>TOTAL DA PROPOSTA</b></td><td class=r>R$ ${brf(tot.liq)}</td>
+  <td class=r><b>${(mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</b></td>
+  <td class=c><span class="tag ${semT[0]}">${semT[1]}</span></td></tr></tbody></table></div>
+ <div class=tt><div class=bt>Totais</div>
+  <div class=f><span>Sugerido s/ IPI</span><b>R$ ${brf(tot.sug)}</b></div>
+  <div class=f><span>IPI</span><b>${tot.ipi?'+R$ '+brf(tot.ipi):'ISENTO (tabela 229)'}</b></div>
+  <div class=f><span>Desconto ICMS (12%)</span><b>${tot.icms?'−R$ '+brf(tot.icms):'—'}</b></div>
+  <div class=f><span>Desconto PIS/COFINS (9,25%)</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
+  <div class=f style="border-top:1px solid #ddd;margin-top:3px;padding-top:4px;font-size:11px"><span>PREÇO LÍQUIDO TOTAL</span><b>R$ ${brf(tot.liq)}</b></div></div>
+</div>
+<div class=nota>Margem projetada deduz ICMS 12% e PIS/COFINS 9,25% (repassados em NF ou devidos), frete da UF, VPC, MOD 1% s/ custo e demais deduções variáveis. Preço base Brasil = tabela 078 vigente na data. IPI pelo cadastro de cada produto.</div>
+<div class=aviso>⚠️ <b>DOCUMENTO DE SIMULAÇÃO</b> — não substitui a proposta oficial numerada (PROP-ano-nº) emitida pela Controladoria. O pedido deve ser digitado no SFA com a tabela <b>${pp.nomeTab}</b>, VPC e frete exatamente como acima, sob pena de recálculo automático das condições.</div>
 <div class=rod>AMVOX / REISTAR — Simulador de Preço Líquido Suframa · ${num} · ${dt} · ${quem}</div>
 </div><scr`+`ipt>window.print();</scr`+`ipt></body></html>`;
     const w=window.open('','_blank');
     if(!w){ alert('Habilite pop-ups para gerar a proposta.'); return; }
     w.document.write(html); w.document.close();
   };
-
   ['simSku','simTab','simUf','simVpc'].forEach(id=>{
     const el=document.getElementById(id);
-    el.addEventListener('input',simula); el.addEventListener('change',simula);
+    el.addEventListener('input',()=>{simula();renderProp();}); el.addEventListener('change',()=>{simula();renderProp();});
   });
 })();
 
