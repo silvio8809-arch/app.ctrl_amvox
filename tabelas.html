@@ -142,7 +142,8 @@
         <select id="simUf" style="padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></select></div>
       <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">VPC %</label><br>
         <input id="simVpc" type="number" step="0.5" value="0" style="width:80px;text-align:right;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
-      <div class="acao"><button class="btn" id="simProp" style="background:var(--accent);color:#fff;border-color:var(--accent)">📄 Gerar proposta (PDF)</button></div>
+      <div class="acao"><button class="btn" id="simXls">⬇ Baixar XLS</button>
+        <button class="btn" id="simProp" style="background:var(--accent);color:#fff;border-color:var(--accent);margin-left:8px">📄 Gerar proposta (PDF)</button></div>
     </div>
     <datalist id="skuList"></datalist>
     <div class="tbl-wrap" style="margin-top:12px">
@@ -171,7 +172,9 @@
           <select id="stUf" style="padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></select></div>
         <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">VPC %</label><br>
           <input id="stVpc" type="number" step="0.5" value="0" style="width:80px;text-align:right;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
-        <div class="acao"><button class="btn" id="stGerar" style="background:var(--accent);color:#fff;border-color:var(--accent)">⚡ Gerar simulação</button></div>
+        <div class="acao"><button class="btn" id="stGerar" style="background:var(--accent);color:#fff;border-color:var(--accent)">⚡ Gerar simulação</button>
+          <button class="btn" id="stXls" style="margin-left:8px" disabled>⬇ Baixar XLS</button>
+          <button class="btn" id="stProp" style="margin-left:8px" disabled>📄 Gerar proposta (PDF)</button></div>
       </div>
       <div id="stVazio" style="color:var(--muted);padding:22px 4px">Escolha a tabela e a UF e clique em <b>Gerar simulação</b>.</div>
       <div id="stResultado" style="display:none">
@@ -479,31 +482,41 @@ function zipar(arquivos){ // arquivos: [{nome, dados(Uint8Array)}]
   return out;
 }
 function nomeAbaSeguro(s){ return String(s).replace(/[:\\\/?*\[\]]/g,'-').slice(0,31); }
-function baixarXLS(nomeArq, nomeTabela, linhas){ // linhas: [[codigo, produto, preco]]
+function colLetra(n){ let s=''; while(n>0){ const r=(n-1)%26; s=String.fromCharCode(65+r)+s; n=(n-r-1)/26; } return s; }
+/* COLS padrao = o formato aprovado nas abas Consulta/Suframa (3 colunas).
+   As simulacoes passam o proprio conjunto de colunas — o CABECALHO e a ABA seguem o mesmo padrao. */
+const COLS_PADRAO=[{t:'CÓDIGO',w:14,tipo:'s'},{t:'PRODUTO',w:48,tipo:'s'},{t:'PREÇO TABELA',w:16,tipo:'n'}];
+function baixarXLS(nomeArq, nomeTabela, linhas, cols, subtitulo){
+  cols = cols || COLS_PADRAO;
   const enc=new TextEncoder(), A=s=>enc.encode(s);
   const d=new Date(), p2=n=>String(n).padStart(2,'0');
   const dataBr=p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'+d.getFullYear();
+  const ultima=colLetra(cols.length);
+  const est={s:0,n:2,p:7};                       // 0=texto, 2=numero 2 casas, 7=percentual
   const txt=(ref,v,s)=>`<c r="${ref}" t="inlineStr"${s?` s="${s}"`:''}><is><t>${xmlEsc(v)}</t></is></c>`;
   let rows='';
   rows+=`<row r="1" ht="20" customHeight="1">${txt('A1','AMVOX / REISTAR — CONTROLADORIA',3)}</row>`;
   rows+=`<row r="2" ht="17" customHeight="1">${txt('A2','TABELA: '+nomeTabela,4)}</row>`;
-  rows+=`<row r="3">${txt('A3','Emitida em '+dataBr+' · valores em R$ · '+linhas.length+' produtos · uso interno',5)}</row>`;
+  rows+=`<row r="3">${txt('A3',(subtitulo?subtitulo+' · ':'')+'Emitida em '+dataBr+' · valores em R$ · '+linhas.length+' produtos · uso interno',5)}</row>`;
   rows+='<row r="4"></row>';
-  rows+=`<row r="5">${txt('A5','CÓDIGO',6)}${txt('B5','PRODUTO',6)}${txt('C5','PREÇO TABELA',6)}</row>`;
+  rows+=`<row r="5">${cols.map((c,i)=>txt(colLetra(i+1)+'5',c.t,6)).join('')}</row>`;
   linhas.forEach((l,i)=>{ const r=i+6;
-    rows+=`<row r="${r}">${txt('A'+r,l[0])}${txt('B'+r,l[1])}`+
-          `<c r="C${r}" s="2">${l[2]!=null?`<v>${Number(l[2]).toFixed(2)}</v>`:''}</c></row>`;
+    rows+=`<row r="${r}">`+cols.map((c,j)=>{
+      const ref=colLetra(j+1)+r, v=l[j];
+      if(c.tipo==='s' || v==null || v==='') return txt(ref, v==null?'':v);
+      return `<c r="${ref}" s="${est[c.tipo]||0}"><v>${c.tipo==='p'?Number(v).toFixed(4):Number(v).toFixed(2)}</v></c>`;
+    }).join('')+'</row>';
   });
   const sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
     '<sheetViews><sheetView workbookViewId="0"><pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
-    '<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="48" customWidth="1"/><col min="3" max="3" width="16" customWidth="1"/></cols>'+
+    '<cols>'+cols.map((c,i)=>`<col min="${i+1}" max="${i+1}" width="${c.w}" customWidth="1"/>`).join('')+'</cols>'+
     '<sheetData>'+rows+'</sheetData>'+
-    '<mergeCells count="3"><mergeCell ref="A1:C1"/><mergeCell ref="A2:C2"/><mergeCell ref="A3:C3"/></mergeCells>'+
+    `<mergeCells count="3"><mergeCell ref="A1:${ultima}1"/><mergeCell ref="A2:${ultima}2"/><mergeCell ref="A3:${ultima}3"/></mergeCells>`+
     '</worksheet>';
   const styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
-    '<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts>'+
+    '<numFmts count="2"><numFmt numFmtId="164" formatCode="#,##0.00"/><numFmt numFmtId="165" formatCode="0.0%"/></numFmts>'+
     '<fonts count="6">'+
     '<font><sz val="11"/><name val="Calibri"/></font>'+
     '<font><b/><sz val="11"/><name val="Calibri"/></font>'+
@@ -514,14 +527,15 @@ function baixarXLS(nomeArq, nomeTabela, linhas){ // linhas: [[codigo, produto, p
     '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+
     '<fill><patternFill patternType="solid"><fgColor rgb="FF17181A"/><bgColor indexed="64"/></patternFill></fill></fills>'+
     '<borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
-    '<cellXfs count="7">'+
+    '<cellXfs count="8">'+
     '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
     '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
     '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'+
     '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
     '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
     '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
-    '<xf numFmtId="0" fontId="5" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>'+
+    '<xf numFmtId="0" fontId="5" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/>'+
+    '<xf numFmtId="165" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>'+
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   const ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
@@ -841,11 +855,25 @@ document.getElementById('copiarA').onclick=async()=>{
     document.getElementById('stResultado').style.display='block';
     if(!document.getElementById('stLinhas').children.length) stMonta();
     stAtualiza();
+    document.getElementById('stXls').disabled=false;
+    document.getElementById('stProp').disabled=false;
   };
   /* trocar tabela/UF/VPC depois de gerado recalcula na hora (nao precisa clicar de novo) */
   ['stTab','stUf','stVpc'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{
     if(document.getElementById('stResultado').style.display!=='none') stAtualiza();
   }));
+  /* XLS e PDF da simulação POR TABELA — mesmos geradores/padrão da visão por cliente */
+  function stItens(){ return SIM.map(s=>({s, qtd:Math.max(1, parseInt(ST_QTD[s[0]])||1)})); }
+  document.getElementById('stXls').onclick=function(){
+    const pp=paramsTabela();
+    baixarXLS('AMVOX_SIMULACAO_TABELA_'+pp.tab+'_'+pp.uf+'_'+hojeArq()+'.xlsx', pp.nomeTab,
+      stItens().map(it=>linhaXLS(calcItem(it.s, pp, it.qtd))), COLS_SIM,
+      'Simulação por tabela · UF '+pp.uf+' · VPC '+(pp.vpc*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%');
+    okBotao('stXls','Baixado ✓');
+  };
+  document.getElementById('stProp').onclick=function(){
+    gerarPropostaPDF(stItens(), paramsTabela(), 'SIMULAÇÃO POR TABELA');
+  };
   /* alternador das 2 visoes */
   document.querySelectorAll('#simModos .chip').forEach(b=>b.onclick=()=>{
     document.querySelectorAll('#simModos .chip').forEach(x=>x.classList.toggle('on', x===b));
@@ -859,11 +887,7 @@ document.getElementById('copiarA').onclick=async()=>{
   });
 
   // ---- PROPOSTA PDF no layout SFA (grade completa; foco Suframa) ----
-  document.getElementById('simProp').onclick = function(){
-    const itens = itensValidos();
-    if(!itens.length){ alert('Adicione ao menos um produto à grade.'); return; }
-    const pp=paramsAtuais();
-    const cli=(document.getElementById('simCli').value||'—').toUpperCase();
+  function gerarPropostaPDF(itens, pp, cli){
     const rs = itens.map(it=>calcItem(it.s, pp, it.qtd));
     const tot = rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
       a.ipi+=r.ipiCob*r.qtd; a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
@@ -978,6 +1002,27 @@ table{width:100%;border-collapse:collapse}
     const w=window.open('','_blank');
     if(!w){ alert('Habilite pop-ups para gerar a proposta.'); return; }
     w.document.write(html); w.document.close();
+  }
+  document.getElementById('simProp').onclick = function(){
+    const itens = itensValidos();
+    if(!itens.length){ alert('Adicione ao menos um produto à grade.'); return; }
+    gerarPropostaPDF(itens, paramsAtuais(), (document.getElementById('simCli').value||'—').toUpperCase());
+  };
+  /* XLS da simulação POR CLIENTE — mesmo padrão de arquivo das abas Consulta/Suframa */
+  const COLS_SIM=[{t:'CÓDIGO',w:14,tipo:'s'},{t:'PRODUTO',w:44,tipo:'s'},{t:'QTD',w:8,tipo:'n'},
+    {t:'TABELA',w:13,tipo:'n'},{t:'VPC',w:11,tipo:'n'},{t:'FRETE',w:11,tipo:'n'},{t:'IPI',w:11,tipo:'n'},
+    {t:'SUGERIDO S/ IPI',w:16,tipo:'n'},{t:'DESC. ICMS',w:13,tipo:'n'},{t:'DESC. PIS/COF',w:14,tipo:'n'},
+    {t:'LÍQUIDO NF (UN)',w:16,tipo:'n'},{t:'TOTAL LÍQUIDO',w:16,tipo:'n'},{t:'MC %',w:9,tipo:'p'}];
+  function linhaXLS(r){ return [r.cod,r.desc,r.qtd,r.base,r.vpcR,r.freR,r.ipiCob,r.J,
+    r.dIcms?-r.dIcms:0, r.dPis?-r.dPis:0, r.liq, r.liq*r.qtd, r.mcp]; }
+  document.getElementById('simXls').onclick = function(){
+    const itens = itensValidos();
+    if(!itens.length){ alert('Adicione ao menos um produto à grade.'); return; }
+    const pp=paramsAtuais(), cli=(document.getElementById('simCli').value||'').toUpperCase();
+    baixarXLS('AMVOX_SIMULACAO_'+pp.tab+'_'+pp.uf+'_'+hojeArq()+'.xlsx', pp.nomeTab,
+      itens.map(it=>linhaXLS(calcItem(it.s, pp, it.qtd))), COLS_SIM,
+      'Simulação por cliente'+(cli?' · '+cli:'')+' · UF '+pp.uf+' · VPC '+(pp.vpc*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%');
+    okBotao('simXls','Baixado ✓');
   };
 })();
 
