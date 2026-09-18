@@ -892,24 +892,19 @@ document.getElementById('copiarA').onclick=async()=>{
     const tot = rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
       a.ipi+=r.ipiCob*r.qtd; a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
       {qtd:0,sug:0,icms:0,pis:0,ipi:0,liq:0,mc:0,rl:0});
-    const mcpT=tot.mc/tot.rl;
-    const semT = mcpT>=0.30?['ok','NA META']:(mcpT>=0?['warn','ABAIXO META']:['bad','PREJUÍZO']);
     const ag=new Date(); const p2=n=>String(n).padStart(2,'0');
     const num='SIM-'+ag.getFullYear()+p2(ag.getMonth()+1)+p2(ag.getDate())+'-'+p2(ag.getHours())+p2(ag.getMinutes());
     const dt=p2(ag.getDate())+'/'+p2(ag.getMonth()+1)+'/'+ag.getFullYear();
     const quem=window.USUARIO_EMAIL||'—';
     const brf=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     const pcf=v=>(v*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';
-    let linhas='', mlin='';
+    let linhas='';
     rs.forEach((r,i)=>{
       linhas+=`<tr><td class=c>${String(i+1).padStart(2,'0')}</td><td class=mono>${r.cod}</td><td>${r.desc}</td><td class=c>PC</td><td class=r>${r.qtd}</td>`+
         `<td class="r tab">R$ ${brf(r.base)}</td><td class="r add">+R$ ${brf(r.vpcR)}</td><td class="r add">+R$ ${brf(r.freR)}</td>`+
         `<td class="r add">${pp.tab==='229'?'ISENTO':'+R$ '+brf(r.ipiCob)}</td><td class=r>R$ ${brf(r.J)}</td>`+
         `<td class="r sufc">${r.dIcms?'−R$ '+brf(r.dIcms):'—'}</td><td class="r sufc">${r.dPis?'−R$ '+brf(r.dPis):'—'}</td>`+
         `<td class="r neg">R$ ${brf(r.liq)}</td><td class=r><b>R$ ${brf(r.liq*r.qtd)}</b></td></tr>`;
-      const sm = r.mcp>=0.30?['ok','NA META']:(r.mcp>=0?['warn','ABAIXO META']:['bad','PREJUÍZO']);
-      mlin+=`<tr><td>${r.desc}</td><td class=r>R$ ${brf(r.liq)}</td><td class=r><b>${(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</b></td>`+
-        `<td class=c><span class="tag ${sm[0]}">${sm[1]}</span></td></tr>`;
     });
     const html=`<!doctype html><html><head><meta charset="utf-8"><title>${num}</title><style>
 *{box-sizing:border-box} body{margin:0;font:10px/1.35 "Helvetica Neue",Arial,sans-serif;color:#1a1a1a}
@@ -938,7 +933,7 @@ table{width:100%;border-collapse:collapse}
 .liqbox>div:last-child{border-right:none}
 .liqbox span{display:block;font-size:7px;color:#777;text-transform:uppercase}
 .liqbox b{font-size:9.5px}.liqbox .tot{flex:1.7;background:#eaf5ee;border-radius:2px}.liqbox .tot b{font-size:12px;font-weight:800}
-.cols{display:grid;grid-template-columns:1.2fr 1fr;gap:8px;margin-top:10px}
+.cols{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}
 .tt{border:1px solid #d8d8d8;border-radius:3px;padding:7px 8px}
 .marg th{background:#f0f0f0;font-size:7.6px;text-transform:uppercase;padding:3px;color:#444}
 .marg td{border-bottom:1px solid #eee;padding:3px;font-size:8.4px}
@@ -983,11 +978,6 @@ table{width:100%;border-collapse:collapse}
  <div><span>DESC. PIS/COF</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
  <div class=tot><span>PREÇO LÍQUIDO TOTAL DA NF</span><b>R$ ${brf(tot.liq)}</b></div></div>
 <div class=cols>
- <div class=tt><div class=bt>Análise de margem — Controladoria</div>
-  <table class=marg><thead><tr><th>Item</th><th>Líquido un</th><th>MC %</th><th>Status</th></tr></thead>
-  <tbody>${mlin}<tr class=tr><td><b>TOTAL DA PROPOSTA</b></td><td class=r>R$ ${brf(tot.liq)}</td>
-  <td class=r><b>${(mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</b></td>
-  <td class=c><span class="tag ${semT[0]}">${semT[1]}</span></td></tr></tbody></table></div>
  <div class=tt><div class=bt>Totais</div>
   <div class=f><span>Sugerido s/ IPI</span><b>R$ ${brf(tot.sug)}</b></div>
   <div class=f><span>IPI</span><b>${tot.ipi?'+R$ '+brf(tot.ipi):'ISENTO (tabela 229)'}</b></div>
@@ -995,7 +985,7 @@ table{width:100%;border-collapse:collapse}
   <div class=f><span>Desconto PIS/COFINS (9,25%)</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
   <div class=f style="border-top:1px solid #ddd;margin-top:3px;padding-top:4px;font-size:11px"><span>PREÇO LÍQUIDO TOTAL</span><b>R$ ${brf(tot.liq)}</b></div></div>
 </div>
-<div class=nota>Margem projetada deduz ICMS 12% e PIS/COFINS 9,25% (repassados em NF ou devidos), frete da UF, VPC, MOD 1% s/ custo e demais deduções variáveis. Preço base Brasil = tabela 078 vigente na data. IPI pelo cadastro de cada produto.</div>
+<div class=nota>Preço base Brasil = tabela 078 vigente na data, acrescido do percentual de incremento da região quando a tabela o prevê. Frete da UF e VPC entram por fora, conforme o cadastro. IPI pelo cadastro de cada produto. Descontos de ICMS e PIS/COFINS destacados na NF conforme o benefício da tabela.</div>
 <div class=aviso>⚠️ <b>DOCUMENTO DE SIMULAÇÃO</b> — não substitui a proposta oficial numerada (PROP-ano-nº) emitida pela Controladoria. O pedido deve ser digitado no SFA com a tabela <b>${pp.nomeTab}</b>, VPC e frete exatamente como acima, sob pena de recálculo automático das condições.</div>
 <div class=rod>AMVOX / REISTAR — Simulador de Preço Líquido Suframa · ${num} · ${dt} · ${quem}</div>
 </div><scr`+`ipt>window.print();</scr`+`ipt></body></html>`;
@@ -1009,12 +999,14 @@ table{width:100%;border-collapse:collapse}
     gerarPropostaPDF(itens, paramsAtuais(), (document.getElementById('simCli').value||'—').toUpperCase());
   };
   /* XLS da simulação POR CLIENTE — mesmo padrão de arquivo das abas Consulta/Suframa */
+  /* ⚠️ MARGEM (MC %) NAO ENTRA em arquivo exportado — informacao confidencial (Silvio 18/09).
+     Ela aparece somente na TELA, para uso interno. */
   const COLS_SIM=[{t:'CÓDIGO',w:14,tipo:'s'},{t:'PRODUTO',w:44,tipo:'s'},{t:'QTD',w:8,tipo:'n'},
     {t:'TABELA',w:13,tipo:'n'},{t:'VPC',w:11,tipo:'n'},{t:'FRETE',w:11,tipo:'n'},{t:'IPI',w:11,tipo:'n'},
     {t:'SUGERIDO S/ IPI',w:16,tipo:'n'},{t:'DESC. ICMS',w:13,tipo:'n'},{t:'DESC. PIS/COF',w:14,tipo:'n'},
-    {t:'LÍQUIDO NF (UN)',w:16,tipo:'n'},{t:'TOTAL LÍQUIDO',w:16,tipo:'n'},{t:'MC %',w:9,tipo:'p'}];
+    {t:'LÍQUIDO NF (UN)',w:16,tipo:'n'},{t:'TOTAL LÍQUIDO',w:16,tipo:'n'}];
   function linhaXLS(r){ return [r.cod,r.desc,r.qtd,r.base,r.vpcR,r.freR,r.ipiCob,r.J,
-    r.dIcms?-r.dIcms:0, r.dPis?-r.dPis:0, r.liq, r.liq*r.qtd, r.mcp]; }
+    r.dIcms?-r.dIcms:0, r.dPis?-r.dPis:0, r.liq, r.liq*r.qtd]; }
   document.getElementById('simXls').onclick = function(){
     const itens = itensValidos();
     if(!itens.length){ alert('Adicione ao menos um produto à grade.'); return; }
