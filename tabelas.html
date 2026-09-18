@@ -123,6 +123,11 @@
 <main>
   <!-- SIMULADOR PREÇO LÍQUIDO -->
   <section class="tela" id="tela-simulador">
+    <div class="chips" id="simModos" style="margin-bottom:12px">
+      <button class="chip on" data-modo="cliente">Simulação por cliente</button>
+      <button class="chip" data-modo="tabela">Simulação por tabela</button>
+    </div>
+    <div id="modoCliente">
     <div class="aviso" style="margin-bottom:12px">Simulador de <b>preço líquido Suframa/ZFM</b>: informe cliente, tabela, UF e VPC no cabeçalho e escolha os produtos <b>linha a linha</b> — o botão <b>➕</b> inclui outro produto na proposta. Cada linha mostra o preço sugerido, os descontos fiscais destacados em NF, o <b>líquido</b> e a <b>margem</b>; o resumo total aparece nos cards abaixo.</div>
     <div class="barra" style="align-items:flex-end">
       <div class="busca" style="max-width:300px"><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Cliente</label>
@@ -151,6 +156,39 @@
       </table>
     </div>
     <div id="simCards" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px"></div>
+    </div><!-- /modoCliente -->
+
+    <div id="modoTabela" style="display:none">
+      <div class="aviso" style="margin-bottom:12px">Simulação <b>por tabela</b>: escolha a tabela Suframa, a UF de destino e o VPC (se houver) e clique em <b>Gerar simulação</b> — o painel lista <b>todos os itens da tabela</b> com o preço sugerido, os descontos fiscais destacados em NF, o <b>líquido</b> e a <b>margem</b>, no mesmo formato da simulação por cliente.</div>
+      <div class="barra" style="align-items:flex-end">
+        <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Tabela</label><br>
+          <select id="stTab" style="padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)">
+            <option value="229">Suframa IPI (229)</option>
+            <option value="228">Suframa ICMS (228)</option>
+            <option value="227">Suframa ICMS+PIS/COF (227)</option>
+          </select></div>
+        <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">UF destino</label><br>
+          <select id="stUf" style="padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></select></div>
+        <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">VPC %</label><br>
+          <input id="stVpc" type="number" step="0.5" value="0" style="width:80px;text-align:right;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
+        <div class="acao"><button class="btn" id="stGerar" style="background:var(--accent);color:#fff;border-color:var(--accent)">⚡ Gerar simulação</button></div>
+      </div>
+      <div id="stVazio" style="color:var(--muted);padding:22px 4px">Escolha a tabela e a UF e clique em <b>Gerar simulação</b>.</div>
+      <div id="stResultado" style="display:none">
+        <div class="tbl-wrap" style="margin-top:12px">
+          <table style="min-width:1150px">
+            <thead><tr>
+              <th>#</th><th style="text-align:left">Produto</th><th>Qtd</th>
+              <th class="dest">Tabela</th><th>VPC</th><th>Frete</th><th>IPI</th><th>Sugerido s/ IPI</th>
+              <th>Desc. ICMS</th><th>Desc. PIS/COF</th><th class="dest">Líquido NF (un)</th><th>Total líquido</th><th>MC %</th>
+            </tr></thead>
+            <tbody id="stLinhas"></tbody>
+          </table>
+        </div>
+        <div id="stCards" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:14px"></div>
+      </div>
+    </div><!-- /modoTabela -->
+
     <p id="notaMetod" style="font-size:11.5px;color:var(--muted);margin-top:12px;max-width:78ch">Margem projetada deduz: ICMS 12% e PIS/COFINS 9,25% (repassados como desconto ao cliente OU devidos — efeito idêntico), comissão 3%, devolução 3%, MOD 1% sobre o custo, frete da UF e VPC. Preços base Brasil da tabela 078 vigente; frete pela tabela oficial por UF. Simulação — o pedido real segue o SFA.</p>
   </section>
 
@@ -737,6 +775,84 @@ document.getElementById('copiarA').onclick=async()=>{
       card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
   }
   montaGrade();
+
+  // ================= VISAO 2: SIMULACAO POR TABELA (Silvio 18/09) =================
+  // Mesma grade de produtos da visao por cliente; muda so a ENTRADA (tabela+UF+VPC) e o
+  // universo (todos os itens da tabela, em vez de escolha linha a linha).
+  const stUf=document.getElementById('stUf');
+  FRETE_UF.forEach(([uf,p])=>{const o=document.createElement('option'); o.value=uf;
+    o.textContent=uf+' ('+(p*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%)'; stUf.appendChild(o);});
+  stUf.value='AM';
+  let ST_QTD={};                     // qtd por código (default 1), preservada no regerar
+  function paramsTabela(){
+    const tab=document.getElementById('stTab').value;
+    return { tab, nomeTab:{'229':'Suframa IPI (229)','228':'Suframa ICMS (228)','227':'Suframa ICMS+PIS/COF (227)'}[tab],
+      uf:stUf.value, fre:(FRETE_UF.find(x=>x[0]===stUf.value)||['',0])[1],
+      vpc:(parseFloat(String(document.getElementById('stVpc').value).replace(',','.'))||0)/100 };
+  }
+  const ST_CELLS=['cTab','cVpc','cFre','cIpi','cSug','cIcms','cPis','cLiq','cTot','cMc'];
+  /* monta as linhas UMA vez; o recalculo so troca os valores — se reconstruir a grade a cada
+     tecla, o campo de qtd perde o foco e o usuario nao consegue digitar "10" (achado no teste) */
+  function stMonta(){
+    const tb=document.getElementById('stLinhas'); tb.innerHTML='';
+    SIM.forEach((s,i)=>{
+      const q=Math.max(1, parseInt(ST_QTD[s[0]])||1);
+      const tr=document.createElement('tr'); tr.style.cursor='default'; tr.dataset.cod=s[0];
+      tr.innerHTML=`<td class="num">${String(i+1).padStart(2,'0')}</td>`+
+        `<td style="text-align:left"><span class="mod">${s[1]}</span><br><span class="seg">${s[0]}</span></td>`+
+        `<td><input class="stQ" type="number" min="1" value="${q}" style="width:68px;text-align:right;box-sizing:border-box;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:13px var(--body);background:var(--panel);color:var(--ink)"></td>`+
+        ST_CELLS.map(c=>`<td class="num ${c}${c==='cTab'||c==='cLiq'?' dest':''}">—</td>`).join('');
+      tr.querySelector('.stQ').addEventListener('input',e=>{
+        ST_QTD[s[0]]=Math.max(1, parseInt(e.target.value)||1); stAtualiza(); });
+      tb.appendChild(tr);
+    });
+  }
+  function stAtualiza(){
+    const pp=paramsTabela();
+    const trs=[...document.getElementById('stLinhas').children];
+    const rs=[];
+    trs.forEach((tr,i)=>{
+      const s=SIM[i], q=Math.max(1, parseInt(ST_QTD[s[0]])||1);
+      const r=calcItem(s, pp, q); rs.push(r);
+      const set=(c,v)=>{ tr.querySelector('.'+c).textContent=v; };
+      set('cTab',fmt(r.base)); set('cVpc',r.vpcR?fmt(r.vpcR):'—'); set('cFre',fmt(r.freR));
+      set('cIpi',pp.tab==='229'?'ISENTO':fmt(r.ipiCob)); set('cSug',fmt(r.J));
+      set('cIcms',r.dIcms?'−'+fmt(r.dIcms):'—'); set('cPis',r.dPis?'−'+fmt(r.dPis):'—');
+      set('cLiq',fmt(r.liq)); tr.querySelector('.cLiq').style.fontWeight='700';
+      set('cTot',fmt(r.liq*q));
+      const mcEl=tr.querySelector('.cMc');
+      mcEl.textContent=(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+      mcEl.style.background = r.mcp>=0.30?'#EAF3EC':(r.mcp>=0?'#FDF3E7':'#FDE8E8');
+    });
+    const tot=rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
+      a.ipi+=r.ipiCob*r.qtd; a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
+      {qtd:0,sug:0,icms:0,pis:0,ipi:0,liq:0,mc:0,rl:0});
+    const mcpT=tot.mc/tot.rl;
+    const corMC = mcpT>=0.30?'#EAF3EC':(mcpT>=0?'#FDF3E7':'#FDE8E8');
+    document.getElementById('stCards').innerHTML =
+      card('Itens', rs.length) + card('Qtd total', tot.qtd.toLocaleString('pt-BR')) +
+      card('Sugerido s/ IPI', fmt(tot.sug)) + card('IPI', tot.ipi?'+'+fmt(tot.ipi):'ISENTO') +
+      card('Desc. ICMS', tot.icms?'−'+fmt(tot.icms):'—') + card('Desc. PIS/COF', tot.pis?'−'+fmt(tot.pis):'—') +
+      card('PREÇO LÍQUIDO TOTAL DA NF', fmt(tot.liq), true) +
+      card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
+  }
+  document.getElementById('stGerar').onclick=()=>{
+    document.getElementById('stVazio').style.display='none';
+    document.getElementById('stResultado').style.display='block';
+    if(!document.getElementById('stLinhas').children.length) stMonta();
+    stAtualiza();
+  };
+  /* trocar tabela/UF/VPC depois de gerado recalcula na hora (nao precisa clicar de novo) */
+  ['stTab','stUf','stVpc'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{
+    if(document.getElementById('stResultado').style.display!=='none') stAtualiza();
+  }));
+  /* alternador das 2 visoes */
+  document.querySelectorAll('#simModos .chip').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('#simModos .chip').forEach(x=>x.classList.toggle('on', x===b));
+    const porTabela = b.dataset.modo==='tabela';
+    document.getElementById('modoCliente').style.display = porTabela?'none':'block';
+    document.getElementById('modoTabela').style.display  = porTabela?'block':'none';
+  });
   ['simTab','simUf','simVpc'].forEach(id=>{
     const el=document.getElementById(id);
     el.addEventListener('input',recalc); el.addEventListener('change',recalc);
