@@ -499,13 +499,21 @@ function renderChipsTabC(){
       renderChipsTabC(); aplicaColunas(); atualizaBotaoXLS(); };
     el.appendChild(b); });
 }
+/* A TELA NAO MUDA: a grade segue mostrando todas as colunas (Silvio 18/09 — a seleção é só do
+   download). O único efeito visual é mover o destaque que a grade já tem para a tabela escolhida. */
 function aplicaColunas(){
   const st=document.getElementById('estiloCols');
-  if(!selTabC.length){ st.textContent=''; return; }
-  const esc=TABELAS_C.filter(t=>!selTabC.includes(t.k))
-    .map(t=>`#tela-consulta .tbl-wrap th:nth-child(${t.col}),#tela-consulta .tbl-wrap td:nth-child(${t.col})`).join(',');
-  /* com colunas ocultas a tabela precisa encolher, senao a coluna de preco sai da area visivel */
-  st.textContent = (esc ? esc+'{display:none}' : '') + '#tela-consulta .tbl-wrap table{min-width:0}';
+  const T='#tela-consulta .tbl-wrap ';
+  if(selTabC.length!==1){ st.textContent=''; return; }   // 0 ou 2+: destaque padrão (Tab. 3 New)
+  const c=TABELAS_C.find(x=>x.k===selTabC[0]).col;
+  if(c===3){ st.textContent=''; return; }                // já é a destacada no HTML
+  st.textContent =
+    T+'thead th:nth-child(3){background:var(--ink)}'+
+    T+'tbody td:nth-child(3){font-weight:400;background:transparent}'+
+    T+'tbody tr:hover td:nth-child(3){background:#F3F2EF}'+
+    T+`thead th:nth-child(${c}){background:var(--accent)}`+
+    T+`tbody td:nth-child(${c}){font-weight:700;background:var(--accent-soft)}`+
+    T+`tbody tr:hover td:nth-child(${c}){background:#F6DEDF}`;
 }
 function atualizaBotaoXLS(){
   const b=document.getElementById('copiar'), dica=document.getElementById('dicaXLS');
