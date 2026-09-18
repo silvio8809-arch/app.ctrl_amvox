@@ -40,6 +40,7 @@
   .barra .acao{margin-left:auto;display:flex;gap:8px;align-items:center}
   .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 12px var(--sans);padding:8px 13px;border-radius:6px;cursor:pointer}
   .btn:hover{border-color:var(--ink)}
+  .btn:disabled,.btn:disabled:hover{opacity:.40;cursor:not-allowed;border-color:var(--line)}
   .conta{font:500 12px var(--sans);color:var(--muted)}
   .aviso-param{display:none;background:var(--accent-soft);border:1px solid #F2C9CB;color:#8E1216;font:600 12px var(--sans);padding:8px 12px;border-radius:6px;margin-bottom:10px}
   .tbl-wrap{overflow-x:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px}
@@ -164,9 +165,14 @@
       <div class="chips" id="chipsSeg"></div>
       <div class="acao">
         <span class="conta" id="conta"></span>
-        <button class="btn" id="copiar">⬇ Baixar XLS</button>
       </div>
     </div>
+    <div class="barra" style="margin-top:-6px">
+      <span style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);align-self:center">Tabela p/ download</span>
+      <div class="chips" id="chipsTabC"></div>
+      <div class="acao"><span class="conta" id="dicaXLS"></span><button class="btn" id="copiar">⬇ Baixar XLS</button></div>
+    </div>
+    <style id="estiloCols"></style>
     <div class="tbl-wrap">
       <table>
         <thead><tr>
@@ -407,28 +413,50 @@ function zipar(arquivos){ // arquivos: [{nome, dados(Uint8Array)}]
   const out=new Uint8Array(tot); let p=0; todos.forEach(b=>{out.set(b,p);p+=b.length;});
   return out;
 }
-function baixarXLS(nomeArq, nomeAba, linhas){ // linhas: [[codigo, produto, preco]]
+function nomeAbaSeguro(s){ return String(s).replace(/[:\\\/?*\[\]]/g,'-').slice(0,31); }
+function baixarXLS(nomeArq, nomeTabela, linhas){ // linhas: [[codigo, produto, preco]]
   const enc=new TextEncoder(), A=s=>enc.encode(s);
-  const cabs=['CÓDIGO','PRODUTO','PREÇO TABELA'];
-  let rows='<row r="1">'+cabs.map((c,i)=>`<c r="${'ABC'[i]}1" t="inlineStr" s="1"><is><t>${xmlEsc(c)}</t></is></c>`).join('')+'</row>';
-  linhas.forEach((l,i)=>{ const r=i+2;
-    rows+=`<row r="${r}"><c r="A${r}" t="inlineStr"><is><t>${xmlEsc(l[0])}</t></is></c>`+
-          `<c r="B${r}" t="inlineStr"><is><t>${xmlEsc(l[1])}</t></is></c>`+
+  const d=new Date(), p2=n=>String(n).padStart(2,'0');
+  const dataBr=p2(d.getDate())+'/'+p2(d.getMonth()+1)+'/'+d.getFullYear();
+  const txt=(ref,v,s)=>`<c r="${ref}" t="inlineStr"${s?` s="${s}"`:''}><is><t>${xmlEsc(v)}</t></is></c>`;
+  let rows='';
+  rows+=`<row r="1" ht="20" customHeight="1">${txt('A1','AMVOX / REISTAR — CONTROLADORIA',3)}</row>`;
+  rows+=`<row r="2" ht="17" customHeight="1">${txt('A2','TABELA: '+nomeTabela,4)}</row>`;
+  rows+=`<row r="3">${txt('A3','Emitida em '+dataBr+' · valores em R$ · '+linhas.length+' produtos · uso interno',5)}</row>`;
+  rows+='<row r="4"></row>';
+  rows+=`<row r="5">${txt('A5','CÓDIGO',6)}${txt('B5','PRODUTO',6)}${txt('C5','PREÇO TABELA',6)}</row>`;
+  linhas.forEach((l,i)=>{ const r=i+6;
+    rows+=`<row r="${r}">${txt('A'+r,l[0])}${txt('B'+r,l[1])}`+
           `<c r="C${r}" s="2">${l[2]!=null?`<v>${Number(l[2]).toFixed(2)}</v>`:''}</c></row>`;
   });
   const sheet='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
+    '<sheetViews><sheetView workbookViewId="0"><pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>'+
     '<cols><col min="1" max="1" width="14" customWidth="1"/><col min="2" max="2" width="48" customWidth="1"/><col min="3" max="3" width="16" customWidth="1"/></cols>'+
-    '<sheetData>'+rows+'</sheetData></worksheet>';
+    '<sheetData>'+rows+'</sheetData>'+
+    '<mergeCells count="3"><mergeCell ref="A1:C1"/><mergeCell ref="A2:C2"/><mergeCell ref="A3:C3"/></mergeCells>'+
+    '</worksheet>';
   const styles='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'+
     '<numFmts count="1"><numFmt numFmtId="164" formatCode="#,##0.00"/></numFmts>'+
-    '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'+
-    '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'+
+    '<fonts count="6">'+
+    '<font><sz val="11"/><name val="Calibri"/></font>'+
+    '<font><b/><sz val="11"/><name val="Calibri"/></font>'+
+    '<font><b/><sz val="14"/><color rgb="FF17181A"/><name val="Calibri"/></font>'+
+    '<font><b/><sz val="11"/><color rgb="FFD71920"/><name val="Calibri"/></font>'+
+    '<font><sz val="9"/><color rgb="FF6B7076"/><name val="Calibri"/></font>'+
+    '<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts>'+
+    '<fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill>'+
+    '<fill><patternFill patternType="solid"><fgColor rgb="FF17181A"/><bgColor indexed="64"/></patternFill></fill></fills>'+
     '<borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'+
-    '<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
+    '<cellXfs count="7">'+
+    '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'+
     '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
-    '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/></cellXfs>'+
+    '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'+
+    '<xf numFmtId="0" fontId="2" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
+    '<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
+    '<xf numFmtId="0" fontId="4" fillId="0" borderId="0" xfId="0" applyFont="1"/>'+
+    '<xf numFmtId="0" fontId="5" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/></cellXfs>'+
     '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   const ct='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
@@ -442,7 +470,7 @@ function baixarXLS(nomeArq, nomeAba, linhas){ // linhas: [[codigo, produto, prec
     '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
   const wb='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'+
-    `<sheets><sheet name="${xmlEsc(nomeAba).slice(0,31)}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
+    `<sheets><sheet name="${xmlEsc(nomeAbaSeguro(nomeTabela))}" sheetId="1" r:id="rId1"/></sheets></workbook>`;
   const wbr='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
     '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'+
@@ -456,12 +484,46 @@ function baixarXLS(nomeArq, nomeAba, linhas){ // linhas: [[codigo, produto, prec
 }
 function hojeArq(){const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());}
 function okBotao(id, txt){const b=document.getElementById(id); const o=b.textContent; b.textContent=txt; setTimeout(()=>b.textContent=o,1800);}
+/* seletor de TABELA da Consulta: download so com 1 tabela (pedido Silvio 18/09) */
+const TABELAS_C=[{k:'m',col:3,n:'Tabela 3 New (=078)',arq:'TAB3_NEW_078'},
+ {k:'t5',col:4,n:'Tabela 5',arq:'TABELA_5'},{k:'pos',col:5,n:'Pós-venda',arq:'POS_VENDA'},
+ {k:'mos',col:6,n:'Mostruário',arq:'MOSTRUARIO'},{k:'fun',col:7,n:'Funcionários',arq:'FUNCIONARIOS'},
+ {k:'a51',col:8,n:'Avaria 51',arq:'AVARIA_51'},{k:'a52',col:9,n:'Avaria 52',arq:'AVARIA_52'},
+ {k:'a53',col:10,n:'Avaria 53',arq:'AVARIA_53'}];
+let selTabC=[];
+function renderChipsTabC(){
+  const el=document.getElementById('chipsTabC'); el.innerHTML='';
+  TABELAS_C.forEach(t=>{ const b=document.createElement('button');
+    b.className='chip'+(selTabC.includes(t.k)?' on':''); b.textContent=t.n;
+    b.onclick=()=>{ const i=selTabC.indexOf(t.k); if(i>=0) selTabC.splice(i,1); else selTabC.push(t.k);
+      renderChipsTabC(); aplicaColunas(); atualizaBotaoXLS(); };
+    el.appendChild(b); });
+}
+function aplicaColunas(){
+  const st=document.getElementById('estiloCols');
+  if(!selTabC.length){ st.textContent=''; return; }
+  const esc=TABELAS_C.filter(t=>!selTabC.includes(t.k))
+    .map(t=>`#tela-consulta .tbl-wrap th:nth-child(${t.col}),#tela-consulta .tbl-wrap td:nth-child(${t.col})`).join(',');
+  /* com colunas ocultas a tabela precisa encolher, senao a coluna de preco sai da area visivel */
+  st.textContent = (esc ? esc+'{display:none}' : '') + '#tela-consulta .tbl-wrap table{min-width:0}';
+}
+function atualizaBotaoXLS(){
+  const b=document.getElementById('copiar'), dica=document.getElementById('dicaXLS');
+  const n=selTabC.length;
+  b.disabled = (n!==1);
+  if(n===1){ const t=TABELAS_C.find(x=>x.k===selTabC[0]); dica.textContent=''; b.title='Baixar a '+t.n; }
+  else { dica.textContent = n===0 ? 'Selecione 1 tabela para habilitar o download'
+                                  : 'Selecione apenas UMA tabela (há '+n+' marcadas)';
+         b.title='O download é de uma tabela por vez'; }
+}
 document.getElementById('copiar').onclick=()=>{
+  if(selTabC.length!==1) return;
+  const t=TABELAS_C.find(x=>x.k===selTabC[0]);
   if(!visiveis.length){ alert('Nenhum produto na seleção atual.'); return; }
-  baixarXLS('TABELA_PRECOS_'+hojeArq()+'.xlsx','Tabela de preços',
-    visiveis.map(d=>[d[0], d[1], calc(d).m]));
+  baixarXLS('AMVOX_'+t.arq+'_'+hojeArq()+'.xlsx', t.n, visiveis.map(d=>[d[0], d[1], calc(d)[t.k]]));
   okBotao('copiar','Baixado ✓');
 };
+renderChipsTabC(); atualizaBotaoXLS();
 // navegação
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
@@ -516,9 +578,8 @@ function renderS(){
 document.getElementById('qS').addEventListener('input',e=>{termoS=e.target.value;renderS();});
 document.getElementById('copiarS').onclick=()=>{
   if(!visS.length){ alert('Nenhum produto na seleção atual.'); return; }
-  const nome=TABS_SUF[tabSuf].n.replace(/[^\wÀ-ÿ]+/g,'_').replace(/_+$/,'');
-  baixarXLS('TABELA_SUFRAMA_'+tabSuf+'_'+hojeArq()+'.xlsx', nome.slice(0,31),
-    visS.map(d=>[d[0], d[1], precoNovoS(d)]));
+  const nome=TABS_SUF[tabSuf].n;                         // ex.: "Suframa ICMS (228)"
+  baixarXLS('AMVOX_SUFRAMA_'+tabSuf+'_'+hojeArq()+'.xlsx', nome, visS.map(d=>[d[0], d[1], precoNovoS(d)]));
   okBotao('copiarS','Baixado ✓');
 };
 // ---- AUDITORIA (ADM) ----
