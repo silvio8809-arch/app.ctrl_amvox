@@ -238,7 +238,7 @@
     <div class="tbl-wrap">
       <table style="min-width:760px">
         <thead><tr>
-          <th>Código</th><th>Modelo</th><th class="dest" id="thNova">Tabela — NOVA</th><th>TOTVS hoje</th><th>Δ novo × atual</th>
+          <th>Código</th><th>Modelo</th><th class="dest" id="thNova">Tabela — NOVA</th><th>TOTVS hoje</th><th>Δ (R$ · %) — vazio = OK</th>
         </tr></thead>
         <tbody id="corpoS"></tbody>
       </table>
@@ -318,7 +318,7 @@
       <h3>Atualização</h3>
       <p>Sob demanda pela Controladoria (Silvio Amaral — gerente.contabil@amvox.com.br): o gerador reconsulta a 078 e este painel é republicado no mesmo link. A data vigente aparece no topo.</p>
       <h3>Suframa</h3>
-      <p>Aba própria: itens da tabela 228 do TOTVS (106 SKUs, extração 17/09/2026) com o preço recalculado 078 × 1,1277 e o Δ contra o preço vigente. <span class="badge b-sem">SEM 078</span> ali significa preço mantido pela tabela atual.</p>
+      <p>Aba própria: itens da tabela 228 do TOTVS (106 SKUs, extração 17/09/2026) com o preço recalculado 078 × 1,1277 e o Δ contra o preço vigente: <b>célula vazia = preço certo no TOTVS</b> (tolerância de R$0,01 de arredondamento) e, havendo Δ, o preço deve ser revisado no TOTVS até a coluna zerar. <span class="badge b-sem">SEM 078</span> ali significa preço mantido pela tabela atual.</p>
       <h3>O que este painel NÃO mostra</h3>
       <p>Tabelas internas 1, 2, 3 Orig e Gerentes (uso da Controladoria).</p>
     </div>
@@ -415,16 +415,23 @@ function render(){
   if(foco){
     const semBase = !TOTVS_COD[foco.k];
     cab.innerHTML = `<tr><th>Código</th><th>Modelo</th><th class="dest">${foco.n}</th>`+
-      `<th>TOTVS hoje${semBase?'':' ('+TOTVS_COD[foco.k]+')'}</th><th>Δ novo × atual</th></tr>`;
+      `<th>TOTVS hoje${semBase?'':' ('+TOTVS_COD[foco.k]+')'}</th><th>Δ (R$ · %) — vazio = OK</th></tr>`;
     avisoST.style.display = semBase?'block':'none';
     if(semBase) avisoST.innerHTML = `A tabela <b>${foco.n}</b> não é cadastrada no TOTVS `+
       `(é derivada pela regra da Metodologia) — não há preço vigente para comparar.`;
     document.getElementById('corpo').innerHTML = visiveis.map((d,i)=>{
       const novo=calc(d)[foco.k], atual=(TOTVS_TAB[foco.k]||{})[d[0]];
       const delta=(atual&&novo!=null)?(novo/atual-1):null;
+    /* Δ = validador da digitação (combinado Silvio × Samuel 21/09/2026): célula VAZIA = preço
+       certo no TOTVS; divergente mostra a diferença em R$ e o %, sem arredondar centavo a zero.
+       Tolerância de R$0,01 (arredondamento do próprio cálculo) conta como certo. */
+    const difRS=(atual&&novo!=null)?Math.round((novo-atual)*100)/100:null;
+    const celDelta=(difRS==null)?'—':(Math.abs(difRS)<=0.01?'':
+      difRS.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})
+      +' · '+(delta*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1,signDisplay:'always'})+'%');
       return `<tr data-i="${i}"><td class="cod">${d[0]}</td><td><span class="mod">${d[1]}</span>${badges(d)}<br><span class="seg">${d[2]} · ${d[3]}</span></td>`+
         `<td class="dest num">${fmt(novo)}</td><td class="num">${atual!=null?fmt(atual):'—'}</td>`+
-        `<td class="num">${delta!=null?(delta*100).toLocaleString('pt-BR',{maximumFractionDigits:1,signDisplay:'always'})+'%':'—'}</td></tr>`;
+        `<td class="num">${celDelta}</td></tr>`;
     }).join('');
   } else {
     avisoST.style.display='none';
@@ -646,10 +653,17 @@ function renderS(){
   document.getElementById('corpoS').innerHTML=visS.map(d=>{
     const nova=precoNovoS(d), atual=atualSelS(d);
     const delta=(atual&&nova!=null)?(nova/atual-1):null;
+    /* Δ = validador da digitação (combinado Silvio × Samuel 21/09/2026): célula VAZIA = preço
+       certo no TOTVS; divergente mostra a diferença em R$ e o %, sem arredondar centavo a zero.
+       Tolerância de R$0,01 (arredondamento do próprio cálculo) conta como certo. */
+    const difRS=(atual&&nova!=null)?Math.round((nova-atual)*100)/100:null;
+    const celDelta=(difRS==null)?'—':(Math.abs(difRS)<=0.01?'':
+      difRS.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})
+      +' · '+(delta*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1,signDisplay:'always'})+'%');
     let bd=''; if(d[4]) bd+='<span class="badge b-sem">078 do par</span>';
     return `<tr style="cursor:default"><td class="cod">${d[0]}</td><td><span class="mod">${d[1]}</span>${bd}<br><span class="seg">${d[2]}</span></td>`+
       `<td class="dest num">${nova!=null?fmt(nova):'—'}</td><td class="num">${atual!=null?fmt(atual):'—'}</td>`+
-      `<td class="num">${delta!=null?(delta*100).toLocaleString('pt-BR',{maximumFractionDigits:1,signDisplay:'always'})+'%':'—'}</td></tr>`;
+      `<td class="num">${celDelta}</td></tr>`;
   }).join('');
 }
 document.getElementById('qS').addEventListener('input',e=>{termoS=e.target.value;renderS();});
@@ -673,7 +687,7 @@ function renderA(){
   document.getElementById('corpoA').innerHTML = visA.length ? visA.map(e=>{
     const [tab,vig,cod,mod,ant,novo]=e;
     const delta = ant!=null ? (novo/ant-1) : null;
-    const dtxt = delta!=null ? (delta*100).toLocaleString('pt-BR',{maximumFractionDigits:1,signDisplay:'always'})+'%'
+    const dtxt = delta!=null ? (delta*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1,signDisplay:'always'})+'%'
                              : '<span class="badge b-incl">INCLUSÃO</span>';
     return `<tr style="cursor:default"><td class="num" style="text-align:left">${fdata(vig)}</td><td class="cod" style="text-align:left">${cod}</td>`+
       `<td style="text-align:left"><span class="mod">${mod}</span></td><td style="text-align:left"><span class="seg">${NOMES_TAB[tab]||tab}</span></td>`+
