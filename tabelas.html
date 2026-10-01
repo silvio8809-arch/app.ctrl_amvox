@@ -238,7 +238,7 @@
     <div class="tbl-wrap">
       <table style="min-width:760px">
         <thead><tr>
-          <th>Código</th><th>Modelo</th><th class="dest" id="thNova">Tabela — NOVA</th><th>TOTVS hoje</th><th>Δ (R$ · %) — vazio = OK</th>
+          <th>Código</th><th>Modelo</th><th class="dest" id="thNova">Tabela — NOVA</th><th>TOTVS hoje</th><th>Δ (R$ · %) — vazio = OK</th><th id="thMargS" style="display:none" title="Margem de contribuição na base Brasil (sem frete/VPC): preço − ICMS 12% − PIS/COF 9,25% − 6% comissão/devolução − custo dep-40 × 1,01. Só na tela, perfil ADM.">Margem</th>
         </tr></thead>
         <tbody id="corpoS"></tbody>
       </table>
@@ -392,6 +392,20 @@ function badges(d){
   return h;
 }
 let visiveis=[];
+/* MARGEM nas tabelas (pedido Silvio 01/10/2026): coluna SÓ NA TELA e só p/ ADM — nunca em arquivo
+   (regra feedback_margem_nao_sai_em_arquivo). Metodologia da skill margem, na base Brasil (sem
+   frete/VPC): MC = RL − 6% (comissão+devolução) − custo dep-40 × 1,01, RL = preço − ICMS 12% − PIS/COF 9,25%.
+   Custo = coluna 5 do bloco SIM (itens suframados); sem custo => "—". */
+const MARG_ADM = () => window.PAPEL === 'ADM';
+const CUSTO_MC = {}; SIM.forEach(s=>{ CUSTO_MC[s[0]] = s[4]; });
+function margemCel(preco, cod){
+  const custo = CUSTO_MC[cod];
+  if (preco==null || !(preco>0) || custo==null) return '<td class="num" style="color:var(--muted)">—</td>';
+  const rl = preco*(1-0.12)*(1-0.0925), mcp = (rl - 0.06*preco - custo*1.01)/rl;
+  const bg = mcp>=0.30?'#EAF3EC':(mcp>=0?'#FDF3E7':'#FDE8E8');
+  return `<td class="num" style="background:${bg};font-weight:600">${(mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</td>`;
+}
+const TH_MARG = '<th title="Margem de contribuição na base Brasil (sem frete/VPC): preço − ICMS 12% − PIS/COF 9,25% − 6% comissão/devolução − custo dep-40 × 1,01. Só na tela, perfil ADM.">Margem</th>';
 function render(){
   chip(document.getElementById('chipsLinha'), linhas, ()=>fLin, v=>{
     fLin=v;
@@ -415,7 +429,7 @@ function render(){
   if(foco){
     const semBase = !TOTVS_COD[foco.k];
     cab.innerHTML = `<tr><th>Código</th><th>Modelo</th><th class="dest">${foco.n}</th>`+
-      `<th>TOTVS hoje${semBase?'':' ('+TOTVS_COD[foco.k]+')'}</th><th>Δ (R$ · %) — vazio = OK</th></tr>`;
+      `<th>TOTVS hoje${semBase?'':' ('+TOTVS_COD[foco.k]+')'}</th><th>Δ (R$ · %) — vazio = OK</th>${MARG_ADM()?TH_MARG:''}</tr>`;
     avisoST.style.display = semBase?'block':'none';
     if(semBase) avisoST.innerHTML = `A tabela <b>${foco.n}</b> não é cadastrada no TOTVS `+
       `(é derivada pela regra da Metodologia) — não há preço vigente para comparar.`;
@@ -431,7 +445,7 @@ function render(){
       +' · '+(delta*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1,signDisplay:'always'})+'%');
       return `<tr data-i="${i}"><td class="cod">${d[0]}</td><td><span class="mod">${d[1]}</span>${badges(d)}<br><span class="seg">${d[2]} · ${d[3]}</span></td>`+
         `<td class="dest num">${fmt(novo)}</td><td class="num">${atual!=null?fmt(atual):'—'}</td>`+
-        `<td class="num">${celDelta}</td></tr>`;
+        `<td class="num">${celDelta}</td>${MARG_ADM()?margemCel(novo,d[0]):''}</tr>`;
     }).join('');
   } else {
     avisoST.style.display='none';
@@ -663,8 +677,9 @@ function renderS(){
     let bd=''; if(d[4]) bd+='<span class="badge b-sem">078 do par</span>';
     return `<tr style="cursor:default"><td class="cod">${d[0]}</td><td><span class="mod">${d[1]}</span>${bd}<br><span class="seg">${d[2]}</span></td>`+
       `<td class="dest num">${nova!=null?fmt(nova):'—'}</td><td class="num">${atual!=null?fmt(atual):'—'}</td>`+
-      `<td class="num">${celDelta}</td></tr>`;
+      `<td class="num">${celDelta}</td>${MARG_ADM()?margemCel(nova,d[0]):''}</tr>`;
   }).join('');
+  document.getElementById('thMargS').style.display = MARG_ADM()?'':'none';
 }
 document.getElementById('qS').addEventListener('input',e=>{termoS=e.target.value;renderS();});
 document.getElementById('copiarS').onclick=()=>{
@@ -906,26 +921,19 @@ document.getElementById('copiarA').onclick=async()=>{
     const tot = rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
       a.ipi+=r.ipiCob*r.qtd; a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
       {qtd:0,sug:0,icms:0,pis:0,ipi:0,liq:0,mc:0,rl:0});
-    /* Margem no PDF: SOMENTE perfil ADM (Controladoria). Excel segue sem MC para todos. */
-    const ADM = window.PAPEL==='ADM';
-    const mcpT=tot.mc/tot.rl;
-    const semT = mcpT>=0.30?['ok','NA META']:(mcpT>=0?['warn','ABAIXO META']:['bad','PREJUÍZO']);
     const ag=new Date(); const p2=n=>String(n).padStart(2,'0');
     const num='SIM-'+ag.getFullYear()+p2(ag.getMonth()+1)+p2(ag.getDate())+'-'+p2(ag.getHours())+p2(ag.getMinutes());
     const dt=p2(ag.getDate())+'/'+p2(ag.getMonth()+1)+'/'+ag.getFullYear();
     const quem=window.USUARIO_EMAIL||'—';
     const brf=v=>v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
     const pcf=v=>(v*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';
-    let linhas='', mlin='';
+    let linhas='';
     rs.forEach((r,i)=>{
       linhas+=`<tr><td class=c>${String(i+1).padStart(2,'0')}</td><td class=mono>${r.cod}</td><td>${r.desc}</td><td class=c>PC</td><td class=r>${r.qtd}</td>`+
         `<td class="r tab">R$ ${brf(r.base)}</td><td class="r add">+R$ ${brf(r.vpcR)}</td><td class="r add">+R$ ${brf(r.freR)}</td>`+
         `<td class="r add">${pp.tab==='229'?'ISENTO':'+R$ '+brf(r.ipiCob)}</td><td class=r>R$ ${brf(r.J)}</td>`+
         `<td class="r sufc">${r.dIcms?'−R$ '+brf(r.dIcms):'—'}</td><td class="r sufc">${r.dPis?'−R$ '+brf(r.dPis):'—'}</td>`+
         `<td class="r neg">R$ ${brf(r.liq)}</td><td class=r><b>R$ ${brf(r.liq*r.qtd)}</b></td></tr>`;
-      const sm = r.mcp>=0.30?['ok','NA META']:(r.mcp>=0?['warn','ABAIXO META']:['bad','PREJUÍZO']);
-      mlin+=`<tr><td>${r.desc}</td><td class=r>R$ ${brf(r.liq)}</td><td class=r><b>${(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</b></td>`+
-        `<td class=c><span class="tag ${sm[0]}">${sm[1]}</span></td></tr>`;
     });
     const html=`<!doctype html><html><head><meta charset="utf-8"><title>${num}</title><style>
 *{box-sizing:border-box} body{margin:0;font:10px/1.35 "Helvetica Neue",Arial,sans-serif;color:#1a1a1a}
@@ -954,7 +962,7 @@ table{width:100%;border-collapse:collapse}
 .liqbox>div:last-child{border-right:none}
 .liqbox span{display:block;font-size:7px;color:#777;text-transform:uppercase}
 .liqbox b{font-size:9.5px}.liqbox .tot{flex:1.7;background:#eaf5ee;border-radius:2px}.liqbox .tot b{font-size:12px;font-weight:800}
-.cols{display:grid;grid-template-columns:${ADM?'1.2fr 1fr':'1fr'};gap:8px;margin-top:10px}
+.cols{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}
 .tt{border:1px solid #d8d8d8;border-radius:3px;padding:7px 8px}
 .marg th{background:#f0f0f0;font-size:7.6px;text-transform:uppercase;padding:3px;color:#444}
 .marg td{border-bottom:1px solid #eee;padding:3px;font-size:8.4px}
@@ -999,11 +1007,6 @@ table{width:100%;border-collapse:collapse}
  <div><span>DESC. PIS/COF</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
  <div class=tot><span>PREÇO LÍQUIDO TOTAL DA NF</span><b>R$ ${brf(tot.liq)}</b></div></div>
 <div class=cols>
- ${ADM?`<div class=tt><div class=bt>Análise de margem — Controladoria</div>
-  <table class=marg><thead><tr><th>Item</th><th>Líquido un</th><th>MC %</th><th>Status</th></tr></thead>
-  <tbody>${mlin}<tr class=tr><td><b>TOTAL DA PROPOSTA</b></td><td class=r>R$ ${brf(tot.liq)}</td>
-  <td class=r><b>${(mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</b></td>
-  <td class=c><span class="tag ${semT[0]}">${semT[1]}</span></td></tr></tbody></table></div>`:''}
  <div class=tt><div class=bt>Totais</div>
   <div class=f><span>Sugerido s/ IPI</span><b>R$ ${brf(tot.sug)}</b></div>
   <div class=f><span>IPI</span><b>${tot.ipi?'+R$ '+brf(tot.ipi):'ISENTO (tabela 229)'}</b></div>
@@ -1011,7 +1014,7 @@ table{width:100%;border-collapse:collapse}
   <div class=f><span>Desconto PIS/COFINS (9,25%)</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
   <div class=f style="border-top:1px solid #ddd;margin-top:3px;padding-top:4px;font-size:11px"><span>PREÇO LÍQUIDO TOTAL</span><b>R$ ${brf(tot.liq)}</b></div></div>
 </div>
-<div class=nota>${ADM?'Margem projetada deduz ICMS 12% e PIS/COFINS 9,25% (repassados em NF ou devidos), frete da UF, VPC, MOD 1% s/ custo e demais deduções variáveis. ':''}Preço base Brasil = tabela 078 vigente na data, acrescido do percentual de incremento da região quando a tabela o prevê. Frete da UF e VPC entram por fora, conforme o cadastro. IPI pelo cadastro de cada produto. Descontos de ICMS e PIS/COFINS destacados na NF conforme o benefício da tabela.</div>
+<div class=nota>Preço base Brasil = tabela 078 vigente na data, acrescido do percentual de incremento da região quando a tabela o prevê. Frete da UF e VPC entram por fora, conforme o cadastro. IPI pelo cadastro de cada produto. Descontos de ICMS e PIS/COFINS destacados na NF conforme o benefício da tabela.</div>
 <div class=aviso>⚠️ <b>DOCUMENTO DE SIMULAÇÃO</b> — não substitui a proposta oficial numerada (PROP-ano-nº) emitida pela Controladoria. O pedido deve ser digitado no SFA com a tabela <b>${pp.nomeTab}</b>, VPC e frete exatamente como acima, sob pena de recálculo automático das condições.</div>
 <div class=rod>AMVOX / REISTAR — Simulador de Preço Líquido Suframa · ${num} · ${dt} · ${quem}</div>
 </div><scr`+`ipt>window.print();</scr`+`ipt></body></html>`;
@@ -1060,6 +1063,7 @@ renderA();
 /* papel do LOGIN comanda o acesso aos Parâmetros (aprovado 15/09/2026) */
 document.addEventListener('papel-pronto', ()=>{
   const adm = window.PAPEL === 'ADM';
+  if (adm && typeof render==='function') render();   /* mostra a coluna Margem (ADM) */
   /* GERENTE vê todas as abas de consulta (decisão Silvio 17/09); Parâmetros/Auditoria seguem
      só do ADM (bloco abaixo). Mantido: abre direto no Simulador, sua ferramenta principal. */
   if (window.PAPEL === 'GERENTE'){
