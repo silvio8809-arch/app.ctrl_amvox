@@ -238,7 +238,7 @@
     <div class="tbl-wrap">
       <table style="min-width:760px">
         <thead><tr>
-          <th>Código</th><th>Modelo</th><th class="dest" id="thNova">Tabela — NOVA</th><th>TOTVS hoje</th><th>Δ (R$ · %) — vazio = OK</th><th id="thMargS" style="display:none" title="Margem de contribuição na base Brasil (sem frete/VPC): preço − ICMS 12% − PIS/COF 9,25% − 6% comissão/devolução − custo dep-40 × 1,01. Só na tela, perfil ADM.">Margem</th>
+          <th>Código</th><th>Modelo</th><th class="dest" id="thNova">Tabela — NOVA</th><th>TOTVS hoje</th><th>Δ (R$ · %) — vazio = OK</th><th id="thMargS" style="display:none" title="Margem de contribuição na base Brasil (sem frete/VPC): preço − ICMS 12% − PIS/COF 9,25% − 6% comissão/devolução − custo dep-40 × 1,01. Só na tela, perfis ADM e Gerente.">Margem</th>
         </tr></thead>
         <tbody id="corpoS"></tbody>
       </table>
@@ -396,7 +396,7 @@ let visiveis=[];
    (regra feedback_margem_nao_sai_em_arquivo). Metodologia da skill margem, na base Brasil (sem
    frete/VPC): MC = RL − 6% (comissão+devolução) − custo dep-40 × 1,01, RL = preço − ICMS 12% − PIS/COF 9,25%.
    Custo = coluna 5 do bloco SIM (itens suframados); sem custo => "—". */
-const MARG_ADM = () => window.PAPEL === 'ADM';
+const MARG_ADM = () => window.PAPEL === 'ADM' || window.PAPEL === 'GERENTE';   /* ADM e GERENTE (Silvio 01/10/2026) */
 const CUSTO_MC = {}; SIM.forEach(s=>{ CUSTO_MC[s[0]] = s[4]; });
 function margemCel(preco, cod){
   const custo = CUSTO_MC[cod];
@@ -405,7 +405,7 @@ function margemCel(preco, cod){
   const bg = mcp>=0.30?'#EAF3EC':(mcp>=0?'#FDF3E7':'#FDE8E8');
   return `<td class="num" style="background:${bg};font-weight:600">${(mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</td>`;
 }
-const TH_MARG = '<th title="Margem de contribuição na base Brasil (sem frete/VPC): preço − ICMS 12% − PIS/COF 9,25% − 6% comissão/devolução − custo dep-40 × 1,01. Só na tela, perfil ADM.">Margem</th>';
+const TH_MARG = '<th title="Margem de contribuição na base Brasil (sem frete/VPC): preço − ICMS 12% − PIS/COF 9,25% − 6% comissão/devolução − custo dep-40 × 1,01. Só na tela, perfis ADM e Gerente.">Margem</th>';
 function render(){
   chip(document.getElementById('chipsLinha'), linhas, ()=>fLin, v=>{
     fLin=v;
@@ -1063,7 +1063,7 @@ renderA();
 /* papel do LOGIN comanda o acesso aos Parâmetros (aprovado 15/09/2026) */
 document.addEventListener('papel-pronto', ()=>{
   const adm = window.PAPEL === 'ADM';
-  if (adm && typeof render==='function') render();   /* mostra a coluna Margem (ADM) */
+  if ((adm || window.PAPEL === 'GERENTE') && typeof render==='function') render();   /* mostra a coluna Margem (ADM/GERENTE) */
   /* GERENTE vê todas as abas de consulta (decisão Silvio 17/09); Parâmetros/Auditoria seguem
      só do ADM (bloco abaixo). Mantido: abre direto no Simulador, sua ferramenta principal. */
   if (window.PAPEL === 'GERENTE'){
