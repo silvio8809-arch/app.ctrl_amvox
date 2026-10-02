@@ -261,7 +261,7 @@
       <div class="acao"><span class="conta" id="contaCli"></span><button class="btn" id="baixarCli">⬇ Baixar XLS</button></div>
     </div>
     <div id="cliCab" style="display:none;margin-bottom:12px"></div>
-    <div class="barra" id="cliBarraItens" style="display:none"><div class="busca"><input id="qCli" type="search" placeholder="Filtrar itens por modelo ou código…"></div></div>
+    <div class="barra" id="cliBarraItens" style="display:none"><div class="busca"><input id="qCli" type="search" placeholder="Filtrar itens por modelo ou código…"></div><div class="chips" id="chipsLinhaCli"></div><div class="chips" id="chipsSegCli"></div></div>
     <div id="cliVazio" style="color:var(--muted);padding:22px 4px">Escolha uma rede/tabela ou procure um cliente.</div>
     <div class="tbl-wrap" id="cliGrade" style="display:none">
       <table style="min-width:860px">
@@ -713,6 +713,14 @@ render();
    no bloco. Sem 078 = sem fator: mantém o preço do TOTVS com o reajuste geral. Margem só na tela (ADM/GERENTE). */
 const IDX_P = Object.fromEntries(PRODUTOS.map(d=>[d[0],d]));
 let cliTabSel = null, cliModo = 'rede', termoCli = '', visCli = [];
+/* Sub-filtros por linha e segmento (Silvio 01/10/2026) — mesmos chips da Consulta; só os presentes na tabela escolhida */
+let fLinC = null, fSegC = null;
+const lsCli = it => (it[2] || '').replace(/^Audio\b/, 'Áudio').split(' · ');   // item fora da 078 traz o grupo cru do SB1
+function chipCli(el, lista, get, set){
+  el.innerHTML = '';
+  lista.forEach(v => { const b = document.createElement('button'); b.className = 'chip' + (get()===v ? ' on' : ''); b.textContent = v;
+    b.onclick = () => { set(get()===v ? null : v); renderCli(); }; el.appendChild(b); });
+}
 function base078(it){ const d = IDX_P[it[0]]; return (d && !d[6]) ? calc(d).m : it[5]; }
 function precoCli(it){ const b = base078(it); return (it[3]!=null && b) ? b*it[3] : it[4]*(1+REAJ_INFO.pct); }
 const dataBr = s => s && s.length===8 ? s.slice(6)+'/'+s.slice(4,6)+'/'+s.slice(0,4) : '';
@@ -738,8 +746,20 @@ function renderCli(){
     `<div style="font:700 15px var(--sans)">${t.n} <span style="color:var(--muted);font-weight:600">· tabela ${cliTabSel}${t.de?' · vigente desde '+dataBr(t.de):''}</span></div>`+
     `<details style="margin-top:6px;font-size:12.5px"><summary style="cursor:pointer;color:var(--muted)">${t.cli.length} cliente${t.cli.length===1?'':'s'} vinculado${t.cli.length===1?'':'s'} no cadastro (A1_TABELA)</summary>`+
     `<div style="margin-top:6px;columns:2;column-gap:28px">${lista.map(x=>`<div>${x}</div>`).join('')||'—'}</div></details></div>`;
+  const presL = new Set(t.it.map(it=>lsCli(it)[0]));
+  const linC = [...linhas.filter(l=>presL.has(l)), ...[...presL].filter(l=>l && !linhas.includes(l))];
+  if (fLinC && !linC.includes(fLinC)) fLinC = null;
+  const presS = new Set(t.it.filter(it=>!fLinC || lsCli(it)[0]===fLinC).map(it=>lsCli(it)[1]));
+  const segC = [...segs.filter(s=>presS.has(s)), ...[...presS].filter(s=>s && !segs.includes(s))];
+  if (fSegC && !segC.includes(fSegC)) fSegC = null;
+  chipCli(document.getElementById('chipsLinhaCli'), linC, ()=>fLinC, v=>{ fLinC = v; });
+  chipCli(document.getElementById('chipsSegCli'), segC, ()=>fSegC, v=>{
+    fSegC = v;
+    if (v && !fLinC){ const dona = t.it.find(it=>lsCli(it)[1]===v); if (dona) fLinC = lsCli(dona)[0]; }
+  });
   const q = termoCli.trim().toLowerCase();
-  visCli = t.it.filter(it=>!q || it[1].toLowerCase().includes(q) || it[0].toLowerCase().includes(q));
+  visCli = t.it.filter(it=>(!fLinC || lsCli(it)[0]===fLinC) && (!fSegC || lsCli(it)[1]===fSegC) &&
+    (!q || it[1].toLowerCase().includes(q) || it[0].toLowerCase().includes(q)));
   document.getElementById('contaCli').textContent = visCli.length+' de '+t.it.length+' itens';
   document.getElementById('corpoCli').innerHTML = visCli.map(it=>{
     const novo = precoCli(it), atual = it[4], b = base078(it);
@@ -759,11 +779,11 @@ document.querySelectorAll('#cliModos .chip').forEach(b=>b.onclick=()=>{
   document.getElementById('cliPorRede').style.display = cliModo==='rede'?'':'none';
   document.getElementById('cliPorCli').style.display = cliModo==='cliente'?'':'none';
 });
-document.getElementById('cliTab').onchange = e => { cliTabSel = e.target.value || null; termoCli=''; document.getElementById('qCli').value=''; renderCli(); };
+document.getElementById('cliTab').onchange = e => { cliTabSel = e.target.value || null; termoCli=''; fLinC = fSegC = null; document.getElementById('qCli').value=''; renderCli(); };
 document.getElementById('cliBusca').addEventListener('input', e => {
   const v = e.target.value.trim(); if(!v) return;
   const op = [...document.getElementById('cliLista').options].find(o=>o.value===v);
-  if(op){ cliTabSel = op.dataset.tab; document.getElementById('cliTab').value = cliTabSel; renderCli(); }
+  if(op){ if (cliTabSel !== op.dataset.tab) fLinC = fSegC = null; cliTabSel = op.dataset.tab; document.getElementById('cliTab').value = cliTabSel; renderCli(); }
 });
 document.getElementById('qCli').addEventListener('input', e => { termoCli = e.target.value; renderCli(); });
 document.getElementById('baixarCli').onclick = () => {
