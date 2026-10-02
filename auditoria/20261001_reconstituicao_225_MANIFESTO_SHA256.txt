@@ -1,0 +1,7 @@
+# AMVOX — reconstituição dos 54 eventos da tabela 225 (Funcionários) de 01/10/2026 — só HASHES, nenhum preço
+
+25081c359c877c637cc01f28b8cb081d2be1f85fbfa901077acc5a98c46aa12c  README.md
+27222b45227f234e19f69a9dc6adfe805dca23833b101a0332be3d036e5dad06  app_publicado_antes_13h36_commitdc46a870.html
+72aac6cfe2d50696fb6f857e0e324e684c211b6e3d868f8af42bad65a2eb9eae  app_publicado_depois_15h01_commitaba2e2c9.html
+6f29037dfc78cbe47afb510a87b2e64785c3481ee52fd3d1dda89020cd7cdb48  app_publicado_refresh_08h38_commit1a47e752.html
+267184995d12f9fd94c249d88ec13867a2fdc24192e00b0b38b4be9da1062a10  reconstituicao_225_20261001.csv
