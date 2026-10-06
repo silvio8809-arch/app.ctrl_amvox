@@ -39,6 +39,17 @@
   .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
   select,input[type=search]{padding:7px 10px;border:1px solid var(--line);border-radius:6px;font:13px var(--body);background:var(--panel);color:var(--ink);max-width:100%}
   select{min-width:200px}
+  .combo{position:relative;min-width:260px;flex:0 1 420px}
+  .combo input{width:100%;padding:7px 30px 7px 10px;border:1px solid var(--line);border-radius:6px;font:13px var(--body);background:var(--panel);color:var(--ink)}
+  .combo::after{content:'⌕';position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--muted);pointer-events:none;font-size:15px}
+  .combo .lista{display:none;position:absolute;z-index:40;left:0;right:0;top:calc(100% + 3px);max-height:320px;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 22px rgba(0,0,0,.13)}
+  .combo.aberto .lista{display:block}
+  .combo .op{padding:7px 10px;font-size:13px;cursor:pointer;border-top:1px solid #F1F0ED}
+  .combo .op:first-child{border-top:0} .combo .op.todos{color:var(--muted);font-weight:600}
+  .combo .op.at{background:#F3F2EF} .combo .op.sel{box-shadow:inset 3px 0 0 var(--accent)}
+  .combo .op mark{background:#FFF1B8;padding:0} .combo .vazio{padding:8px 10px;font-size:12.5px;color:var(--muted)}
+  .painel h2 .ia{display:inline-flex;align-items:center;gap:5px;font:800 12px var(--sans);letter-spacing:.08em;padding:2px 10px 2px 2px;border-radius:99px;color:#fff;background:linear-gradient(135deg,#7B3FE4,#D71920);margin-right:2px;cursor:help}
+  .painel h2 .ia .robo{font-size:17px;line-height:1;background:#fff;border-radius:99px;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center}
   .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 12px var(--sans);padding:8px 13px;border-radius:6px;cursor:pointer}
   .btn:hover{border-color:var(--ink)} .btn:disabled{opacity:.4;cursor:not-allowed}
   .status{font:500 12px var(--sans);color:var(--muted);margin:10px 2px}
@@ -116,8 +127,8 @@
   <div class="filtros">
     <div class="linhaf"><span class="rot">Linha</span><div class="chips" id="fLinha"></div></div>
     <div class="linhaf"><span class="rot">Segmento</span><div class="chips" id="fSeg"></div></div>
-    <div class="linhaf"><span class="rot">SKU</span><select id="fSku"></select></div>
-    <div class="linhaf"><span class="rot">Conta</span><select id="fGrupo"></select><select id="fCli"></select></div>
+    <div class="linhaf"><span class="rot">SKU</span><div class="combo" id="fSku"></div></div>
+    <div class="linhaf"><span class="rot">Conta</span><div class="combo" id="fGrupo"></div><div class="combo" id="fCli"></div></div>
     <div class="linhaf"><span class="rot">Período</span><div class="chips" id="fPer"></div>
       <span class="status" id="stPer" style="margin:0 0 0 6px"></span></div>
   </div>
@@ -131,7 +142,7 @@
       <div class="corpo graf"><div class="leg" id="legB"></div><div id="gB"></div></div></div>
   </div>
 
-  <div class="painel"><h2>Leitura automática <span>regras fixas — ver aba Metodologia</span></h2>
+  <div class="painel"><h2><span class="ia" title="IA interna da AMVOX: regras fixas + base de conhecimento do mentor — sem serviço pago"><span class="robo" aria-hidden="true">🤖</span>IA</span>Leitura automática <span>regras fixas — ver aba Metodologia</span></h2>
     <div class="resumo" id="resumo"></div><div id="achados"></div></div>
 
   <div class="painel" id="pRank" style="display:none"><h2>SKUs que explicam a variação <span id="rankSub"></span></h2>
@@ -149,7 +160,7 @@
 
 <!-- ================= PERGUNTAS ================= -->
 <section class="tela" id="tela-perguntas">
-  <div class="painel"><h2>Pergunte à base de conhecimento <span>o que o mentor (Controladoria) já ensinou sobre preço, venda, margem, custo, comercial e estoque</span></h2>
+  <div class="painel"><h2><span class="ia" title="IA interna da AMVOX: base de conhecimento do mentor — sem serviço pago"><span class="robo" aria-hidden="true">🤖</span>IA</span>Pergunte à base de conhecimento <span>o que o mentor (Controladoria) já ensinou sobre preço, venda, margem, custo, comercial e estoque</span></h2>
     <div class="corpo">
       <div class="pergbox"><input id="pTxt" placeholder="Ex.: como funciona o frete adicional numa proposta?" maxlength="1000"><button class="btn" id="pBtn">Perguntar</button></div>
       <div class="aviso-reg">⚠ As perguntas sem resposta na base ficam registradas, com o seu e-mail, para o mentor responder.
@@ -190,6 +201,44 @@ const somaMes = (m, k) => { const d = new Date(+m.slice(0,4), +m.slice(5,7) - 1 
 /* ---------------- estado ---------------- */
 let VE_MARGEM = false, E_ADM = false;
 const S = {linha:null, seg:'', sku:'', grupo:'', cli:'', per:12, card:''};
+/* campo de busca com lista: digita código ou parte do nome (sem acento, sem maiúscula; todas as palavras precisam aparecer) */
+const semAc = t => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+function combo(el, itens, valor, todos, aoEscolher){
+  // itens: [[chave, rótulo]]; todos: rótulo da opção vazia
+  const rot = k => k ? ((itens.find(i => i[0] === k) || [k, k])[1]) : '';
+  el.innerHTML = `<input type="text" autocomplete="off" spellcheck="false" placeholder="${esc(todos)} — digite para buscar"><div class="lista" role="listbox"></div>`;
+  const inp = el.querySelector('input'), lst = el.querySelector('.lista');
+  inp.value = rot(valor); inp.title = inp.value || todos;
+  let vis = [], at = 0;
+  const marca = (t, ps) => { // destaca cada palavra encontrada (posições no texto original, antes de escapar)
+    const n = semAc(t), on = new Array(t.length).fill(false);
+    if(n.length === t.length) ps.forEach(p => { const i = n.indexOf(p); if(i >= 0) for(let j = i; j < i + p.length; j++) on[j] = true; });
+    let h = '', ab = false; for(let j = 0; j < t.length; j++){ if(on[j] !== ab){ h += on[j] ? '<mark>' : '</mark>'; ab = on[j]; } h += esc(t[j]); }
+    return h + (ab ? '</mark>' : ''); };
+  function pinta(){
+    const q = inp.value === rot(valor) ? '' : inp.value, ps = semAc(q).split(/\s+/).filter(Boolean);
+    const ach = ps.length ? itens.filter(([k, n]) => { const t = semAc(k + ' ' + n); return ps.every(p => t.includes(p)); }) : itens;
+    vis = [['', todos], ...ach.slice(0, 300)]; at = ps.length && ach.length ? 1 : Math.max(0, vis.findIndex(v => v[0] === valor));
+    lst.innerHTML = vis.map(([k, n], i) => `<div class="op ${k ? '' : 'todos'} ${i === at ? 'at' : ''} ${k === valor ? 'sel' : ''}" data-i="${i}">${k ? marca(n, ps) : esc(n)}</div>`).join('') +
+      (ps.length && !ach.length ? '<div class="vazio">Nada encontrado com esse texto.</div>' : ach.length > 300 ? `<div class="vazio">Mostrando 300 de ${ach.length} — continue digitando para filtrar.</div>` : '');
+    const a = lst.querySelector('.op.at'); if(a) a.scrollIntoView({block:'nearest'});
+  }
+  const abre = () => { el.classList.add('aberto'); pinta(); };
+  const fecha = () => { el.classList.remove('aberto'); inp.value = rot(valor); };
+  const escolhe = i => { const k = vis[i] ? vis[i][0] : valor, mudou = k !== valor; el.classList.remove('aberto');
+    valor = k; inp.value = rot(k); inp.title = inp.value || todos; inp.blur(); if(mudou) aoEscolher(k); };
+  inp.onfocus = () => { inp.select(); abre(); };
+  inp.oninput = abre;
+  inp.onblur = () => setTimeout(fecha, 120);
+  inp.onkeydown = e => {
+    if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){ e.preventDefault(); if(!el.classList.contains('aberto')) abre();
+      at = Math.max(0, Math.min(vis.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)));
+      lst.querySelectorAll('.op').forEach((o, i) => o.classList.toggle('at', i === at)); const a = lst.querySelector('.op.at'); if(a) a.scrollIntoView({block:'nearest'}); }
+    else if(e.key === 'Enter'){ e.preventDefault(); escolhe(at); }
+    else if(e.key === 'Escape'){ fecha(); inp.blur(); }
+  };
+  lst.onmousedown = e => { const o = e.target.closest('.op'); if(o){ e.preventDefault(); escolhe(+o.dataset.i); } };
+}
 let SKUS = [], METAS = [], LOG = null, CACHE = {}, DADOS = null, R = null;   // R = resultado calculado da seleção
 
 /* ---------------- dados (Supabase, paginado de 1.000 em 1.000; ordem pela chave completa) ---------------- */
@@ -233,8 +282,8 @@ function pintaFiltros(){
   const segs = [...new Set(SKUS.filter(s => s.linha === S.linha).map(s => s.segmento))].sort();
   chips($('fSeg'), [['', 'Todos'], ...segs.map(s => [s, s])], S.seg, k => { S.seg = k; S.sku = ''; atualiza(); });
   const lista = SKUS.filter(s => s.linha === S.linha && (!S.seg || s.segmento === S.seg)).sort((a, b) => a.sku.localeCompare(b.sku));
-  $('fSku').innerHTML = `<option value="">Todos os SKUs (${lista.length}) — visão da ${S.seg ? 'segmento' : 'linha'}</option>` +
-    lista.map(s => `<option value="${esc(s.sku)}" ${s.sku === S.sku ? 'selected' : ''}>${esc(s.sku)} · ${esc(s.descricao)}</option>`).join('');
+  combo($('fSku'), lista.map(s => [s.sku, s.sku + ' · ' + s.descricao]), S.sku, `Todos os SKUs (${lista.length}) — visão da ${S.seg ? 'segmento' : 'linha'}`,
+    k => { S.sku = k; S.grupo = ''; S.cli = ''; atualiza(); });
   chips($('fPer'), [6, 8, 12, 15, 18, 24].map(n => [String(n), n + 'm']), String(S.per), k => { S.per = +k; S.card = ''; calculaEPinta(); });
 }
 function pintaContas(){
@@ -242,12 +291,9 @@ function pintaContas(){
   v.forEach(x => { g.set(x.conta_cod, x.conta_nome || x.cliente_nome || x.conta_cod);
     if(!S.grupo || x.conta_cod === S.grupo) c.set(x.cliente, x.cliente_nome || x.cliente); });
   const og = [...g].sort((a, b) => a[1].localeCompare(b[1])), oc = [...c].sort((a, b) => a[1].localeCompare(b[1]));
-  $('fGrupo').innerHTML = `<option value="">Todas as contas (${og.length})</option>` + og.map(([k, n]) => `<option value="${esc(k)}" ${k === S.grupo ? 'selected' : ''}>${esc(n)}</option>`).join('');
-  $('fCli').innerHTML = `<option value="">Todos os clientes${S.grupo ? ' da conta' : ''} (${oc.length})</option>` + oc.map(([k, n]) => `<option value="${esc(k)}" ${k === S.cli ? 'selected' : ''}>${esc(n)} (${esc(k)})</option>`).join('');
+  combo($('fGrupo'), og, S.grupo, `Todas as contas (${og.length})`, k => { S.grupo = k; S.cli = ''; pintaContas(); calculaEPinta(); });
+  combo($('fCli'), oc.map(([k, n]) => [k, `${n} (${k})`]), S.cli, `Todos os clientes${S.grupo ? ' da conta' : ''} (${oc.length})`, k => { S.cli = k; calculaEPinta(); });
 }
-$('fSku').onchange = e => { S.sku = e.target.value; S.grupo = ''; S.cli = ''; atualiza(); };
-$('fGrupo').onchange = e => { S.grupo = e.target.value; S.cli = ''; pintaContas(); calculaEPinta(); };
-$('fCli').onchange = e => { S.cli = e.target.value; calculaEPinta(); };
 
 async function atualiza(){
   pintaFiltros();
