@@ -277,7 +277,8 @@ function chips(el, itens, ativo, aoClicar){
   el.querySelectorAll('.chip').forEach(b => b.onclick = () => aoClicar(b.dataset.k));
 }
 function pintaFiltros(){
-  const linhas = [...new Set(SKUS.map(s => s.linha))].sort((a, b) => (a === 'Áudio' ? -1 : b === 'Áudio' ? 1 : a.localeCompare(b)));
+  const ordL = [...CV_DEF.linhasApp, CV_DEF.linhaOutras], pos = l => ordL.includes(l) ? ordL.indexOf(l) : 99;
+  const linhas = [...new Set(SKUS.map(s => s.linha))].sort((a, b) => pos(a) - pos(b) || a.localeCompare(b));
   chips($('fLinha'), linhas.map(l => [l, l]), S.linha, k => { S.linha = k; S.seg = ''; S.sku = ''; S.grupo = ''; S.cli = ''; atualiza(); });
   const segs = [...new Set(SKUS.filter(s => s.linha === S.linha).map(s => s.segmento))].sort();
   chips($('fSeg'), [['', 'Todos'], ...segs.map(s => [s, s])], S.seg, k => { S.seg = k; S.sku = ''; atualiza(); });
@@ -629,7 +630,10 @@ function tabelas(sr){
 /* ---------------- leitura ---------------- */
 function leitura(A){
   const top = A.filter(a => a.g !== 'aviso').slice(0, 3);
-  $('resumo').innerHTML = top.length ? top.map(a => a.frase).join(' ') : 'Sem achados relevantes no período: preço, volume e estoque dentro do esperado pelas regras.';
+  const semVenda = R && !R.janela.some(m => R.M[m].q);
+  $('resumo').innerHTML = top.length ? top.map(a => a.frase).join(' ') : semVenda
+    ? `Sem venda destes SKUs no período escolhido${R.hojeEst ? ` — só saldo em estoque (${fint(R.hojeEst)} peças hoje, todos os armazéns)` : ''}.`
+    : 'Sem achados relevantes no período: preço, volume e estoque dentro do esperado pelas regras.';
   $('achados').innerHTML = A.map(a => `<div class="achado"><span class="gr ${a.g}">${CV_DEF.gravidades[a.g]}</span><div><div class="fr">${a.det} · ${a.frase}</div>` +
     (a.nums ? `<div class="nums">${a.nums}</div>` : '') + `<details><summary>como calculei</summary>${a.como}</details></div></div>`).join('');
 }
@@ -772,6 +776,8 @@ async function inicia(){
     SB.from('cv_meta_linha').select('*'), SB.from('cv_refresh_log').select('finished_at,ok,conferencia,versao_espec').eq('ok', true).order('id', {ascending:false}).limit(1)]);
   if(s.error){ $('st').className = 'status err'; $('st').textContent = 'Sem acesso aos dados da aba: ' + s.error.message; return; }
   SKUS = s.data; METAS = m.data || []; LOG = l.data && l.data[0];
+  // linhas fora do app vão para "Outras"; a linha original vira o segmento (a meta continua a geral)
+  SKUS.forEach(x => { if(!CV_DEF.linhasApp.includes(x.linha)){ x.linhaOrig = x.linha; x.segmento = x.linha; x.linha = CV_DEF.linhaOutras; } });
   $('cab').innerHTML = `${esc(window.USUARIO_EMAIL || '')} · ${esc(window.PAPEL || '')}<br>dados de ${LOG ? new Date(LOG.finished_at).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}`;
   const p = new URLSearchParams(location.search);
   S.sku = p.get('sku') || ''; const sk = SKUS.find(x => x.sku === S.sku);
