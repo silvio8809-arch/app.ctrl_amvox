@@ -5,7 +5,12 @@
    ===================================================================================== */
 const CV_DEF = {
   versaoEspec: '1.2',
-  versaoTela: '0.2',
+  versaoTela: '0.3',
+
+  /* linhas do app de preços; as demais (Beleza, Digital, Informática, Kit Linha Lar, Telefonia…) aparecem juntas em
+     "Outras", com a linha original no lugar do segmento (decisão Silvio 06/10/2026) */
+  linhasApp: ['Áudio', 'Portáteis'],
+  linhaOutras: 'Outras',
 
   limites: {
     degrauPct: 0.05,          // D1: mudança mínima de nível do preço médio
@@ -46,6 +51,7 @@ const CV_DEF = {
     { nome: 'Estoque no fim do mês', texto: 'Saldo de fechamento de cada mês, somado em todos os armazéns (o gráfico). A falta de estoque é medida só no depósito de venda (40 — Expedição).', fonte: 'saldos de fechamento (SB9) e saldo de hoje (SB2)' },
     { nome: 'Conta', texto: 'Grupo de vendas do cliente; cliente sem grupo aparece como ele mesmo.', fonte: 'cadastro de clientes (SA1) e grupos (ACY)' },
     { nome: 'Cobertura', texto: 'Estoque de hoje ÷ venda média dos últimos 3 meses fechados.', fonte: 'saldo de hoje e notas de saída' },
+    { nome: 'Linha "Outras"', texto: 'Junta as linhas que não fazem parte do app de preços (Beleza, Digital, Informática, Kit Linha Lar, Telefonia e outras que surgirem). Dentro dela, o filtro de segmento mostra a linha original. A meta de margem é a geral.', fonte: 'cadastro do produto (SB1/SBM)' },
     { nome: 'Filiais', texto: 'A aba soma as filiais 010102 e 010103.', fonte: '' },
     { nome: 'Atualização', texto: 'Uma vez por dia útil, junto com a rotina do app de preços. Janela de 24 meses fechados + mês corrente (parcial). Antes de gravar, o total de peças e reais é conferido ao centavo com as notas de saída; se divergir, não grava.', fonte: '' }
   ],
