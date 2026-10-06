@@ -5,7 +5,7 @@
    ===================================================================================== */
 const CV_DEF = {
   versaoEspec: '1.2',
-  versaoTela: '0.1',
+  versaoTela: '0.2',
 
   limites: {
     degrauPct: 0.05,          // D1: mudança mínima de nível do preço médio
