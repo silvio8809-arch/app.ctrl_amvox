@@ -11,9 +11,32 @@ async function guardaPagina(){
   } catch (e) { window.PAPEL = 'CONSULTA'; }
   sessionStorage.setItem('perfil', window.PAPEL === 'ADM' ? 'adm' : 'consulta');
   window.USUARIO_EMAIL = session.user.email;
+  if (!(await carregaDadosPagina())) return null;
   document.documentElement.style.visibility = 'visible';
   document.dispatchEvent(new CustomEvent('papel-pronto'));
   return session;
+}
+// Dados FORA do código público (caminho b, 06/10/2026): páginas com <script type="text/plain" data-pos-dados>
+// recebem os trechos de dado da tabela app_bloco (RLS: só usuário logado com perfil) e só então rodam esses
+// scripts, na ordem. Página sem esses scripts (index, curva) não é afetada.
+async function carregaDadosPagina(){
+  // espera a página inteira ser lida ANTES de procurar os scripts adiados (eles ficam no fim do <body>)
+  if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once:true }));
+  const adiados = [...document.querySelectorAll('script[type="text/plain"][data-pos-dados]')];
+  if (!adiados.length) return true;
+  const pagina = (location.pathname.split('/').pop() || '').replace(/\.html$/, '');
+  const { data, error } = await SB.from('app_bloco').select('nome,texto').eq('pagina', pagina).order('ordem');
+  if (error || !data || !data.length){
+    document.documentElement.style.visibility = 'visible';
+    document.body.insertAdjacentHTML('afterbegin', '<div style="background:#FEE4E2;color:#B42318;font:600 14px sans-serif;padding:14px 18px">' +
+      'Não foi possível carregar os dados desta página' + (error ? ' (' + String(error.message || error).replace(/</g, '&lt;') + ')' : '') +
+      '. Saia e entre de novo; se continuar, avise a Controladoria.</div>');
+    return false;
+  }
+  const roda = t => { const s = document.createElement('script'); s.textContent = t; document.body.appendChild(s); };
+  data.forEach(b => roda(b.texto));
+  adiados.forEach(s => roda(s.textContent));
+  return true;
 }
 async function sair(){ await SB.auth.signOut(); location.replace('index.html'); }
 
