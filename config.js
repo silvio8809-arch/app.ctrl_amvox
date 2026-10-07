@@ -6,15 +6,30 @@ async function guardaPagina(){
   const { data: { session } } = await SB.auth.getSession();
   if (!session) { location.replace('index.html'); return null; }
   try {
-    const { data } = await SB.from('profiles').select('papel').eq('id', session.user.id).single();
+    const { data } = await SB.from('profiles').select('*').eq('id', session.user.id).single();
     window.PAPEL = (data && data.papel) || 'CONSULTA';
-  } catch (e) { window.PAPEL = 'CONSULTA'; }
+    // aplicativos liberados (07/10/2026); perfil sem a coluna = transição → libera os dois
+    window.APPS = data && Array.isArray(data.apps) ? data.apps : ['precos', 'dash'];
+  } catch (e) { window.PAPEL = 'CONSULTA'; window.APPS = ['precos', 'dash']; }   // falha de leitura: o banco segue travando
+  if (!window.APPS.includes('precos')) { semAcessoApp('o app de Preços'); return null; }
   sessionStorage.setItem('perfil', window.PAPEL === 'ADM' ? 'adm' : 'consulta');
   window.USUARIO_EMAIL = session.user.email;
   if (!(await carregaDadosPagina())) return null;
   document.documentElement.style.visibility = 'visible';
   document.dispatchEvent(new CustomEvent('papel-pronto'));
   return session;
+}
+// Usuário sem o aplicativo: aviso no lugar da página (o banco também bloqueia — trava por aplicativo, 07/10/2026)
+function semAcessoApp(nome){
+  const mostra = () => {
+    document.body.innerHTML = '<div style="max-width:520px;margin:12vh auto;padding:28px;font:15px/1.6 -apple-system,sans-serif;' +
+      'background:#fff;border:1px solid #E6E5E2;border-radius:12px;color:#17181A"><b>Seu usuário não tem acesso a ' + nome + '.</b><br>' +
+      'Se precisar, fale com a Controladoria.<div style="margin-top:16px"><a href="index.html">Voltar ao início</a> · ' +
+      '<a href="#" onclick="sair();return false">Sair</a></div></div>';
+    document.body.style.background = '#F7F6F4';
+    document.documentElement.style.visibility = 'visible';
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mostra, { once:true }); else mostra();
 }
 // Dados FORA do código público (caminho b, 06/10/2026): páginas com <script type="text/plain" data-pos-dados>
 // recebem os trechos de dado da tabela app_bloco (RLS: só usuário logado com perfil) e só então rodam esses
