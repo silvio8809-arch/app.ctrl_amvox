@@ -76,16 +76,20 @@ input:focus{outline:2px solid var(--accent)}
   <div class="quem">Conectado como <b id="quemEmail"></b><span class="papel" id="quemPapel"></span>
     <button class="ghost" onclick="sair()">Sair</button></div>
   <div class="apps">
-    <a class="appc" href="custos.html"><span class="ic">🚢</span>
+    <a class="appc" data-app="precos" href="custos.html"><span class="ic">🚢</span>
       <h3>Custo de Aquisição 2025×2026</h3>
       <p>Simulador de custo e preço, visão comparativa dos modelos e frete real × projetado (EIC ao vivo).</p></a>
-    <a class="appc" href="tabelas.html"><span class="ic">🏷️</span>
+    <a class="appc" data-app="precos" href="tabelas.html"><span class="ic">🏷️</span>
       <h3>Tabelas de Preço 2026</h3>
       <p>Consulta por SKU: tabela base 078, Tabela 5, pós-venda, mostruário, avarias, funcionários e Suframa.</p></a>
-    <a class="appc" href="curva.html"><span class="ic">📈</span>
+    <a class="appc" data-app="precos" href="curva.html"><span class="ic">📈</span>
       <h3>Curva de Venda × Preço</h3>
       <p>O que aconteceu com a venda e o preço de cada linha ou SKU, por quê, e o que isso significou — com leitura automática e perguntas à base de conhecimento.</p></a>
+    <a class="appc" data-app="dash" href="https://silvio8809-arch.github.io/amvox-dash-faturamento/web/"><span class="ic">🚚</span>
+      <h3>Dash de Faturamento &amp; Logística</h3>
+      <p>Notas emitidas, top clientes, notas sem data de entrega com plano de ação, devoluções e auditoria — o painel da TV.</p></a>
   </div>
+  <div class="msg" id="semApps" style="display:none;text-align:center;margin-top:24px">Seu usuário ainda não tem aplicativo liberado. Fale com a Controladoria.</div>
   <div class="rodape">AMVOX · Reistar — acesso restrito · dados sob demanda da Controladoria</div>
 </div>
 
@@ -105,8 +109,12 @@ async function mostraHub(session){
   $('hub').style.display='block';
   $('quemEmail').textContent = session.user.email;
   try{
-    const { data } = await SB.from('profiles').select('papel').eq('id', session.user.id).single();
+    const { data } = await SB.from('profiles').select('*').eq('id', session.user.id).single();
     const papel = (data && data.papel) || 'CONSULTA';
+    /* cartões só dos aplicativos liberados ao usuário (07/10/2026; sem a coluna = transição → todos) */
+    const apps = data && Array.isArray(data.apps) ? data.apps : ['precos', 'dash'];
+    document.querySelectorAll('a.appc[data-app]').forEach(a => { a.style.display = apps.includes(a.dataset.app) ? '' : 'none'; });
+    if (!apps.length) $('semApps').style.display = 'block';
     const el = $('quemPapel'); el.textContent = papel;
     if (papel === 'ADM') el.classList.add('adm');
     if (papel === 'GERENTE'){
