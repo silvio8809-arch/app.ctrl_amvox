@@ -130,7 +130,7 @@
       <button class="chip" data-modo="tabela">Simulação por tabela</button>
     </div>
     <div id="modoCliente">
-    <div class="aviso" style="margin-bottom:12px">Simulador de <b>preço líquido Suframa/ZFM</b>: informe cliente, tabela, UF e VPC no cabeçalho e escolha os produtos <b>linha a linha</b> — o botão <b>➕</b> inclui outro produto na proposta. Cada linha mostra o preço sugerido, os descontos fiscais destacados em NF, o <b>líquido</b> e a <b>margem</b>; o resumo total aparece nos cards abaixo.</div>
+    <div class="aviso" style="margin-bottom:12px">Simulador de <b>preço líquido Suframa/ZFM</b>: informe cliente, tabela, UF e VPC no cabeçalho e escolha os produtos <b>linha a linha</b> — o botão <b>➕</b> inclui outro produto na proposta. Cada linha mostra o preço sugerido, os descontos fiscais destacados em NF, o <b>líquido</b> e a <b>margem</b>; o resumo total aparece nos cards abaixo. <b>IPI: isento nas 3 tabelas Suframa</b> (a coluna fica em branco).</div>
     <div class="barra" style="align-items:flex-end">
       <div class="busca" style="max-width:300px"><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Cliente</label>
         <input id="simCli" placeholder="Nome do cliente" style="width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
@@ -153,7 +153,7 @@
         <thead><tr>
           <th>#</th><th style="text-align:left">Produto</th><th>Qtd</th>
           <th class="dest">Tabela</th><th>VPC</th><th>Frete</th><th>IPI</th><th>Sugerido s/ IPI</th>
-          <th>Desc. ICMS</th><th>Desc. PIS/COF</th><th class="dest">Líquido s/ IPI (un)</th><th>Total NF c/ IPI (un)</th><th>Total NF</th><th>MC %</th><th></th>
+          <th>Desc. ICMS</th><th>Desc. PIS/COF</th><th class="dest">Líquido s/ IPI (un)</th><th>Total NF (un)</th><th>Total NF</th><th>MC %</th><th></th>
         </tr></thead>
         <tbody id="simLinhas"></tbody>
       </table>
@@ -162,7 +162,7 @@
     </div><!-- /modoCliente -->
 
     <div id="modoTabela" style="display:none">
-      <div class="aviso" style="margin-bottom:12px">Simulação <b>por tabela</b>: escolha a tabela Suframa, a UF de destino e o VPC (se houver) e clique em <b>Gerar simulação</b> — o painel lista <b>todos os itens da tabela</b> com o preço sugerido, os descontos fiscais destacados em NF, o <b>líquido</b> e a <b>margem</b>, no mesmo formato da simulação por cliente.</div>
+      <div class="aviso" style="margin-bottom:12px">Simulação <b>por tabela</b>: escolha a tabela Suframa, a UF de destino e o VPC (se houver) e clique em <b>Gerar simulação</b> — o painel lista <b>todos os itens da tabela</b> com o preço sugerido, os descontos fiscais destacados em NF, o <b>líquido</b> e a <b>margem</b>, no mesmo formato da simulação por cliente. <b>IPI: isento nas 3 tabelas Suframa.</b></div>
       <div class="barra" style="align-items:flex-end">
         <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Tabela</label><br>
           <select id="stTab" style="padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)">
@@ -185,7 +185,7 @@
             <thead><tr>
               <th>#</th><th style="text-align:left">Produto</th><th>Qtd</th>
               <th class="dest">Tabela</th><th>VPC</th><th>Frete</th><th>IPI</th><th>Sugerido s/ IPI</th>
-              <th>Desc. ICMS</th><th>Desc. PIS/COF</th><th class="dest">Líquido s/ IPI (un)</th><th>Total NF c/ IPI (un)</th><th>Total NF</th><th>MC %</th>
+              <th>Desc. ICMS</th><th>Desc. PIS/COF</th><th class="dest">Líquido s/ IPI (un)</th><th>Total NF (un)</th><th>Total NF</th><th>MC %</th>
             </tr></thead>
             <tbody id="stLinhas"></tbody>
           </table>
@@ -194,7 +194,7 @@
       </div>
     </div><!-- /modoTabela -->
 
-    <p id="notaMetod" style="font-size:11.5px;color:var(--muted);margin-top:12px;max-width:78ch">Margem projetada deduz: ICMS 12% e PIS/COFINS 9,25% (repassados como desconto ao cliente OU devidos — efeito idêntico), comissão 3%, devolução 3%, MOD 1% sobre o custo, frete da UF e VPC. Preços base Brasil da tabela 078 vigente; frete pela tabela oficial por UF. Simulação — o pedido real segue o SFA.</p>
+    <p id="notaMetod" style="font-size:11.5px;color:var(--muted);margin-top:12px;max-width:78ch">Margem projetada deduz: ICMS 12% e PIS/COFINS 9,25% (repassados como desconto ao cliente OU devidos — efeito idêntico), comissão 3%, devolução 3%, MOD 1% sobre o custo, frete da UF e VPC. Preços base Brasil da tabela 078 vigente; frete pela tabela oficial por UF. IPI: isento nas 3 tabelas Suframa (227, 228 e 229) — o total da NF é o sugerido menos os descontos destacados (NFs-modelo conferidas: 227 = NF 262564 · 228 = NF 276076 · 229 = NF 280552). Simulação — o pedido real segue o SFA.</p>
   </section>
 
 
@@ -231,7 +231,7 @@
 
   <!-- SUFRAMA -->
   <section class="tela" id="tela-suframa">
-    <div class="aviso" style="margin-bottom:12px">Área de incentivo SUFRAMA/ZFM — <b>Suframa IPI (229) = tabela base Brasil</b> · <b>Suframa ICMS (228)</b> e <b>Suframa ICMS+PIS/COFINS (227)</b> = tabela base acrescida do <b>% de incremento de margem da região</b>. As 3 tabelas existem para a TES determinar os descontos/mensagens fiscais obrigatórios na NF. Frete UF e VPC entram por fora no SFA. ⚠️ A coluna "TOTVS hoje" mostra o cadastro atual — o Δ é o recadastro pendente.</div>
+    <div class="aviso" style="margin-bottom:12px">Área de incentivo SUFRAMA/ZFM — <b>Suframa IPI (229) = tabela base Brasil</b> · <b>Suframa ICMS (228)</b> e <b>Suframa ICMS+PIS/COFINS (227)</b> = tabela base acrescida do <b>% de incremento de margem da região</b>. As 3 tabelas existem para a TES determinar os descontos/mensagens fiscais obrigatórios na NF. <b>Nas 3 tabelas há isenção de IPI</b> — não há IPI em nenhum cenário Suframa. Frete UF e VPC entram por fora no SFA. ⚠️ A coluna "TOTVS hoje" mostra o cadastro atual — o Δ é o recadastro pendente.</div>
     <div class="barra">
       <div class="busca"><input id="qS" type="search" placeholder="Buscar por modelo ou código…" aria-label="Buscar produto Suframa"></div>
       <div class="chips" id="chipsTab"></div>
@@ -360,6 +360,13 @@
         Funcionários = 078 − 10% (Caixa Torre) / − 20% (Caixa com bateria) / − 30% (Portáteis)<br>
         Avaria 51 = 078 − 34,43% &nbsp;·&nbsp; Avaria 52 = 078 − 45,33% &nbsp;·&nbsp; Avaria 53 = 078 − 67,22%<br>
         Suframa IPI (229) = 078 &nbsp;·&nbsp; Suframa ICMS (228) e ICMS+PIS/COF (227) = 078 + 12,77%
+      </div>
+      <h3>Suframa — o que sai na nota</h3>
+      <p><b>As 3 tabelas Suframa têm isenção de IPI</b> (confirmado com o Fiscal e o Faturamento em 09/10/2026). Na NF o preço unitário já traz frete e VPC; os descontos são destacados em cascata e o total da nota é o preço menos os descontos, sem IPI:</p>
+      <div class="formula">
+        227 = preço − ICMS 12% − PIS/COFINS 9,25% sobre (preço − ICMS) &nbsp;·&nbsp; ex.: NF 262564 — 445,78 → 356,00<br>
+        228 = preço − ICMS 12% &nbsp;·&nbsp; ex.: NF 276076 — 78,97 → 69,49<br>
+        229 = preço cheio, sem desconto (o ICMS é devido por dentro) &nbsp;·&nbsp; ex.: NF 280552 — 140,06 → 140,06
       </div>
       <h3>Reajuste geral de 01/10/2026</h3>
       <p>Aprovado pela Diretoria: <b>+5% sobre a tabela 078</b> (revisto em 01/10/2026; a 1ª versão era +6%) (custos da guerra, inflação). As tabelas internas seguem a regra acima a partir da nova base; as tabelas de <b>clientes e redes</b> mantêm o <b>% de cada item sobre a 078</b> (congelado em 01/10/2026) e acompanham a base. Enquanto o TOTVS não for recadastrado, a coluna Δ mostra a diferença a digitar. A Tabela 5 (003) saiu do painel — inativa no TOTVS desde 03/08/2026.</p>
@@ -908,10 +915,12 @@ document.getElementById('copiarA').onclick=async()=>{
     const [cod,desc,lin,p078,custo,ipi]=s;
     const base = pp.tab==='229' ? p078 : p078*(1+P.acr);
     const vpcR=base*pp.vpc, freR=base*pp.fre, J=base+vpcR+freR;
-    const ipiCob = pp.tab==='229'?0:J*ipi;
+    /* 09/10/2026 (Silvio, com Alexandro e Samuel): ISENÇÃO DE IPI nas 3 tabelas Suframa (227/228/229) —
+       não há IPI em nenhum cenário. Total da NF = sugerido − descontos destacados (ICMS; PIS/COF na 227),
+       conferido ao centavo com as NFs-modelo 262564 (227), 276076 (228) e 280552 (229). */
+    const ipiCob = 0;
     const dIcms=(pp.tab!=='229')?J*0.12:0, dPis=(pp.tab==='227')?(J-dIcms)*0.0925:0;
-    /* 08/10/2026 (Silvio): líquido SEM IPI (comparável/negociação) separado do total da NF COM IPI.
-       IPI isento ou zero => coluna em branco e nada somado. */
+    /* 08/10/2026: coluna IPI em branco quando isento (sempre, desde 09/10). */
     const liqSI=J-dIcms-dPis, liq=liqSI+ipiCob;
     const icmsMC=J*0.12, pisMC=(J-icmsMC)*0.0925, rl=J-icmsMC-pisMC;
     const mc=rl-0.06*J-vpcR-freR-custo*1.01;
@@ -978,10 +987,10 @@ document.getElementById('copiarA').onclick=async()=>{
       card('Itens', rs.length) +
       card('Qtd total', tot.qtd.toLocaleString('pt-BR')) +
       card('Sugerido s/ IPI', fmt(tot.sug)) +
-      card('IPI', tot.ipi?'+'+fmt(tot.ipi):'—') +
+      card('IPI', 'Isento') +
       card('Desc. ICMS', tot.icms?'−'+fmt(tot.icms):'—') +
       card('Desc. PIS/COF', tot.pis?'−'+fmt(tot.pis):'—') +
-      card('Líquido s/ IPI', fmt(tot.liqSI)) + card('TOTAL DA NF c/ IPI', fmt(tot.liq), true) +
+      card('Líquido s/ IPI', fmt(tot.liqSI)) + card('TOTAL DA NF', fmt(tot.liq), true) +
       card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
   }
   montaGrade();
@@ -1041,9 +1050,9 @@ document.getElementById('copiarA').onclick=async()=>{
     const corMC = mcpT>=0.30?'#EAF3EC':(mcpT>=0?'#FDF3E7':'#FDE8E8');
     document.getElementById('stCards').innerHTML =
       card('Itens', rs.length) + card('Qtd total', tot.qtd.toLocaleString('pt-BR')) +
-      card('Sugerido s/ IPI', fmt(tot.sug)) + card('IPI', tot.ipi?'+'+fmt(tot.ipi):'—') +
+      card('Sugerido s/ IPI', fmt(tot.sug)) + card('IPI', 'Isento') +
       card('Desc. ICMS', tot.icms?'−'+fmt(tot.icms):'—') + card('Desc. PIS/COF', tot.pis?'−'+fmt(tot.pis):'—') +
-      card('Líquido s/ IPI', fmt(tot.liqSI)) + card('TOTAL DA NF c/ IPI', fmt(tot.liq), true) +
+      card('Líquido s/ IPI', fmt(tot.liqSI)) + card('TOTAL DA NF', fmt(tot.liq), true) +
       card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
   }
   document.getElementById('stGerar').onclick=()=>{
@@ -1163,7 +1172,7 @@ table{width:100%;border-collapse:collapse}
 <div class=sec>Itens da proposta (${rs.length}) — grade do SFA + tratamento fiscal Suframa por item</div>
 <table class=itens><thead><tr><th>#</th><th>PRODUTO</th><th>DESCRIÇÃO</th><th>UM</th><th>QTD</th>
  <th class=thtab>TABELA</th><th>VPC</th><th>FRETE</th><th>IPI</th><th>SUGERIDO s/ IPI</th>
- <th class=thsuf>DESC. ICMS</th><th class=thsuf>DESC. PIS/COF</th><th class=thsuf>LÍQUIDO s/ IPI (un)</th><th>TOTAL NF c/ IPI (un)</th><th>TOTAL NF</th></tr></thead>
+ <th class=thsuf>DESC. ICMS</th><th class=thsuf>DESC. PIS/COF</th><th class=thsuf>LÍQUIDO s/ IPI (un)</th><th>TOTAL NF (un)</th><th>TOTAL NF</th></tr></thead>
 <tbody>${linhas}</tbody></table>
 <div class=liqbox>
  <div><span>ITENS</span><b>${rs.length}</b></div>
@@ -1172,18 +1181,18 @@ table{width:100%;border-collapse:collapse}
  <div><span>DESC. ICMS</span><b>${tot.icms?'−R$ '+brf(tot.icms):'—'}</b></div>
  <div><span>DESC. PIS/COF</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
  <div><span>LÍQUIDO s/ IPI</span><b>R$ ${brf(tot.liqSI)}</b></div>
- <div><span>IPI</span><b class=add>${tot.ipi?'+R$ '+brf(tot.ipi):'—'}</b></div>
- <div class=tot><span>TOTAL DA NF c/ IPI</span><b>R$ ${brf(tot.liq)}</b></div></div>
+ <div><span>IPI</span><b>ISENTO</b></div>
+ <div class=tot><span>TOTAL DA NF</span><b>R$ ${brf(tot.liq)}</b></div></div>
 <div class=cols>
  <div class=tt><div class=bt>Totais</div>
   <div class=f><span>Sugerido s/ IPI</span><b>R$ ${brf(tot.sug)}</b></div>
   <div class=f><span>Desconto ICMS (12%)</span><b>${tot.icms?'−R$ '+brf(tot.icms):'—'}</b></div>
   <div class=f><span>Desconto PIS/COFINS (9,25%)</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
   <div class=f style="border-top:1px solid #ddd;margin-top:3px;padding-top:4px"><span>Líquido s/ IPI</span><b>R$ ${brf(tot.liqSI)}</b></div>
-  <div class=f><span>IPI</span><b>${tot.ipi?'+R$ '+brf(tot.ipi):''}</b></div>
-  <div class=f style="border-top:1px solid #ddd;margin-top:3px;padding-top:4px;font-size:11px"><span>TOTAL DA NF c/ IPI</span><b>R$ ${brf(tot.liq)}</b></div></div>
+  <div class=f><span>IPI</span><b>Isento (benefício SUFRAMA)</b></div>
+  <div class=f style="border-top:1px solid #ddd;margin-top:3px;padding-top:4px;font-size:11px"><span>TOTAL DA NF</span><b>R$ ${brf(tot.liq)}</b></div></div>
 </div>
-<div class=nota>Preço base Brasil = tabela 078 vigente na data, acrescido do percentual de incremento da região quando a tabela o prevê. Frete da UF e VPC entram por fora, conforme o cadastro. IPI pelo cadastro de cada produto. Descontos de ICMS e PIS/COFINS destacados na NF conforme o benefício da tabela.</div>
+<div class=nota>Preço base Brasil = tabela 078 vigente na data, acrescido do percentual de incremento da região quando a tabela o prevê. Frete da UF e VPC entram por fora, conforme o cadastro. IPI isento nas 3 tabelas SUFRAMA (227, 228 e 229). Descontos de ICMS e PIS/COFINS destacados na NF conforme o benefício da tabela.</div>
 <div class=aviso>⚠️ <b>DOCUMENTO DE SIMULAÇÃO</b> — não substitui a proposta oficial numerada (PROP-ano-nº) emitida pela Controladoria. O pedido deve ser digitado no SFA com a tabela <b>${pp.nomeTab}</b>, VPC e frete exatamente como acima, sob pena de recálculo automático das condições.</div>
 <div class=rod>AMVOX / REISTAR — Simulador de Preço Líquido Suframa · ${num} · ${dt} · ${quem}</div>
 </div><scr`+`ipt>window.print();</scr`+`ipt></body></html>`;
@@ -1202,7 +1211,7 @@ table{width:100%;border-collapse:collapse}
   const COLS_SIM=[{t:'CÓDIGO',w:14,tipo:'s'},{t:'PRODUTO',w:44,tipo:'s'},{t:'QTD',w:8,tipo:'n'},
     {t:'TABELA',w:13,tipo:'n'},{t:'VPC',w:11,tipo:'n'},{t:'FRETE',w:11,tipo:'n'},{t:'IPI',w:11,tipo:'n'},
     {t:'SUGERIDO S/ IPI',w:16,tipo:'n'},{t:'DESC. ICMS',w:13,tipo:'n'},{t:'DESC. PIS/COF',w:14,tipo:'n'},
-    {t:'LÍQUIDO S/ IPI (UN)',w:17,tipo:'n'},{t:'TOTAL NF C/ IPI (UN)',w:17,tipo:'n'},{t:'TOTAL NF',w:16,tipo:'n'}];
+    {t:'LÍQUIDO S/ IPI (UN)',w:17,tipo:'n'},{t:'TOTAL NF (UN)',w:16,tipo:'n'},{t:'TOTAL NF',w:16,tipo:'n'}];
   function linhaXLS(r){ return [r.cod,r.desc,r.qtd,r.base,r.vpcR,r.freR,r.ipiCob||'',r.J,
     r.dIcms?-r.dIcms:0, r.dPis?-r.dPis:0, r.liqSI, r.liq, r.liq*r.qtd]; }
   document.getElementById('simXls').onclick = function(){
