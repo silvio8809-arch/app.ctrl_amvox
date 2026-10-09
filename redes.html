@@ -1,0 +1,611 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html{visibility:hidden}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>guardaPagina();</script>
+<script src="redes_definicoes.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<title>Redes — Tabelas por Faixa</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&display=swap">
+<style>
+  /* REDES — política de vendas para redes (minuta v0.5 + decisões 07/10/2026). Solicitação → validação automática →
+     aprovação final da Controladoria → ordem ao Faturamento (conferida no cadastro) → acompanhamento trimestral.
+     NENHUM dado embutido: tudo vem do Supabase depois do login. Regras em redes_definicoes.js. */
+  :root{
+    --ink:#17181A; --muted:#6B7076; --line:#E6E5E2; --ground:#F7F6F4; --panel:#FFFFFF;
+    --topo:#121214; --accent:#D71920;
+    --sans:'Archivo',-apple-system,'Segoe UI',Roboto,sans-serif;
+    --body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    --ok:#0F6B3E; --ok-bg:#DFF3E7; --av:#9A5B00; --av-bg:#FEF0C7; --ru:#B42318; --ru-bg:#FEE4E2; --in:#1D4F91; --in-bg:#E3EEFB; --ne:#5B6478; --ne-bg:#EEF1F6;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);font:14px/1.5 var(--body);margin:0}
+  header{background:var(--topo);color:#fff;padding:14px 20px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .marca{font:800 20px var(--sans);letter-spacing:.06em} .marca b{color:var(--accent)}
+  header h1{font:600 15px var(--sans);margin:0;letter-spacing:.02em;color:#E8E8E6}
+  header .data{margin-left:auto;font:500 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9A9A97;text-align:right}
+  nav{background:var(--topo);display:flex;gap:2px;padding:0 20px;border-bottom:3px solid var(--accent);overflow-x:auto}
+  nav button{background:none;border:0;color:#B9B9B6;font:600 12px var(--sans);letter-spacing:.07em;text-transform:uppercase;padding:10px 14px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-3px;white-space:nowrap}
+  nav button:hover{color:#fff} nav button.on{color:#fff;border-color:var(--accent)}
+  button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  main{padding:18px 20px 70px;max-width:1280px;margin:0 auto}
+  .tela{display:none}.tela.on{display:block}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;cursor:pointer}
+  .kpi:hover{border-color:var(--ink)} .kpi.sel{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+  .kpi .t{font:600 10.5px var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .kpi .v{font:700 24px/1.15 var(--sans);margin-top:6px;font-variant-numeric:tabular-nums}
+  .painel{background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:14px}
+  .painel h2{font:700 12px var(--sans);letter-spacing:.08em;text-transform:uppercase;margin:0;padding:11px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .painel h2 span{font:400 12px var(--body);letter-spacing:0;text-transform:none;color:var(--muted)}
+  .painel h2 .acao{margin-left:auto}
+  .corpo{padding:12px 14px}
+  .tbl-wrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%}
+  thead th{background:var(--ink);color:#fff;font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:8px 10px;text-align:left;white-space:nowrap}
+  thead th.n{text-align:right}
+  tbody td{padding:6px 10px;border-top:1px solid var(--line);vertical-align:top}
+  tbody td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  tbody tr.clic{cursor:pointer} tbody tr.clic:hover td{background:#F3F2EF} tbody tr.sel td{background:#FFF8E6}
+  .chip{display:inline-block;font:700 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:99px;white-space:nowrap}
+  .c-ok{background:var(--ok-bg);color:var(--ok)} .c-av{background:var(--av-bg);color:var(--av)} .c-ru{background:var(--ru-bg);color:var(--ru)}
+  .c-in{background:var(--in-bg);color:var(--in)} .c-ne{background:var(--ne-bg);color:var(--ne)}
+  .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 12px var(--sans);padding:8px 13px;border-radius:6px;cursor:pointer}
+  .btn:hover{border-color:var(--ink)} .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.pri{background:var(--ink);color:#fff;border-color:var(--ink)} .btn.ver{background:var(--ok);color:#fff;border-color:var(--ok)}
+  .btn.ver-2{background:var(--ru);color:#fff;border-color:var(--ru)}
+  .status{font:500 12px var(--sans);color:var(--muted);margin:10px 2px} .status.err{color:var(--accent)}
+  .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .form label{display:flex;flex-direction:column;gap:4px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  input,select,textarea{padding:8px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:#fff;color:var(--ink);text-transform:none;letter-spacing:0}
+  textarea{min-height:90px;resize:vertical;width:100%}
+  .linha-b{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px}
+  .req{display:grid;grid-template-columns:28px 64px minmax(0,1fr);gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+  .req:first-child{border-top:0} .req .ic{font-size:15px} .req .id{font:700 11px var(--sans);color:var(--muted)}
+  .req .det{color:var(--muted);font-size:12px;word-break:break-word}
+  .grade2{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px 16px;font-size:13px}
+  .grade2 b{display:block;font:600 10px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .nota{font-size:12px;color:var(--muted);margin-top:8px}
+  .trilha div{font-size:12.5px;padding:4px 0;border-top:1px dashed var(--line)} .trilha div:first-child{border-top:0}
+  .so-adm{display:none} body.e-adm .so-adm{display:initial}
+  .met h3{font:700 13px var(--sans);margin:16px 0 6px} .met .r{font-size:13.5px;padding:6px 0;border-top:1px solid var(--line)}
+  .fixos{position:fixed;right:14px;bottom:14px;z-index:99}
+  .fixos button{cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3);margin-left:8px}
+</style>
+</head><body>
+<header>
+  <span class="marca">AMVO<b>X</b></span>
+  <h1>Redes — tabelas por faixa de faturamento</h1>
+  <span class="data" id="cab">carregando…</span>
+</header>
+<nav>
+  <button class="on" data-tela="sol">Solicitações</button>
+  <button data-tela="nova">Nova solicitação</button>
+  <button data-tela="acomp">Acompanhamento</button>
+  <button data-tela="ordens">Ordens ao Faturamento</button>
+  <button data-tela="bonif">Bonificação cliente novo</button>
+  <button data-tela="regras">Regras e testes</button>
+  <button data-tela="param">Parâmetros</button>
+</nav>
+<main>
+<div class="status" id="st">Carregando…</div>
+
+<!-- ================= SOLICITAÇÕES ================= -->
+<section class="tela on" id="tela-sol">
+  <div class="cards" id="cardsSol"></div>
+  <div class="painel"><h2>Solicitações <span id="subSol"></span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Rede</th><th>Tipo</th><th class="n">CNPJs</th><th class="n">Meta</th><th>Prazo</th><th>Início</th><th>Faixa</th><th>Situação</th><th>Solicitante</th><th>Atualizado</th></tr></thead>
+      <tbody id="tSol"></tbody></table></div></div>
+  <div id="det"></div>
+</section>
+
+<!-- ================= NOVA ================= -->
+<section class="tela" id="tela-nova">
+  <div class="painel"><h2 id="tNova">Nova solicitação de tabela de rede <span>preencha, anexe os CNPJs e acompanhe a validação ao lado</span></h2>
+    <div class="corpo">
+      <div class="form">
+        <label>Nome da rede<input id="fNome" maxlength="120"></label>
+        <label>Tipo<select id="fTipo"><option value="ASSOCIATIVA">Rede associativa / central de compras</option><option value="GRUPO">Grupo econômico (mesmo grupo)</option></select></label>
+        <label>Início (trimestre civil)<select id="fIni"></select></label>
+        <label>Prazo de alcance<select id="fPrazo"><option value="12">12 meses</option><option value="6">6 meses</option></select></label>
+        <label>Meta de faturamento da rede no prazo (R$)<input id="fMeta" inputmode="decimal" placeholder="ex.: 6.000.000"></label>
+      </div>
+      <label style="display:block;margin-top:12px;font:600 10.5px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Defesa comercial — por que a Controladoria deve aprovar
+        <textarea id="fDefesa" placeholder="Quem é a rede, potencial, histórico, concorrência, mix pretendido, compromisso de volume…"></textarea></label>
+      <div class="nota" id="fDefesaN"></div>
+      <div class="linha-b">
+        <label class="btn">📎 Anexar planilha de CNPJs (Excel ou CSV)<input type="file" id="fArq" accept=".xlsx,.xls,.csv,.txt" hidden></label>
+        <span class="nota" id="fArqN">ou cole os CNPJs abaixo (um por linha, com ou sem pontuação)</span>
+      </div>
+      <textarea id="fCnpjs" placeholder="00.000.000/0000-00"></textarea>
+      <div class="linha-b">
+        <button class="btn" id="bRasc">Salvar rascunho</button>
+        <button class="btn pri" id="bEnviar">Salvar e enviar para aprovação</button>
+        <button class="btn" id="bLimpar">Limpar</button>
+        <span class="status" id="fSt" style="margin:0"></span>
+      </div>
+    </div></div>
+  <div class="painel"><h2>Validação automática <span>regras da política — vermelho bloqueia o envio; amarelo é aviso para a Controladoria</span></h2>
+    <div class="corpo" id="fVal"></div></div>
+  <div class="painel"><h2>CNPJs <span id="fCnpjSub"></span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>CNPJ</th><th>Cliente</th><th>UF</th><th>Grupo</th><th>Tabela atual</th><th class="n">VPC</th><th>Situação</th></tr></thead><tbody id="fCnpjT"></tbody></table></div></div>
+</section>
+
+<!-- ================= ACOMPANHAMENTO ================= -->
+<section class="tela" id="tela-acomp">
+  <div class="cards" id="cardsAc"></div>
+  <div class="painel"><h2>Redes ativas <span>medição pelo faturamento real dos CNPJs (carga diária) · trimestres fechados</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Rede</th><th>Faixa vigente</th><th class="n">Meta</th><th class="n">Realizado acum.</th><th class="n">% da meta acum.</th><th>Último trimestre</th><th>Ação indicada</th><th class="n">CNPJs ativos</th><th>Mínimo de CNPJs</th></tr></thead>
+      <tbody id="tAc"></tbody></table></div></div>
+  <div id="detAc"></div>
+</section>
+
+<!-- ================= ORDENS ================= -->
+<section class="tela" id="tela-ordens">
+  <div class="cards" id="cardsOr"></div>
+  <div class="painel"><h2>Ordens ao Faturamento <span>responsável: Samuel (Faturamento) — cria as tabelas REDES FAIXA 1/2/3 e vincula a tabela no cadastro de cada CNPJ; o app confere no cadastro do TOTVS se foi feito</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Rede</th><th>Ordem</th><th>Tabela</th><th class="n">CNPJs</th><th>Criada</th><th>Prazo</th><th>Conferência</th><th>Situação</th><th class="so-adm"></th></tr></thead>
+      <tbody id="tOr"></tbody></table></div></div>
+</section>
+
+<!-- ================= BONIFICAÇÃO CLIENTE NOVO / REATIVAÇÃO ================= -->
+<section class="tela" id="tela-bonif">
+  <div class="painel"><h2>Consulta antes de aprovar a bonificação <span>campanha cliente novo / reativação — o cliente é avaliado pelo GRUPO inteiro (grupo de clientes + filiais da mesma raiz de CNPJ)</span></h2>
+    <div class="corpo"><div class="form">
+      <label>CNPJ do cliente<input id="bCnpj" placeholder="00.000.000/0000-00"></label></div>
+      <div class="linha-b"><button class="btn pri" id="bConsultar">Buscar as notas da campanha</button><span class="status" id="bSt" style="margin:0"></span></div>
+      <div class="linha-b"><span class="nota" id="bCarga">—</span><button class="btn so-adm" id="bAtualiza">Pedir atualização das notas</button></div>
+      <div class="nota">1) fature o 1º pedido · 2) busque o CNPJ · 3) marque a(s) nota(s) do pedido · 4) o app avalia o GRUPO antes da nota · 5) a Controladoria registra.
+        As notas entram no app pela carga de hora em hora (08:30, 09:30 … 15:30). O botão "Pedir atualização das notas" (Controladoria) garante a nota na próxima rodada — precisa do Mac ligado com VPN.</div>
+    </div></div>
+  <div class="painel" id="bNotasP" style="display:none"><h2>Notas de venda do CNPJ na campanha <span>marque a(s) nota(s) do 1º pedido (mesmo dia)</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th></th><th>Filial</th><th>Nota / série</th><th>Emissão</th><th class="n">Valor sem IPI</th><th class="n">IPI</th><th class="n">Peças</th><th>Situação</th></tr></thead><tbody id="bNotas"></tbody></table></div>
+    <div class="corpo"><button class="btn pri" id="bAvaliar" disabled>Avaliar a nota marcada</button></div></div>
+  <div id="bRes"></div>
+  <div class="cards" id="cardsBo" style="margin-top:14px"></div>
+  <div class="painel"><h2>Bonificações aprovadas <span>uma por grupo · o app liga cada aprovação à nota de bonificação emitida (CFOP 5910/6910) e dá a baixa</span>
+    <button class="btn acao so-adm" id="bConferir">Conferir notas de bonificação agora</button></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>CNPJ</th><th>Classificação</th><th>Nota(s) do 1º pedido</th><th class="n">Valor sem IPI</th><th class="n">Bonificação aprovada</th><th>Aprovado por</th><th>Situação</th><th>Nota de bonificação</th></tr></thead><tbody id="tBo"></tbody></table></div></div>
+</section>
+
+<!-- ================= REGRAS ================= -->
+<section class="tela" id="tela-regras">
+  <div class="painel"><h2>Testes automáticos do motor <span id="subTest"></span><button class="btn acao" id="bTestes">Rodar de novo</button></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Regra</th><th>Caso testado</th><th>Resultado</th></tr></thead><tbody id="tTest"></tbody></table></div></div>
+  <div class="painel"><h2>Regras da política <span id="subReg"></span></h2><div class="corpo met" id="regras"></div></div>
+</section>
+
+<!-- ================= PARÂMETROS ================= -->
+<section class="tela" id="tela-param">
+  <div class="painel"><h2>Parâmetros da política <span>valores em vigor — só a Controladoria (ADM) altera; cada alteração fica registrada</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Parâmetro</th><th>Descrição</th><th class="n">Valor</th><th>Alterado</th><th class="so-adm"></th></tr></thead><tbody id="tPar"></tbody></table></div></div>
+</section>
+</main>
+<div class="fixos"><button onclick="location.href='index.html'">⇄ Mudar de módulo</button><button onclick="sair()">Sair ↻</button></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const fmt = (v, d = 2) => v == null || !isFinite(v) ? '—' : Number(v).toLocaleString('pt-BR', {minimumFractionDigits:d, maximumFractionDigits:d});
+const fmoeda = v => v == null || !isFinite(v) ? '—' : 'R$ ' + fmt(v, 2);
+const fcurto = v => { if(v == null || !isFinite(v)) return '—'; const a = Math.abs(v);
+  return a >= 1e6 ? 'R$ ' + fmt(v / 1e6, 2) + ' mi' : a >= 1e3 ? 'R$ ' + fmt(v / 1e3, 1) + ' mil' : 'R$ ' + fmt(v, 0); };
+const fpct = (v, d = 1) => v == null || !isFinite(v) ? '—' : (v * 100).toLocaleString('pt-BR', {minimumFractionDigits:d, maximumFractionDigits:d}) + '%';
+const fdata = s => s ? new Date(s).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
+const fcnpj = c => String(c).length === 14 ? c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : c;
+const triRot = (a, t) => `${t}º tri/${a}`;
+const SITU = {RASCUNHO:['Rascunho','c-ne'], ENVIADA:['Aguardando aprovação','c-in'], DEVOLVIDA:['Devolvida p/ ajuste','c-av'],
+              APROVADA:['Aprovada — ativa','c-ok'], REPROVADA:['Reprovada','c-ru'], ENCERRADA:['Encerrada','c-ne']};
+const chip = (txt, cls) => `<span class="chip ${cls}">${esc(txt)}</span>`;
+
+/* ---------------- estado ---------------- */
+let P = {...RD_DEF.padrao}, PARROWS = [], E_ADM = false, UID = null;
+let REDES = [], CNPJS = new Map(), ORDENS = [], EXC = [], CAD = new Map(), VENDAS = new Map();
+const S = {cardSol:'', cardAc:'', cardOr:'', det:null, detAc:null, edit:null, lista:[], arquivo:null};
+
+async function todas(q){ const out = []; for(let i = 0; ; i += 1000){ const r = await q().range(i, i + 999); if(r.error) throw r.error; out.push(...r.data); if(r.data.length < 1000) break; } return out; }
+
+async function carregaCadastro(cnpjs){
+  const falta = [...new Set(cnpjs)].filter(c => !CAD.has(c) && c.length === 14);
+  for(let i = 0; i < falta.length; i += 120){
+    const lote = falta.slice(i, i + 120);
+    const r = await SB.from('cli_cadastro').select('cod,loja,cnpj,nome,uf,grupo,grupo_nome,tabela,vpc,bloqueado,atualizado_em').in('cnpj', lote);
+    if(r.error) throw r.error;
+    lote.forEach(c => CAD.set(c, []));
+    r.data.forEach(x => CAD.get(x.cnpj).push(x));
+  }
+}
+async function emOutraRede(cnpjs, exceto){
+  const m = new Map(); if(!cnpjs.length) return m;
+  const r = await SB.rpc('rede_cnpj_em_uso', {p_cnpjs: [...new Set(cnpjs)], p_exceto: exceto || null});
+  if(r.error) throw r.error;
+  r.data.forEach(x => m.set(x.cnpj, `nº ${x.rede_id} · ${x.rede_nome} · ${SITU[x.status][0]}`));
+  return m;
+}
+
+async function membrosGrupo(cnpjs, exceto){
+  if(!cnpjs.length) return [];
+  const r = await SB.rpc('rede_grupo_membros', {p_cnpjs:[...new Set(cnpjs)], p_exceto:exceto || null});
+  return r.error ? [] : r.data;
+}
+async function carrega(){
+  const [pr, rd, rc, ro, rx] = await Promise.all([SB.from('rede_parametro').select('*').order('chave'),
+    SB.from('rede').select('*').order('id', {ascending:false}), todas(() => SB.from('rede_cnpj').select('*').order('rede_id').order('cnpj')),
+    SB.from('rede_ordem').select('*').order('id', {ascending:false}), SB.from('rede_excecao').select('*')]);
+  for(const r of [pr, rd, ro, rx]) if(r.error) throw r.error;
+  PARROWS = pr.data; pr.data.forEach(x => { if(x.valor != null) P[x.chave] = +x.valor; else if(x.texto != null) P[x.chave] = x.texto; });
+  REDES = rd.data; ORDENS = ro.data; EXC = rx.data;
+  CNPJS = new Map(); rc.forEach(x => { if(!CNPJS.has(x.rede_id)) CNPJS.set(x.rede_id, []); CNPJS.get(x.rede_id).push(x); });
+  await carregaCadastro(rc.map(x => x.cnpj).concat(ORDENS.flatMap(o => (o.cnpjs || []).map(c => c.cnpj))));
+}
+
+/* ================================================================== SOLICITAÇÕES */
+function cardsSol(){
+  const cont = s => REDES.filter(r => !s || r.status === s).length;
+  const itens = [['', 'Todas', REDES.length], ...Object.keys(SITU).map(k => [k, SITU[k][0], cont(k)])];
+  $('cardsSol').innerHTML = itens.map(([k, t, v]) => `<div class="kpi ${S.cardSol === k ? 'sel' : ''}" data-k="${k}"><div class="t">${t}</div><div class="v">${v}</div></div>`).join('');
+  $('cardsSol').querySelectorAll('.kpi').forEach(e => e.onclick = () => { S.cardSol = S.cardSol === e.dataset.k ? '' : e.dataset.k; pintaSol(); });
+}
+function pintaSol(){
+  cardsSol();
+  const lis = REDES.filter(r => !S.cardSol || r.status === S.cardSol);
+  $('subSol').textContent = `${lis.length} de ${REDES.length}` + (E_ADM ? '' : ' · você vê as suas solicitações');
+  $('tSol').innerHTML = lis.map(r => { const n = (CNPJS.get(r.id) || []).filter(c => !c.removido_em).length;
+    const ma = RD.metaAnual(+r.meta, r.prazo_meses, r.tri_inicio, P), f = r.faixa_vigente ?? RD.faixa(ma, P);
+    return `<tr class="clic ${S.det === r.id ? 'sel' : ''}" data-id="${r.id}"><td>${r.id}</td><td>${esc(r.nome)}</td><td>${r.tipo === 'GRUPO' ? 'Grupo' : 'Associativa'}</td>
+      <td class="n">${n}</td><td class="n">${fcurto(+r.meta)}</td><td>${r.prazo_meses} meses</td><td>${triRot(r.ano_inicio, r.tri_inicio)}</td>
+      <td>${f ? 'Faixa ' + f + ' (' + fpct(RD.desconto(f, P)) + ')' : '—'}</td><td>${chip(...SITU[r.status])}</td><td>${esc(r.criado_email || '')}</td>
+      <td>${fdata(r.decidido_em || r.enviado_em || r.criado_em)}</td></tr>`; }).join('') || '<tr><td colspan="11" class="status">Nenhuma solicitação.</td></tr>';
+  $('tSol').querySelectorAll('tr.clic').forEach(tr => tr.onclick = () => { S.det = +tr.dataset.id; pintaSol(); detalhe(S.det); });
+}
+function quadroReq(v){
+  const ic = r => r.ok ? '✅' : r.nivel === 'BLOQUEIA' ? '⛔' : '⚠️';
+  return v.R.map(r => { const d = RD_DEF.regras.find(x => x.id === r.id), txt = typeof d.texto === 'function' ? d.texto(P) : d.texto;
+    const det = (r.det || []).filter(Boolean);
+    return `<div class="req"><span class="ic">${ic(r)}</span><span class="id">${r.id}</span><div><b>${esc(d.nome)}</b> — ${esc(txt)}${det.length ? `<div class="det">${esc(det.slice(0, 12).join(' · '))}${det.length > 12 ? ` · +${det.length - 12}` : ''}</div>` : ''}</div></div>`; }).join('');
+}
+function quadroMetas(r){
+  const T = RD.trimestres(r.ano_inicio, r.tri_inicio, r.prazo_meses), part = RD.participacao(r.prazo_meses, r.tri_inicio, P); let ac = 0;
+  return `<table><thead><tr><th>Trimestre do contrato</th><th>Trimestre civil</th><th class="n">Peso sazonal</th><th class="n">Meta do trimestre</th><th class="n">Meta acumulada</th></tr></thead><tbody>` +
+    T.map(q => { const m = +r.meta * RD.saz(P, q.tri) / part; ac += m;
+      return `<tr><td>${q.k}º</td><td>${triRot(q.ano, q.tri)}</td><td class="n">${fpct(RD.saz(P, q.tri))}</td><td class="n">${fmoeda(m)}</td><td class="n">${fmoeda(ac)}</td></tr>`; }).join('') + '</tbody></table>';
+}
+function tabelaCnpjs(itens){
+  return itens.map(i => { const c = i.cad || {};
+    const sit = i.prob.length ? chip(i.prob.map(p => RD_DEF.regras.find(x => x.id === p).nome).join(' · '), i.prob.includes('R04') && i.prob.length === 1 ? 'c-av' : 'c-ru') : chip('Conta', 'c-ok');
+    return `<tr><td>${fcnpj(i.cnpj)}</td><td>${esc(c.nome || '—')}${c.cod ? ` <span class="nota">(${esc(c.cod)}/${esc(c.loja)})</span>` : ''}</td><td>${esc(c.uf || '')}</td>
+      <td>${esc(c.grupo_nome || c.grupo || '')}</td><td>${esc(c.tabela || '')}</td><td class="n">${c.vpc ? fmt(+c.vpc, 2) + '%' : ''}</td><td>${sit}${i.outra ? `<div class="nota">${esc(i.outra)}</div>` : ''}</td></tr>`; }).join('');
+}
+async function detalhe(id){
+  const r = REDES.find(x => x.id === id); if(!r) return;
+  const lista = (CNPJS.get(id) || []).filter(c => !c.removido_em).map(c => c.cnpj);
+  $('det').innerHTML = '<div class="status">Validando…</div>';
+  await carregaCadastro(lista);
+  const v = RD.requisitos({meta:+r.meta, prazo:r.prazo_meses, tri:r.tri_inicio, ano:r.ano_inicio, defesa:r.defesa, tipo:r.tipo}, lista, CAD, await emOutraRede(lista, id), P, await membrosGrupo(lista, id));
+  const ev = await SB.from('rede_evento').select('*').eq('rede_id', id).order('quando', {ascending:false});
+  const dono = r.criado_por === UID, ed = dono && ['RASCUNHO','DEVOLVIDA'].includes(r.status);
+  let anexo = '';
+  if(r.anexo){ const u = await SB.storage.from('redes-anexos').createSignedUrl(r.anexo, 600); if(u.data) anexo = `<a href="${u.data.signedUrl}" target="_blank" rel="noopener">📎 planilha anexada</a>`; }
+  $('det').innerHTML = `<div class="painel"><h2>Solicitação nº ${r.id} — ${esc(r.nome)} ${chip(...SITU[r.status])}<span class="acao">${anexo}</span></h2><div class="corpo">
+    <div class="grade2"><div><b>Tipo</b>${r.tipo === 'GRUPO' ? 'Grupo econômico' : 'Rede associativa'}</div><div><b>Início</b>${triRot(r.ano_inicio, r.tri_inicio)}</div>
+      <div><b>Prazo</b>${r.prazo_meses} meses</div><div><b>Meta</b>${fmoeda(+r.meta)}</div><div><b>Meta anualizada</b>${fmoeda(v.metaAnual)}</div>
+      <div><b>Faixa pela meta</b>${v.faixa ? 'Faixa ' + v.faixa + ' — desconto ' + fpct(RD.desconto(v.faixa, P)) : 'não enquadra'}</div>
+      <div><b>CNPJs que contam</b>${v.validos} de ${lista.length}</div><div><b>Solicitante</b>${esc(r.criado_email || '')}</div></div>
+    <h3 style="font:700 12px var(--sans);margin:16px 0 6px">DEFESA COMERCIAL</h3><div style="white-space:pre-wrap;font-size:13.5px">${esc(r.defesa || '—')}</div>
+    ${r.parecer ? `<h3 style="font:700 12px var(--sans);margin:16px 0 6px">PARECER DA CONTROLADORIA</h3><div style="white-space:pre-wrap;font-size:13.5px">${esc(r.parecer)}</div><div class="nota">${esc(r.decidido_por || '')} · ${fdata(r.decidido_em)}</div>` : ''}
+    <div class="linha-b">${ed ? `<button class="btn" id="dEditar">Editar</button><button class="btn pri" id="dEnviar" ${v.podeEnviar ? '' : 'disabled title="há regra bloqueando"'}>Enviar para aprovação</button>` : ''}
+      ${dono && r.status === 'RASCUNHO' ? '<button class="btn" id="dExcluir">Excluir rascunho</button>' : ''}</div>
+    ${E_ADM && r.status === 'ENVIADA' ? `<div class="painel" style="margin-top:14px"><h2>Decisão da Controladoria</h2><div class="corpo">
+      <textarea id="dParecer" placeholder="Parecer (obrigatório)"></textarea>
+      <div class="linha-b"><button class="btn ver" id="dAprovar" ${v.podeEnviar ? '' : 'disabled title="há regra bloqueando"'}>Aprovar — Faixa ${v.faixa} (${fpct(RD.desconto(v.faixa, P))})</button>
+        <button class="btn" id="dDevolver">Devolver para ajuste</button><button class="btn ver-2" id="dReprovar">Reprovar</button><span class="status" id="dSt" style="margin:0"></span></div>
+      <div class="nota">Aprovar gera a ordem ao Faturamento para vincular os ${v.validos} CNPJs à tabela ${esc(P['TABELA_F' + v.faixa] || '(código da tabela da faixa ainda não definido — Parâmetros)')}.</div></div></div>` : ''}
+  </div></div>
+  <div class="painel"><h2>Validação automática</h2><div class="corpo">${quadroReq(v)}</div></div>
+  <div class="painel"><h2>Metas trimestrais acumuladas <span>sazonalidade da política</span></h2><div class="tbl-wrap">${quadroMetas(r)}</div></div>
+  <div class="painel"><h2>CNPJs <span>${lista.length}</span></h2><div class="tbl-wrap"><table><thead><tr><th>CNPJ</th><th>Cliente</th><th>UF</th><th>Grupo</th><th>Tabela atual</th><th class="n">VPC</th><th>Situação</th></tr></thead><tbody>${tabelaCnpjs(v.itens)}</tbody></table></div></div>
+  <div class="painel"><h2>Trilha</h2><div class="corpo trilha">${(ev.data || []).map(e => `<div>${fdata(e.quando)} · <b>${esc(e.tipo)}</b> · ${esc(e.usuario_email || '')} ${e.detalhe ? '· ' + esc(JSON.stringify(e.detalhe)) : ''}</div>`).join('') || '—'}</div></div>`;
+  const bind = (i, f) => { const b = $(i); if(b) b.onclick = f; };
+  bind('dEditar', () => abreEdicao(r));
+  bind('dEnviar', async () => { const u = await SB.from('rede').update({status:'ENVIADA', enviado_em:new Date().toISOString()}).eq('id', r.id); if(u.error) return alert(u.error.message); await recarrega(r.id); });
+  bind('dExcluir', async () => { if(!confirm('Excluir este rascunho?')) return; const u = await SB.from('rede').delete().eq('id', r.id); if(u.error) return alert(u.error.message); S.det = null; $('det').innerHTML = ''; await recarrega(); });
+  const decide = async d => { const par = $('dParecer').value.trim(); if(!par){ $('dSt').textContent = 'Escreva o parecer.'; return; }
+    const u = await SB.rpc('rede_decidir', {p_id:r.id, p_decisao:d, p_parecer:par, p_faixa:v.faixa, p_meta_anual:v.metaAnual});
+    if(u.error){ $('dSt').textContent = u.error.message; return; } await recarrega(r.id); };
+  bind('dAprovar', () => decide('APROVAR')); bind('dDevolver', () => decide('DEVOLVER')); bind('dReprovar', () => decide('REPROVAR'));
+}
+
+/* ================================================================== NOVA / EDIÇÃO */
+function opcoesInicio(){
+  const h = new Date(), a0 = h.getFullYear(), t0 = Math.floor(h.getMonth() / 3) + 1, ops = [];
+  for(let k = 0; k < 6; k++){ const t = (t0 - 1 + k) % 4 + 1, a = a0 + Math.floor((t0 - 1 + k) / 4); ops.push(`<option value="${a}-${t}">${triRot(a, t)}</option>`); }
+  $('fIni').innerHTML = ops.join('');
+}
+const numBR = s => { s = String(s || '').replace(/[^\d,.-]/g, ''); if(s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if((s.match(/\./g) || []).length > 1) s = s.replace(/\./g, ''); return +s || 0; };
+function extraiCnpjs(texto){ return (String(texto).match(/[\d./-]{11,20}/g) || []).map(x => RD.dig(x)).filter(x => x.length >= 12 && x.length <= 14).map(x => x.padStart(14, '0')); }
+$('fArq').onchange = async e => {
+  const f = e.target.files[0]; if(!f) return; S.arquivo = f;
+  let txt = '';
+  if(/\.(xlsx|xls)$/i.test(f.name)){ const wb = XLSX.read(await f.arrayBuffer()); wb.SheetNames.forEach(n => { XLSX.utils.sheet_to_json(wb.Sheets[n], {header:1, raw:true}).forEach(l => l.forEach(c => {
+      if(typeof c === 'number') txt += String(Math.round(c)).padStart(14, '0') + '\n'; else txt += String(c) + '\n'; })); }); }
+  else txt = await f.text();
+  const lista = extraiCnpjs(txt); $('fCnpjs').value = lista.map(fcnpj).join('\n');
+  $('fArqN').textContent = `${f.name}: ${lista.length} CNPJs lidos (o arquivo vai junto, como anexo)`; valida();
+};
+function formSol(){ const [a, t] = $('fIni').value.split('-').map(Number);
+  return {nome:$('fNome').value.trim(), tipo:$('fTipo').value, ano:a, tri:t, prazo:+$('fPrazo').value, meta:numBR($('fMeta').value), defesa:$('fDefesa').value}; }
+let _val = 0;
+async function valida(){
+  const id = ++_val, s = formSol(); S.lista = extraiCnpjs($('fCnpjs').value);
+  $('fDefesaN').textContent = `${s.defesa.trim().length} de ${P.DEFESA_MIN} caracteres no mínimo`;
+  try { await carregaCadastro(S.lista); var outra = await emOutraRede(S.lista, S.edit); } catch(e){ $('fVal').innerHTML = `<div class="status err">${esc(e.message || e)}</div>`; return; }
+  if(id !== _val) return;
+  const v = RD.requisitos(s, S.lista, CAD, outra, P, await membrosGrupo(S.lista, S.edit));
+  if(id !== _val) return;
+  $('fVal').innerHTML = `<div class="grade2" style="margin-bottom:8px"><div><b>Meta anualizada</b>${fmoeda(v.metaAnual)}</div><div><b>Faixa</b>${v.faixa ? 'Faixa ' + v.faixa + ' — ' + fpct(RD.desconto(v.faixa, P)) + ' sobre a 078' : 'não enquadra'}</div>
+    <div><b>CNPJs que contam</b>${v.validos} de ${new Set(S.lista).size}</div><div><b>Pode enviar?</b>${v.podeEnviar ? chip('Sim', 'c-ok') : chip('Não — veja ⛔', 'c-ru')}</div></div>` + quadroReq(v);
+  $('fCnpjSub').textContent = `${new Set(S.lista).size} informados · ${v.validos} contam`;
+  $('fCnpjT').innerHTML = tabelaCnpjs(v.itens);
+  $('bEnviar').disabled = !v.podeEnviar || !s.nome;
+}
+['fNome','fTipo','fIni','fPrazo','fMeta','fDefesa','fCnpjs'].forEach(i => $(i).addEventListener('input', () => { clearTimeout(window._tv); window._tv = setTimeout(valida, 350); }));
+async function salva(enviar){
+  const s = formSol(); if(!s.nome){ $('fSt').textContent = 'Informe o nome da rede.'; return; }
+  if(!(s.meta > 0)){ $('fSt').textContent = 'Informe a meta.'; return; }
+  $('fSt').textContent = 'Salvando…';
+  const reg = {nome:s.nome, tipo:s.tipo, ano_inicio:s.ano, tri_inicio:s.tri, prazo_meses:s.prazo, meta:s.meta, defesa:s.defesa, criado_email:window.USUARIO_EMAIL,
+               status: 'RASCUNHO'};
+  let id = S.edit, r;
+  if(id){ r = await SB.from('rede').update(reg).eq('id', id).select().single(); }
+  else { r = await SB.from('rede').insert(reg).select().single(); }
+  if(r.error){ $('fSt').textContent = r.error.message; return; }
+  id = r.data.id;
+  if(S.arquivo){ const path = `${UID}/${id}_${Date.now()}_${S.arquivo.name.replace(/[^\w.-]+/g, '_')}`;
+    const up = await SB.storage.from('redes-anexos').upload(path, S.arquivo); if(up.error){ $('fSt').textContent = 'Anexo: ' + up.error.message; return; }
+    await SB.from('rede').update({anexo:path}).eq('id', id); }
+  const del = await SB.from('rede_cnpj').delete().eq('rede_id', id); if(del.error){ $('fSt').textContent = del.error.message; return; }
+  const lin = [...new Set(S.lista)].map(c => { const l = (CAD.get(c) || []).find(x => !x.bloqueado) || (CAD.get(c) || [])[0] || {};
+    return {rede_id:id, cnpj:c, cod:l.cod || null, loja:l.loja || null, nome:l.nome || null, uf:l.uf || null}; });
+  for(let i = 0; i < lin.length; i += 500){ const ins = await SB.from('rede_cnpj').insert(lin.slice(i, i + 500)); if(ins.error){ $('fSt').textContent = ins.error.message; return; } }
+  if(enviar){ const u = await SB.from('rede').update({status:'ENVIADA', enviado_em:new Date().toISOString()}).eq('id', id); if(u.error){ $('fSt').textContent = u.error.message; return; } }
+  $('fSt').textContent = enviar ? 'Enviada para aprovação ✔' : 'Rascunho salvo ✔';
+  limpaForm(); await recarrega(id); vaiPara('sol');
+}
+$('bRasc').onclick = () => salva(false); $('bEnviar').onclick = () => salva(true);
+function limpaForm(){ S.edit = null; S.arquivo = null; ['fNome','fMeta','fDefesa','fCnpjs'].forEach(i => $(i).value = ''); $('fArq').value = ''; $('fArqN').textContent = 'ou cole os CNPJs abaixo (um por linha, com ou sem pontuação)';
+  $('tNova').firstChild.textContent = 'Nova solicitação de tabela de rede '; valida(); }
+$('bLimpar').onclick = limpaForm;
+function abreEdicao(r){
+  S.edit = r.id; $('fNome').value = r.nome; $('fTipo').value = r.tipo; $('fPrazo').value = r.prazo_meses; $('fMeta').value = fmt(+r.meta, 2); $('fDefesa').value = r.defesa;
+  const k = `${r.ano_inicio}-${r.tri_inicio}`; if(![...$('fIni').options].some(o => o.value === k)) $('fIni').insertAdjacentHTML('afterbegin', `<option value="${k}">${triRot(r.ano_inicio, r.tri_inicio)}</option>`); $('fIni').value = k;
+  $('fCnpjs').value = (CNPJS.get(r.id) || []).filter(c => !c.removido_em).map(c => fcnpj(c.cnpj)).join('\n');
+  $('tNova').firstChild.textContent = `Editando a solicitação nº ${r.id} `; vaiPara('nova'); valida();
+}
+
+/* ================================================================== ACOMPANHAMENTO */
+function trimestreFechado(q){ const fim = new Date(q.ano, q.tri * 3, 1); return fim <= new Date(); }
+async function carregaVendas(redes){
+  const cods = [...new Set(redes.flatMap(r => (CNPJS.get(r.id) || []).map(c => c.cod)).filter(Boolean))];
+  const ini = redes.length ? Math.min(...redes.map(r => r.ano_inicio * 10 + r.tri_inicio)) : 0;
+  if(!cods.length) return;
+  const desde = `${Math.floor(ini / 10)}-${String((ini % 10 - 1) * 3 + 1).padStart(2, '0')}-01`;
+  for(let i = 0; i < cods.length; i += 100){
+    const rows = await todas(() => SB.from('cv_venda_mes').select('mes,cliente,loja,valor').in('cliente', cods.slice(i, i + 100)).gte('mes', desde).order('mes').order('cliente').order('loja').order('sku').order('filial').order('uf'));
+    rows.forEach(x => { const k = `${x.cliente}|${x.loja}|${x.mes.slice(0, 7)}`; VENDAS.set(k, (VENDAS.get(k) || 0) + (+x.valor || 0)); });
+  }
+}
+function medeRede(r){
+  const T = RD.trimestres(r.ano_inicio, r.tri_inicio, r.prazo_meses), cn = (CNPJS.get(r.id) || []).filter(c => !c.removido_em);
+  const fechados = T.filter(trimestreFechado).length;
+  const porCnpj = {}; cn.forEach(c => porCnpj[c.cnpj] = T.slice(0, fechados).map(q => q.meses.reduce((s, m) => s + (VENDAS.get(`${c.cod}|${c.loja}|${m}`) || 0), 0)));
+  const real = T.map((q, i) => i < fechados ? cn.reduce((s, c) => s + porCnpj[c.cnpj][i], 0) : null);
+  const exc = new Set(EXC.filter(e => e.rede_id === r.id).map(e => e.trimestre));
+  const av = RD.avalia({meta:+r.meta, prazo:r.prazo_meses, ano:r.ano_inicio, tri:r.tri_inicio, faixaEntrada:r.faixa_entrada || 1, realizados:real, excecoes:exc}, P);
+  const atv = RD.atividade(porCnpj, fechados, P), ult = av.filter(x => x.status).slice(-1)[0];
+  const parcial = T[fechados] ? T[fechados].meses.reduce((s, m) => s + cn.reduce((a, c) => a + (VENDAS.get(`${c.cod}|${c.loja}|${m}`) || 0), 0), 0) : null;
+  const faixaMotor = ult ? ult.faixa : (r.faixa_entrada || 1);
+  let acao = 'OK';
+  if(atv.situacao.startsWith('PERDE')) acao = 'PERDE A TABELA (CNPJs)';
+  else if(faixaMotor !== r.faixa_vigente) acao = faixaMotor === 0 ? 'PERDE A TABELA' : faixaMotor < r.faixa_vigente ? `REBAIXAR → FAIXA ${faixaMotor}` : `SUBIR → FAIXA ${faixaMotor}`;
+  else if(ult && ult.acao === 'AVISO') acao = 'AVISO';
+  if(acao === 'OK' && Object.values(atv.st).includes('INATIVO')) acao = 'RETIRAR CNPJ INATIVO';
+  return {T, av, atv, ult, fechados, parcial, porCnpj, faixaMotor, acao, cn};
+}
+function clsAcao(a){ return a === 'OK' ? 'c-ok' : a.startsWith('AVISO') || a.startsWith('RETIRAR') ? 'c-av' : a.startsWith('SUBIR') ? 'c-in' : 'c-ru'; }
+let MED = new Map();
+async function pintaAc(){
+  const ativas = REDES.filter(r => r.status === 'APROVADA');
+  if(ativas.length && !VENDAS.size) await carregaVendas(ativas);
+  MED = new Map(ativas.map(r => [r.id, medeRede(r)]));
+  const grupos = [['', 'Redes ativas'], ['OK', 'OK'], ['AVISO', 'Aviso'], ['REBAIXAR', 'A rebaixar'], ['SUBIR', 'A subir'], ['PERDE', 'Perde a tabela'], ['RETIRAR', 'CNPJ inativo']];
+  const casa = (m, k) => !k || m.acao.startsWith(k);
+  $('cardsAc').innerHTML = grupos.map(([k, t]) => `<div class="kpi ${S.cardAc === k ? 'sel' : ''}" data-k="${k}"><div class="t">${t}</div><div class="v">${[...MED.values()].filter(m => casa(m, k)).length}</div></div>`).join('');
+  $('cardsAc').querySelectorAll('.kpi').forEach(e => e.onclick = () => { S.cardAc = S.cardAc === e.dataset.k ? '' : e.dataset.k; pintaAc(); });
+  const lis = ativas.filter(r => casa(MED.get(r.id), S.cardAc));
+  $('tAc').innerHTML = lis.map(r => { const m = MED.get(r.id), u = m.ult;
+    return `<tr class="clic ${S.detAc === r.id ? 'sel' : ''}" data-id="${r.id}"><td>${r.id}</td><td>${esc(r.nome)}</td><td>Faixa ${r.faixa_vigente} (${fpct(RD.desconto(r.faixa_vigente, P))})</td>
+      <td class="n">${fcurto(+r.meta)}</td><td class="n">${u ? fcurto(u.rAc) : '—'}</td><td class="n">${u && u.pct != null ? fpct(u.pct) : '—'}</td>
+      <td>${u ? triRot(u.ano, u.tri) + ' · ' + esc(u.status) : 'nenhum fechado'}</td><td>${chip(m.acao, clsAcao(m.acao))}</td>
+      <td class="n">${m.atv.ativos} de ${m.cn.length}</td><td>${esc(m.atv.situacao)}</td></tr>`; }).join('') || '<tr><td colspan="10" class="status">Nenhuma rede ativa.</td></tr>';
+  $('tAc').querySelectorAll('tr.clic').forEach(tr => tr.onclick = () => { S.detAc = +tr.dataset.id; pintaAc(); detalheAc(S.detAc); });
+}
+function detalheAc(id){
+  const r = REDES.find(x => x.id === id), m = MED.get(id); if(!r || !m) return;
+  const linhas = m.av.map((q, i) => `<tr><td>${q.k}º</td><td>${triRot(q.ano, q.tri)}</td><td class="n">${fmoeda(q.metaTri)}</td><td class="n">${q.mAc != null ? fmoeda(q.mAc) : '—'}</td>
+    <td class="n">${q.real != null ? fmoeda(q.real) : (i === m.fechados && m.parcial != null ? fmoeda(m.parcial) + ' <span class="nota">(parcial)</span>' : '—')}</td><td class="n">${q.rAc != null ? fmoeda(q.rAc) : '—'}</td>
+    <td class="n">${q.pct != null ? fpct(q.pct) : '—'}</td><td>${q.acao ? chip(q.acao, clsAcao(q.acao.startsWith('REBAIXA') ? 'REBAIXAR' : q.acao.startsWith('SOBE') ? 'SUBIR' : q.acao.startsWith('PERDE') ? 'PERDE' : q.acao.startsWith('Exceção') ? 'AVISO' : q.acao)) : ''}</td></tr>`).join('');
+  const cnLin = m.cn.map(c => `<tr><td>${fcnpj(c.cnpj)}</td><td>${esc(c.nome || '')}</td>${m.T.slice(0, m.fechados).map((q, i) => `<td class="n">${fcurto(m.porCnpj[c.cnpj][i])}</td>`).join('')}
+    <td>${chip(m.atv.st[c.cnpj] || 'ATIVO', m.atv.st[c.cnpj] === 'INATIVO' ? 'c-av' : 'c-ok')}</td>${E_ADM ? `<td>${m.atv.st[c.cnpj] === 'INATIVO' ? `<button class="btn" data-ret="${c.cnpj}">Retirar (gera ordem)</button>` : ''}</td>` : ''}</tr>`).join('');
+  const sug = m.faixaMotor !== r.faixa_vigente || m.acao.startsWith('PERDE');
+  $('detAc').innerHTML = `<div class="painel"><h2>Rede nº ${r.id} — ${esc(r.nome)} ${chip(m.acao, clsAcao(m.acao))}</h2><div class="corpo">
+    <div class="grade2"><div><b>Faixa vigente</b>Faixa ${r.faixa_vigente} (${fpct(RD.desconto(r.faixa_vigente, P))})</div><div><b>Meta</b>${fmoeda(+r.meta)} em ${r.prazo_meses} meses</div>
+      <div><b>Início</b>${triRot(r.ano_inicio, r.tri_inicio)}</div><div><b>Trimestres fechados</b>${m.fechados} de ${m.T.length}</div><div><b>CNPJs ativos</b>${m.atv.ativos} de ${m.cn.length} — ${esc(m.atv.situacao)}</div></div>
+    ${E_ADM && sug ? `<div class="linha-b"><button class="btn pri" id="aFaixa">Aplicar: ${esc(m.acao)} (gera ordem ao Faturamento)</button><span class="status" id="aSt" style="margin:0"></span></div>` : ''}
+    ${E_ADM ? `<div class="linha-b"><select id="aTri">${m.T.map(q => `<option value="${q.k}">${q.k}º trimestre (${triRot(q.ano, q.tri)})</option>`).join('')}</select>
+      <input id="aJust" placeholder="Justificativa da exceção (falta de estoque AMVOX)" style="flex:1;min-width:260px"><button class="btn" id="aExc">Registrar exceção</button></div>` : ''}
+  </div></div>
+  <div class="painel"><h2>Meta × realizado por trimestre <span>realizado = venda dos CNPJs ativos (valor sem IPI, vendas normais)</span></h2><div class="tbl-wrap"><table><thead><tr><th>Tri.</th><th>Civil</th><th class="n">Meta do tri.</th><th class="n">Meta acum.</th><th class="n">Realizado</th><th class="n">Realizado acum.</th><th class="n">%</th><th>Ação</th></tr></thead><tbody>${linhas}</tbody></table></div></div>
+  <div class="painel"><h2>CNPJs — compras por trimestre fechado</h2><div class="tbl-wrap"><table><thead><tr><th>CNPJ</th><th>Cliente</th>${m.T.slice(0, m.fechados).map(q => `<th class="n">${triRot(q.ano, q.tri)}</th>`).join('')}<th>Situação</th>${E_ADM ? '<th></th>' : ''}</tr></thead><tbody>${cnLin}</tbody></table></div></div>`;
+  const acao = async (a, d) => { const u = await SB.rpc('rede_acao', {p_id:id, p_acao:a, p_detalhe:d}); if(u.error) return alert(u.error.message); await recarrega(); vaiPara('acomp'); detalheAc(id); };
+  if($('aFaixa')) $('aFaixa').onclick = () => { const f = m.acao.startsWith('PERDE') ? 0 : m.faixaMotor; if(confirm(`Confirmar: ${m.acao}?`)) acao('MUDAR_FAIXA', {faixa:f, motivo:m.acao}); };
+  if($('aExc')) $('aExc').onclick = () => { const j = $('aJust').value.trim(); if(!j) return alert('Escreva a justificativa.'); acao('EXCECAO_RUPTURA', {trimestre:+$('aTri').value, justificativa:j}); };
+  $('detAc').querySelectorAll('[data-ret]').forEach(b => b.onclick = () => { if(confirm('Retirar este CNPJ da rede?')) acao('REMOVER_CNPJ', {cnpj:b.dataset.ret, motivo:'inativo (sem compra nos últimos trimestres)'}); });
+}
+
+/* ================================================================== ORDENS */
+function confere(o){
+  const tabsRede = [P.TABELA_F1, P.TABELA_F2, P.TABELA_F3].filter(Boolean), lis = o.cnpjs || [];
+  if(['VINCULAR','TROCAR_FAIXA'].includes(o.tipo) && !o.tabela) return {ok:0, n:lis.length, txt:'defina o código da tabela da faixa em Parâmetros'};
+  let ok = 0; lis.forEach(c => { const l = (CAD.get(c.cnpj) || []).find(x => !c.cod || (x.cod === c.cod && x.loja === c.loja)) || (CAD.get(c.cnpj) || [])[0];
+    const tab = l ? (l.tabela || '') : null;
+    if(tab == null) return;
+    if(['VINCULAR','TROCAR_FAIXA'].includes(o.tipo) ? tab === o.tabela : !tabsRede.includes(tab)) ok++; });
+  return {ok, n:lis.length, txt:`${ok} de ${lis.length} conferidos no cadastro`};
+}
+function pintaOr(){
+  const hoje = new Date().toISOString().slice(0, 10), venc = o => o.status === 'ABERTA' && o.prazo && o.prazo < hoje;
+  const grupos = [['', 'Todas', () => true], ['ABERTA', 'Abertas', o => o.status === 'ABERTA'], ['VENCIDA', 'Vencidas', venc], ['CUMPRIDA', 'Cumpridas', o => o.status === 'CUMPRIDA']];
+  $('cardsOr').innerHTML = grupos.map(([k, t, f]) => `<div class="kpi ${S.cardOr === k ? 'sel' : ''}" data-k="${k}"><div class="t">${t}</div><div class="v">${ORDENS.filter(f).length}</div></div>`).join('');
+  $('cardsOr').querySelectorAll('.kpi').forEach(e => e.onclick = () => { S.cardOr = S.cardOr === e.dataset.k ? '' : e.dataset.k; pintaOr(); });
+  const filtro = (grupos.find(g => g[0] === S.cardOr) || grupos[0])[2];
+  const NOME = {VINCULAR:'Vincular à tabela', TROCAR_FAIXA:'Trocar de faixa', RETIRAR:'Retirar a tabela (rede encerrada)', RETIRAR_CNPJ:'Retirar CNPJ da rede'};
+  $('tOr').innerHTML = ORDENS.filter(filtro).map(o => { const r = REDES.find(x => x.id === o.rede_id) || {}, c = confere(o);
+    return `<tr><td>${o.id}</td><td>${esc(r.nome || o.rede_id)}</td><td>${NOME[o.tipo]}${o.faixa ? ' — Faixa ' + o.faixa : ''}</td><td>${esc(o.tabela || '—')}</td><td class="n">${(o.cnpjs || []).length}</td>
+      <td>${fdata(o.criada_em)}</td><td>${o.prazo ? new Date(o.prazo + 'T12:00').toLocaleDateString('pt-BR') : '—'}${venc(o) ? ' ' + chip('vencida', 'c-ru') : ''}</td>
+      <td>${chip(c.txt, c.n && c.ok === c.n ? 'c-ok' : 'c-av')}</td><td>${chip(o.status === 'ABERTA' ? 'Aberta' : o.status === 'CUMPRIDA' ? 'Cumprida ' + fdata(o.cumprida_em) : 'Cancelada', o.status === 'CUMPRIDA' ? 'c-ok' : 'c-in')}</td>
+      <td class="so-adm">${E_ADM && o.status === 'ABERTA' ? `<button class="btn" data-ord="${o.id}" data-rede="${o.rede_id}" ${c.n && c.ok === c.n ? '' : 'disabled title="só depois de conferir todos os CNPJs no cadastro"'}>Dar como cumprida</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="10" class="status">Nenhuma ordem.</td></tr>';
+  $('tOr').querySelectorAll('[data-ord]').forEach(b => b.onclick = async () => { const u = await SB.rpc('rede_acao', {p_id:+b.dataset.rede, p_acao:'ORDEM_CUMPRIDA', p_detalhe:{ordem:+b.dataset.ord}}); if(u.error) return alert(u.error.message); await recarrega(); vaiPara('ordens'); });
+}
+
+/* ================================================================== BONIFICAÇÃO */
+let BONIF = [], NOTAS_B = [], CNPJ_B = '';
+const fdia = d => d ? new Date(d + 'T12:00').toLocaleDateString('pt-BR') : '—';
+const SITB = {'AGUARDANDO NOTA':'c-in', 'CONCEDIDA (NF EMITIDA)':'c-ok', 'NF ACIMA DO APROVADO':'c-ru', 'NOTA NÃO EMITIDA NO PRAZO':'c-av'};
+let VINC = [], CARD_BO = '';
+async function pintaBonif(){
+  const [r, n, v] = await Promise.all([SB.from('bonif_campanha').select('*').order('id', {ascending:false}), SB.from('bonif_nota').select('*'), SB.from('bonif_nf_vinculo').select('*')]);
+  if(r.error){ $('tBo').innerHTML = `<tr><td colspan="10" class="status err">${esc(r.error.message)}</td></tr>`; return; }
+  BONIF = r.data; VINC = v.data || []; const nb = n.data || [], tot = BONIF.reduce((a, x) => a + +x.bonificacao, 0);
+  const cards = [['', 'Aprovadas', BONIF.length], ...Object.keys(SITB).map(k => [k, k.charAt(0) + k.slice(1).toLowerCase(), BONIF.filter(x => x.situacao === k).length])];
+  $('cardsBo').innerHTML = cards.map(([k, t, q]) => `<div class="kpi ${CARD_BO === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${q}</div></div>`).join('') +
+    `<div class="kpi"><div class="t">Total aprovado (produto)</div><div class="v">${fcurto(tot)}</div></div>`;
+  $('cardsBo').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_BO = CARD_BO === e.dataset.k ? '' : e.dataset.k; pintaBonif(); });
+  $('tBo').innerHTML = BONIF.filter(x => !CARD_BO || x.situacao === CARD_BO).map(x => { const vs = VINC.filter(b => b.bonif_id === x.id);
+    return `<tr><td>${x.id}</td><td>${esc(x.nome || '')}</td><td>${fcnpj(x.cnpj)}</td><td>${chip(x.classificacao, 'c-ok')}</td>
+    <td>${nb.filter(b => b.bonif_id === x.id).map(b => `${esc(b.doc)}/${esc(b.serie)} · ${fdia(b.emissao)}`).join('<br>')}</td>
+    <td class="n">${fmoeda(+x.valor_notas)}</td><td class="n">${fmoeda(+x.bonificacao)}</td><td>${esc(x.aprovado_por || '')}<br><span class="nota">${fdata(x.aprovado_em)}</span></td>
+    <td>${chip(x.situacao || 'AGUARDANDO NOTA', SITB[x.situacao] || 'c-in')}</td>
+    <td>${vs.map(b => `NF ${esc(b.doc)}/${esc(b.serie)} · ${fdia(b.emissao)} · ${fmoeda(+b.valor)}${b.cnpj !== x.cnpj ? `<div class="nota">emitida para ${fcnpj(b.cnpj)} (mesmo grupo)</div>` : ''}`).join('<br>') || '—'}</td></tr>`; }).join('')
+    || '<tr><td colspan="10" class="status">Nenhuma bonificação aprovada.</td></tr>';
+}
+$('bConferir').onclick = async () => { const u = await SB.rpc('bonif_conferir'); if(u.error) return alert(u.error.message);
+  $('bSt').textContent = `Conferência feita: ${u.data.ligadas} aprovação(ões) ligada(s) a nota de bonificação.`; await pintaBonif(); };
+async function buscaNotas(){
+  CNPJ_B = RD.dig($('bCnpj').value); $('bRes').innerHTML = '';
+  if(CNPJ_B.length < 11){ $('bSt').textContent = 'Informe o CNPJ.'; return; }
+  $('bSt').textContent = 'Buscando…';
+  const r = await SB.rpc('bonif_notas', {p_cnpj:CNPJ_B}); if(r.error){ $('bSt').textContent = r.error.message; return; }
+  NOTAS_B = r.data || [];
+  await carregaCadastro([CNPJ_B]); const c = (CAD.get(CNPJ_B) || [])[0];
+  $('bSt').textContent = c ? `${c.nome} (${c.cod}/${c.loja}) · ${c.grupo_nome || 'sem grupo'} · ${NOTAS_B.length} nota(s) na campanha` : 'CNPJ não está no cadastro do TOTVS';
+  $('bNotasP').style.display = '';
+  $('bNotas').innerHTML = NOTAS_B.map((n, i) => `<tr><td>${n.usada_em ? '' : `<input type="checkbox" data-i="${i}">`}</td><td>${esc(n.filial)}</td><td>${esc(n.doc)}/${esc(n.serie)}</td><td>${fdia(n.emissao)}</td>
+    <td class="n">${fmoeda(+n.valor)}</td><td class="n">${fmoeda(+n.ipi)}</td><td class="n">${fmt(+n.pecas, 0)}</td><td>${n.usada_em ? chip('usada na bonificação nº ' + n.usada_em, 'c-ne') : ''}</td></tr>`).join('')
+    || '<tr><td colspan="8" class="status">Nenhuma nota de venda deste CNPJ no período da campanha. Nota emitida há pouco? Ela entra na próxima rodada de hora em hora.</td></tr>';
+  const marca = () => { const sel = [...$('bNotas').querySelectorAll('input:checked')].map(x => NOTAS_B[+x.dataset.i]);
+    $('bAvaliar').disabled = !sel.length || new Set(sel.map(x => x.emissao)).size > 1;
+    $('bAvaliar').textContent = !sel.length ? 'Avaliar a nota marcada' : new Set(sel.map(x => x.emissao)).size > 1 ? 'As notas precisam ser do mesmo dia' : `Avaliar ${sel.length} nota(s) — ${fmoeda(sel.reduce((a, x) => a + +x.valor, 0))}`; };
+  $('bNotas').querySelectorAll('input').forEach(x => x.onchange = marca); marca();
+}
+async function avaliaBonif(){
+  const sel = [...$('bNotas').querySelectorAll('input:checked')].map(x => NOTAS_B[+x.dataset.i]), pn = sel.map(n => ({filial:n.filial, doc:n.doc, serie:n.serie}));
+  const r = await SB.rpc('bonif_avaliar', {p_cnpj:CNPJ_B, p_notas:pn}); if(r.error){ $('bSt').textContent = r.error.message; return; }
+  if(!VINC.length){ const v = await SB.from('bonif_nf_vinculo').select('*'); VINC = v.data || []; }
+  const a = r.data, membros = a.membros || [];
+  const esp = ['SEM CADASTRO', 'NOTA INVÁLIDA'].includes(a.classificacao) ? null
+            : RD.bonif({membros, data:a.data_nota, usada: sel.some(n => n.usada_em), concedida: a.bonificacao_anterior}, P);
+  const diverge = esp && esp.classificacao !== a.classificacao, cls = a.elegivel ? 'c-ok' : 'c-ru';
+  const lin = membros.map(m => { const rec = m.ult_antes && m.ult_antes >= a.corte;
+    return `<tr${rec ? ' class="sel"' : ''}><td>${fcnpj(m.cnpj)}${m.cnpj === CNPJ_B ? ' <span class="nota">(nota)</span>' : ''}</td><td>${esc(m.nome || '')}</td><td>${esc(m.uf || '')}</td><td>${esc(m.grupo || '')}</td>
+      <td>${fdia(m.pri)}</td><td>${m.ult_antes ? fdia(m.ult_antes) : (m.antigo ? 'antes de ' + fdia(a.nota_desde) : '—')}${rec ? ' ' + chip(`menos de ${a.meses} meses antes da nota`, 'c-ru') : ''}</td>
+      <td>${fdia(m.ult)}</td><td>${m.bloqueado ? chip('bloqueado', 'c-ne') : ''}</td></tr>`; }).join('');
+  const md = (a.mesmo_dia || []).map(n => `${fcnpj(n.cnpj)} NF ${n.doc}/${n.serie} (${fmoeda(+n.valor)})`).join(' · ');
+  $('bRes').innerHTML = `<div class="painel"><h2>Resultado ${chip((a.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + a.classificacao, cls)}</h2><div class="corpo">
+    <div style="font-size:14.5px">${esc(a.motivo)}</div>
+    ${a.bonificacao_anterior ? (() => { const bx = a.bonificacao_anterior, vs = VINC.filter(v => v.bonif_id === bx.id);
+      return `<div class="nota" style="font-size:13px">Bonificação aprovada nº ${bx.id} em ${fdata(bx.aprovado_em)} (${fmoeda(+bx.bonificacao)}) · situação: <b>${esc(bx.situacao || 'AGUARDANDO NOTA')}</b>${vs.length ? ' · concedida via ' + vs.map(v => `NF ${esc(v.doc)}/${esc(v.serie)} de ${fdia(v.emissao)} (${fmoeda(+v.valor)})`).join(', ') : ''}</div>`; })() : ''}
+    ${diverge ? `<div class="status err">⚠️ O motor do app (${esc(esp.classificacao)}) divergiu do banco (${esc(a.classificacao)}). Vale o do banco; avise a Controladoria.</div>` : ''}
+    ${md ? `<div class="nota">ℹ️ Outras notas do grupo no mesmo dia: ${esc(md)}. Se forem do mesmo pedido e deste CNPJ, marque-as também.</div>` : ''}
+    ${a.cod ? `<div class="grade2" style="margin-top:12px"><div><b>Cliente</b>${esc(a.nome)} (${esc(a.cod)}/${esc(a.loja)})</div><div><b>Grupo de clientes</b>${esc(a.grupo_nome || a.grupo || 'sem grupo')}</div>
+      <div><b>Raiz do CNPJ</b>${esc(a.raiz)}</div><div><b>CNPJs no grupo</b>${membros.length}</div>
+      <div><b>Nota(s) do 1º pedido</b>${(a.notas || []).map(n => esc(n.doc) + '/' + esc(n.serie)).join(', ')} · ${fdia(a.data_nota)}</div>
+      <div><b>Última compra do grupo antes da nota</b>${a.ult_compra_grupo ? fdia(a.ult_compra_grupo) + ' · NF ' + esc(a.ult_doc || '') : (a.antigo ? 'antes de ' + fdia(a.nota_desde) : 'nenhuma')}</div>
+      <div><b>Corte (${a.meses} meses antes da nota)</b>${fdia(a.corte)}</div>
+      <div><b>Valor da(s) nota(s) sem IPI</b>${fmoeda(+a.valor_notas)}</div><div><b>Bonificação máxima</b>${a.elegivel ? fmoeda(+a.bonificacao) + ` (${fpct(+a.pct)})` : '—'}</div></div>` : ''}
+    ${E_ADM && a.elegivel ? `<div class="linha-b"><input id="bObs" placeholder="Observação (opcional)" style="flex:1;min-width:240px"><button class="btn ver" id="bRegistrar">Registrar bonificação aprovada — ${fmoeda(+a.bonificacao)}</button></div>
+      <div class="nota">O registro reavalia no banco na hora e recusa se o cliente deixar de ser elegível. A nota fica marcada como usada e o grupo não recebe outra nesta campanha.</div>` : ''}
+  </div></div>
+  ${membros.length ? `<div class="painel"><h2>CNPJs do grupo <span>linhas em destaque = compra a menos de ${a.meses} meses antes da nota</span></h2><div class="tbl-wrap"><table><thead><tr><th>CNPJ</th><th>Cliente</th><th>UF</th><th>Grupo</th><th>1ª compra</th><th>Última compra ANTES da nota</th><th>Última compra (hoje)</th><th></th></tr></thead><tbody>${lin}</tbody></table></div></div>` : ''}`;
+  if($('bRegistrar')) $('bRegistrar').onclick = async () => {
+    const u = await SB.rpc('bonif_registrar', {p_cnpj:CNPJ_B, p_notas:pn, p_obs:($('bObs').value || '').trim() || null});
+    if(u.error) return alert(u.error.message);
+    $('bSt').textContent = `Registrada: nº ${u.data.id} · bonificação ${fmoeda(+u.data.bonificacao)}`; await pintaBonif(); await buscaNotas(); };
+}
+$('bConsultar').onclick = buscaNotas; $('bAvaliar').onclick = avaliaBonif;
+async function pintaCarga(){
+  const r = await SB.from('carga_pedido').select('*').order('id', {ascending:false}).limit(5); if(r.error) return;
+  const ok = r.data.find(x => x.status === 'OK'), pend = r.data.find(x => ['PENDENTE','RODANDO'].includes(x.status)), err = r.data[0] && r.data[0].status === 'ERRO' ? r.data[0] : null;
+  $('bCarga').innerHTML = `Última atualização das notas: <b>${ok ? fdata(ok.concluido_em) : '—'}</b>` +
+    (pend ? ` · ${chip(pend.status === 'RODANDO' ? 'atualizando agora…' : 'pedido na fila — sai na próxima rodada (até 1h)', 'c-in')} ${pend.mensagem ? esc(pend.mensagem) : ''}` : '') +
+    (err && !pend ? ` · ${chip('última tentativa com erro', 'c-ru')}` : '');
+  $('bAtualiza').disabled = !!pend;
+  if(pend){ clearTimeout(window._tc); window._tc = setTimeout(async () => { await pintaCarga(); if(!$('bAtualiza').disabled && CNPJ_B) buscaNotas(); }, 60000); }
+}
+$('bAtualiza').onclick = async () => { const u = await SB.from('carga_pedido').insert({}); if(u.error) return alert(u.error.message); pintaCarga(); };
+
+/* ================================================================== REGRAS E TESTES */
+function pintaRegras(){
+  const res = rodaTestes(), ok = res.filter(x => x.ok).length;
+  $('subTest').innerHTML = `${ok} de ${res.length} passaram ` + chip(ok === res.length ? 'motor conforme a política' : 'ATENÇÃO: há teste falhando', ok === res.length ? 'c-ok' : 'c-ru');
+  $('tTest').innerHTML = res.map(x => `<tr><td>${esc(x.regra)}</td><td>${esc(x.nome)}</td><td>${x.ok ? chip('Passou', 'c-ok') : chip('Falhou', 'c-ru') + `<div class="nota">${esc(x.erro)}</div>`}</td></tr>`).join('');
+  $('subReg').textContent = `política: ${RD_DEF.versaoPolitica} · tela ${RD_DEF.versaoTela} · valores em vigor (Parâmetros)`;
+  const grupos = [...new Set(RD_DEF.regras.map(r => r.grupo))];
+  $('regras').innerHTML = grupos.map(g => `<h3>${esc(g)}</h3>` + RD_DEF.regras.filter(r => r.grupo === g).map(r => `<div class="r"><b>${r.id} · ${esc(r.nome)}</b> — ${esc(typeof r.texto === 'function' ? r.texto(P) : r.texto)}</div>`).join('')).join('');
+}
+
+/* ================================================================== PARÂMETROS */
+function pintaPar(){
+  $('tPar').innerHTML = PARROWS.map(x => { const txt = x.valor == null;
+    const vis = txt ? esc(x.texto || '—') : (+x.valor < 1 && +x.valor > 0 ? fpct(+x.valor, 1) : fmt(+x.valor, +x.valor % 1 ? 2 : 0));
+    return `<tr><td><b>${esc(x.chave)}</b></td><td>${esc(x.descricao || '')}</td><td class="n">${vis}</td><td>${esc(x.atualizado_por || '')} ${fdata(x.atualizado_em)}</td>
+      <td class="so-adm">${E_ADM ? `<input data-par="${esc(x.chave)}" data-txt="${txt ? 1 : 0}" value="${esc(txt ? (x.texto || '') : x.valor)}" style="width:120px"> <button class="btn" data-salva="${esc(x.chave)}">Salvar</button>` : ''}</td></tr>`; }).join('');
+  $('tPar').querySelectorAll('[data-salva]').forEach(b => b.onclick = async () => {
+    const i = $('tPar').querySelector(`[data-par="${b.dataset.salva}"]`), t = i.dataset.txt === '1';
+    const u = await SB.from('rede_parametro').update(t ? {texto:i.value.trim(), atualizado_em:new Date().toISOString(), atualizado_por:window.USUARIO_EMAIL}
+                                                       : {valor:numBR(i.value), atualizado_em:new Date().toISOString(), atualizado_por:window.USUARIO_EMAIL}).eq('chave', b.dataset.salva);
+    if(u.error) return alert(u.error.message); await recarrega(); vaiPara('param'); });
+}
+
+/* ================================================================== navegação */
+function vaiPara(t){ document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tela === t));
+  document.querySelectorAll('.tela').forEach(s => s.classList.toggle('on', s.id === 'tela-' + t));
+  if(t === 'acomp') pintaAc(); if(t === 'ordens') pintaOr(); if(t === 'regras') pintaRegras(); if(t === 'param') pintaPar(); if(t === 'nova') valida(); if(t === 'bonif'){ pintaBonif(); pintaCarga(); } }
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaiPara(b.dataset.tela));
+$('bTestes').onclick = pintaRegras;
+async function recarrega(det){ try { await carrega(); VENDAS = new Map(); pintaSol(); if(det){ S.det = det; detalhe(det); } $('st').textContent = statusTxt(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Erro: ' + (e.message || e); } }
+const statusTxt = () => `${REDES.length} solicitação(ões) · cadastro de clientes atualizado diariamente · regras ${RD_DEF.versaoPolitica}`;
+
+async function inicia(){
+  E_ADM = window.PAPEL === 'ADM'; document.body.classList.toggle('e-adm', E_ADM);
+  UID = (await SB.auth.getUser()).data.user.id;
+  $('cab').innerHTML = `${esc(window.USUARIO_EMAIL || '')} · ${esc(window.PAPEL || '')}<br>${E_ADM ? 'Controladoria — aprovação final' : 'Comercial — solicitações'}`;
+  opcoesInicio();
+  try { await carrega(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Sem acesso aos dados de redes: ' + (e.message || e); return; }
+  $('st').textContent = statusTxt(); pintaSol();
+  const res = rodaTestes(); if(res.some(x => !x.ok)){ $('st').className = 'status err'; $('st').textContent += ' · ⚠️ há teste do motor falhando (aba Regras e testes)'; }
+}
+if(window.PAPEL) inicia(); else document.addEventListener('papel-pronto', inicia, {once:true});
+</script>
+</body></html>
