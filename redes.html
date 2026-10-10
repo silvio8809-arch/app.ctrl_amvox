@@ -557,12 +557,14 @@ function emailReter(lista){
     `A liberação será comunicada formalmente pela Controladoria, por meio de protocolo de notas encaminhado por e-mail ou via TOTVS Assinatura.\n\n` +
     `Atenciosamente,\nControladoria AMVOX`;
   const q = o => Object.entries(o).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
-  return 'https://outlook.office.com/mail/deeplink/compose?' + q({to:(P.LOG_AVISO_PARA || '').replace(/\s/g, ''), cc:(P.LOG_AVISO_CC || '').replace(/\s/g, ''), subject:assunto, body:corpo});
+  /* o link de rascunho do Outlook Web IGNORA o campo cc (testado 10/10/2026): Fiscal/Faturamento vai junto no "Para" */
+  const dest = [P.LOG_AVISO_PARA, P.LOG_AVISO_CC].filter(Boolean).join(';').replace(/\s/g, '');
+  return 'https://outlook.office.com/mail/deeplink/compose?' + q({to:dest, subject:assunto, body:corpo});
 }
 async function avisaLogistica(lista){
   if(!lista.length) return;
   if(!P.LOG_AVISO_PARA) return alert('Cadastre os destinatários em Parâmetros (LOG_AVISO_PARA).');
-  if(!confirm(`Abrir no Outlook o e-mail "RETER EXPEDIÇÃO" para a Logística (${P.LOG_AVISO_PARA}) com ${lista.length} nota(s)?\nVocê revisa e clica em Enviar no Outlook; o app registra o aviso.`)) return;
+  if(!confirm(`Abrir no Outlook o e-mail "RETER EXPEDIÇÃO" com ${lista.length} nota(s)?\nPara: ${P.LOG_AVISO_PARA}${P.LOG_AVISO_CC ? ';' + P.LOG_AVISO_CC : ''}\nVocê revisa e clica em Enviar no Outlook; o app registra o aviso.`)) return;
   window.open(emailReter(lista), '_blank');
   const u = await SB.rpc('bonif_nf_avisar', {p_notas:lista.map(x => ({filial:x.filial, doc:x.doc, serie:x.serie, cliente:x.cliente, loja:x.loja})), p_para:P.LOG_AVISO_PARA, p_cc:P.LOG_AVISO_CC || ''});
   if(u.error) return alert(u.error.message);
