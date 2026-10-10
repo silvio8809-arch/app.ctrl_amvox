@@ -542,12 +542,20 @@ function linhaNb(x, completa){
    clicou (Controladoria) para a Logística, com cópia ao Faturamento, e registra o aviso no app. */
 function emailReter(lista){
   const p2 = n => String(n).padStart(2, '0'), dc = d => { const t = new Date(d + 'T12:00'); return `${p2(t.getDate())}/${p2(t.getMonth() + 1)}/${t.getFullYear()}`; };
-  const linhas = lista.map(x => `• NF ${x.doc}/${x.serie} · emissão ${dc(x.emissao)} · CFOP ${x.cfop || ''} · filial ${x.filial}\n   Cliente: ${x.nome || ''} (${x.cliente}/${x.loja}) · CNPJ ${fcnpj(x.cnpj || '')} · ${x.uf || ''}\n   Valor ${fmoeda(+x.valor)} · ${fmt(+x.pecas, 0)} peça(s)`).join('\n\n');
-  const assunto = lista.length === 1 ? `RETER EXPEDIÇÃO — NF ${lista[0].doc} (bonificação sem faturamento)` : `RETER EXPEDIÇÃO — ${lista.length} notas de bonificação sem faturamento`;
-  const corpo = `Prezados,\n\nfavor RETER A EXPEDIÇÃO da(s) nota(s) de bonificação abaixo até haver FATURAMENTO (nota de venda) para o cliente/rede:\n\n${linhas}\n\n` +
-    `Motivo: bonificação emitida sem faturamento do cliente/grupo — não há nota de venda nos ${P.BONIF_PRAZO_DIAS} dias anteriores à bonificação. ` +
-    `Não se envia bonificação para cliente ou rede que não faturou. Caso a(s) nota(s) já conste(m) em Protocolo de Liberação para Expedição, desconsiderar a liberação.\n\n` +
-    `A liberação será comunicada pela Controladoria.\n\nControladoria AMVOX`;
+  /* texto aprovado pelo Silvio em 10/10/2026 (modelo enviado por ele); o link do Outlook só aceita texto simples */
+  const um = lista.length === 1;
+  const blocos = lista.map(x => [`• NF: ${x.doc}/${x.serie}`, `• Data de emissão: ${dc(x.emissao)}`, `• CFOP: ${x.cfop || ''}`, `• Filial: ${x.filial}`,
+    `• Cliente: ${x.nome || ''} (${x.cliente}/${x.loja})`, `• CNPJ: ${fcnpj(x.cnpj || '')}`, `• UF: ${x.uf || ''}`,
+    `• Valor: ${fmoeda(+x.valor)}`, `• Quantidade: ${fmt(+x.pecas, 0)} peça${+x.pecas === 1 ? '' : 's'}`].join('\n')).join('\n\n');
+  const assunto = um ? `RETER EXPEDIÇÃO — NF ${lista[0].doc} (bonificação sem faturamento)` : `RETER EXPEDIÇÃO — ${lista.length} notas de bonificação sem faturamento`;
+  const corpo = `Prezados,\n\n` +
+    `Favor RETER A EXPEDIÇÃO ${um ? 'da nota de bonificação abaixo' : 'das notas de bonificação abaixo'} até que haja faturamento (nota fiscal de venda) para o cliente ou grupo econômico correspondente.\n\n` +
+    `${um ? 'Dados da nota:' : 'Dados das notas:'}\n\n${blocos}\n\n` +
+    `Motivo da retenção: Bonificação emitida sem faturamento prévio do cliente/grupo econômico. Não foi identificada nota fiscal de venda nos ${P.BONIF_PRAZO_DIAS} dias anteriores à emissão da bonificação.\n\n` +
+    `Diretriz: Não devem ser expedidas bonificações para clientes ou redes que não apresentem faturamento no período estabelecido. ` +
+    `Caso ${um ? 'a nota já conste' : 'as notas já constem'} em algum Protocolo de Liberação para Expedição, a liberação deverá ser desconsiderada, mantendo-se a retenção até nova autorização.\n\n` +
+    `A liberação será comunicada formalmente pela Controladoria, por meio de protocolo de notas encaminhado por e-mail ou via TOTVS Assinatura.\n\n` +
+    `Atenciosamente,\nControladoria AMVOX`;
   const q = o => Object.entries(o).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
   return 'https://outlook.office.com/mail/deeplink/compose?' + q({to:(P.LOG_AVISO_PARA || '').replace(/\s/g, ''), cc:(P.LOG_AVISO_CC || '').replace(/\s/g, ''), subject:assunto, body:corpo});
 }
