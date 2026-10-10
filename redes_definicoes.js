@@ -6,7 +6,7 @@
    padrões abaixo só valem se o banco não responder. Nenhum dado de negócio neste arquivo.
    ===================================================================================== */
 const RD_DEF = {
-  versaoTela: '0.2',
+  versaoTela: '0.3',
   versaoPolitica: 'minuta v0.5 (07/10/2026) + aprovação final pela Controladoria',
   padrao: { MIN_CNPJS: 30, META_MINIMA: 0, TETO_F1: 5e6, TETO_F2: 10e6, DESC_F1: .05, DESC_F2: .075, DESC_F3: .10,
             TOLERANCIA: .90, TRIM_REBAIXA: 2, TRIM_INATIVO: 2, CARENCIA: 1,
@@ -42,7 +42,9 @@ const RD_DEF = {
     { id: 'B03', grupo: 'Bonificação cliente novo / reativação', nome: 'Cliente novo', texto: 'Nenhum CNPJ do grupo tinha compra antes da nota escolhida = CLIENTE NOVO, elegível.' },
     { id: 'B04', grupo: 'Bonificação cliente novo / reativação', nome: 'Reativação', texto: P => `A última compra de QUALQUER CNPJ do grupo antes da nota foi há mais de ${P.CAMP_MESES} meses = REATIVAÇÃO, elegível. Se alguém do grupo comprou dentro de ${P.CAMP_MESES} meses antes da nota, NÃO é reativação — inclusive quando comprava por uma filial e agora compra por outra. Se já houve nota do grupo na campanha antes desta, ela não é o 1º pedido.` },
     { id: 'B06', grupo: 'Bonificação cliente novo / reativação', nome: 'Baixa pela nota de bonificação', texto: P => `Depois da aprovação, o app liga sozinho a aprovação à 1ª nota de bonificação (CFOP 5910/6910) do GRUPO emitida a partir da data da aprovação, em até ${P.BONIF_PRAZO_DIAS} dias: situação CONCEDIDA (NF EMITIDA). Nota acima do aprovado (tolerância ${pct(P.BONIF_TOLERANCIA)}) = NF ACIMA DO APROVADO; sem nota no prazo = NOTA NÃO EMITIDA NO PRAZO. Cada nota de bonificação liga a uma aprovação só.` },
-    { id: 'B05', grupo: 'Bonificação cliente novo / reativação', nome: 'Uma por grupo, cada nota uma vez', texto: P => `Bonificação em produto de ${pct(P.CAMP_PCT)} do valor da(s) nota(s) do 1º pedido, uma única vez por grupo, para notas de ${P.CAMP_INICIO} a ${P.CAMP_FIM}. O registro só aceita cliente elegível, recusa a segunda bonificação do grupo e não deixa a mesma nota ser usada duas vezes.` }
+    { id: 'B05', grupo: 'Bonificação cliente novo / reativação', nome: 'Uma por grupo, cada nota uma vez', texto: P => `Bonificação em produto de ${pct(P.CAMP_PCT)} do valor da(s) nota(s) do 1º pedido, uma única vez por grupo, para notas de ${P.CAMP_INICIO} a ${P.CAMP_FIM}. O registro só aceita cliente elegível, recusa a segunda bonificação do grupo e não deixa a mesma nota ser usada duas vezes.` },
+    { id: 'B07', grupo: 'Bonificação cliente novo / reativação', nome: 'Nota de bonificação sem faturamento = anomalia', texto: P => `Toda nota de bonificação (CFOP 5910/6910) emitida desde ${P.CAMP_INICIO} aparece no app. Se o GRUPO não tem nota de VENDA nos ${P.BONIF_PRAZO_DIAS} dias até a emissão da bonificação, ela recebe a tarja BONIFICAÇÃO SEM FATURAMENTO — a bonificação saiu antes do pedido, contrariando a regra. Caso de origem: NF 000281079 (10/10/2026), OTAVIO REFIL, sem nenhuma venda. Não pode haver EXPEDIÇÃO até haver faturamento: a Controladoria usa o botão "Avisar Logística" (e-mail RETER EXPEDIÇÃO à Logística, cópia ao Faturamento; destinatários em Parâmetros) e o app registra quem avisou e quando. Silvio 10/10/2026.` },
+    { id: 'B08', grupo: 'Bonificação cliente novo / reativação', nome: 'Nota de bonificação fora do app = anomalia', texto: 'Nota de bonificação com venda do grupo, mas não ligada a uma bonificação aprovada no app, recebe a tarja SEM APROVAÇÃO NO APP. As duas tarjas só saem quando a Controladoria registra a justificativa (ex.: bonificação fora da campanha) — fica o rastro de quem justificou, quando e por quê.' }
   ]
 };
 function pct(x){ return (x * 100).toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + '%'; }
