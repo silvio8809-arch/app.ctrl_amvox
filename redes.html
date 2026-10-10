@@ -161,13 +161,10 @@
 
 <!-- ================= BONIFICAÇÃO CLIENTE NOVO / REATIVAÇÃO ================= -->
 <section class="tela" id="tela-bonif">
-  <div class="painel"><h2>Consulta antes de aprovar a bonificação <span>campanha cliente novo / reativação — o cliente é avaliado pelo GRUPO inteiro (grupo de clientes + filiais da mesma raiz de CNPJ)</span></h2>
-    <div class="corpo"><div class="form">
-      <label>CNPJ do cliente<input id="bCnpj" placeholder="00.000.000/0000-00"></label></div>
-      <div class="linha-b"><button class="btn pri" id="bConsultar">Buscar as notas da campanha</button><span class="status" id="bSt" style="margin:0"></span></div>
-      <div class="linha-b"><span class="nota" id="bCarga">—</span><button class="btn so-adm" id="bAtualiza">Pedir atualização das notas</button></div>
-      <div class="nota">1) fature o 1º pedido · 2) busque o CNPJ · 3) marque a(s) nota(s) do pedido · 4) o app avalia o GRUPO antes da nota · 5) a Controladoria registra.
-        As notas entram no app pela carga de hora em hora (08:30, 09:30 … 15:30). O botão "Pedir atualização das notas" (Controladoria) garante a nota na próxima rodada — precisa do Mac ligado com VPN.</div>
+  <div class="painel"><h2>Consultar cliente <span>avaliado pelo GRUPO (grupo de clientes + mesma raiz de CNPJ) · fature o 1º pedido → busque → marque a nota → registre</span></h2>
+    <div class="corpo"><div class="linha-b" style="margin-top:0">
+      <input id="bCnpj" placeholder="CNPJ do cliente" style="width:220px"><button class="btn pri" id="bConsultar">Buscar</button><span class="status" id="bSt" style="margin:0"></span></div>
+      <div class="linha-b"><span class="nota" id="bCarga">—</span><button class="btn so-adm" id="bAtualiza" title="A nota entra na próxima rodada (até 1h); precisa do Mac ligado com VPN">Atualizar notas</button></div>
     </div></div>
   <div class="painel" id="bNotasP" style="display:none"><h2>Notas de venda do CNPJ na campanha <span>marque a(s) nota(s) do 1º pedido (mesmo dia)</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th></th><th>Filial</th><th>Nota / série</th><th>Emissão</th><th class="n">Valor sem IPI</th><th class="n">IPI</th><th class="n">Peças</th><th>Situação</th></tr></thead><tbody id="bNotas"></tbody></table></div>
@@ -176,12 +173,11 @@
     <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo nos dias anteriores à bonificação (prazo em Parâmetros)">Venda prévia</th><th>Situação</th><th></th></tr></thead><tbody id="bNfGrupo"></tbody></table></div></div>
   <div id="bRes"></div>
   <div class="cards" id="cardsBo" style="margin-top:14px"></div>
-  <div class="painel"><h2>Bonificações aprovadas <span>uma por grupo · o app liga cada aprovação à nota de bonificação emitida (CFOP 5910/6910) e dá a baixa</span>
-    <button class="btn acao so-adm" id="bConferir">Conferir notas de bonificação agora</button></h2>
-    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>CNPJ</th><th>Classificação</th><th>Nota(s) do 1º pedido</th><th class="n">Valor sem IPI</th><th class="n">Bonificação aprovada</th><th>Aprovado por</th><th>Situação</th><th>Nota de bonificação</th></tr></thead><tbody id="tBo"></tbody></table></div></div>
+  <div class="painel"><h2>Bonificações aprovadas <span>baixa automática: o app liga a aprovação à nota de bonificação do grupo</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>1º pedido</th><th class="n">Bonificação</th><th>Situação</th></tr></thead><tbody id="tBo"></tbody></table></div></div>
   <div id="nbBloco" style="display:none">
   <div class="cards" id="cardsNb" style="margin-top:14px"></div>
-  <div class="painel"><h2>Notas de bonificação emitidas na campanha <span>toda NF CFOP 5910/6910 desde o início da campanha · tarja = anomalia para a Controladoria atuar</span>
+  <div class="painel"><h2>Notas de bonificação emitidas <span>CFOP 5910/6910 desde o início da campanha · tarja = anomalia</span>
     <button class="btn acao so-adm" id="nbAvisaTodas" style="display:none"></button></h2>
     <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th>UF</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo nos dias anteriores à bonificação (prazo em Parâmetros)">Venda prévia</th><th title="Última nota de venda do grupo até a bonificação">Últ. venda</th><th>Situação</th><th></th></tr></thead><tbody id="tNb"></tbody></table></div></div>
   </div>
@@ -504,22 +500,30 @@ const SITB = {'AGUARDANDO NOTA':'c-in', 'CONCEDIDA (NF EMITIDA)':'c-ok', 'NF ACI
 let VINC = [], CARD_BO = '';
 async function pintaBonif(){
   const [r, n, v] = await Promise.all([SB.from('bonif_campanha').select('*').order('id', {ascending:false}), SB.from('bonif_nota').select('*'), SB.from('bonif_nf_vinculo').select('*')]);
-  if(r.error){ $('tBo').innerHTML = `<tr><td colspan="10" class="status err">${esc(r.error.message)}</td></tr>`; return; }
-  BONIF = r.data; VINC = v.data || []; const nb = n.data || [], tot = BONIF.reduce((a, x) => a + +x.bonificacao, 0);
-  const cards = [['', 'Aprovadas', BONIF.length], ...Object.keys(SITB).map(k => [k, k.charAt(0) + k.slice(1).toLowerCase(), BONIF.filter(x => x.situacao === k).length])];
-  $('cardsBo').innerHTML = cards.map(([k, t, q]) => `<div class="kpi ${CARD_BO === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${q}</div></div>`).join('') +
-    `<div class="kpi"><div class="t">Total aprovado (produto)</div><div class="v">${fcurto(tot)}</div></div>`;
+  if(r.error){ $('tBo').innerHTML = `<tr><td colspan="5" class="status err">${esc(r.error.message)}</td></tr>`; return; }
+  BONIF = r.data; VINC = v.data || []; const nb = n.data || [];
+  const GRUPOS_BO = [['', 'Aprovadas', () => true], ['OK', 'Concedidas', x => x.situacao === 'CONCEDIDA (NF EMITIDA)'],
+                     ['AG', 'Aguardando nota', x => !x.situacao || x.situacao === 'AGUARDANDO NOTA'],
+                     ['PB', 'Com problema', x => ['NF ACIMA DO APROVADO', 'NOTA NÃO EMITIDA NO PRAZO'].includes(x.situacao)]];
+  const totB = BONIF.reduce((a, x) => a + +x.bonificacao, 0) || 1, filtro = (GRUPOS_BO.find(g => g[0] === CARD_BO) || GRUPOS_BO[0])[2];
+  $('cardsBo').innerHTML = GRUPOS_BO.map(([k, t, f]) => { const l = BONIF.filter(f), val = l.reduce((a, x) => a + +x.bonificacao, 0);
+    return `<div class="kpi ${CARD_BO === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(val)} · ${fmt(val / totB * 100, 1)}%</div></div>`; }).join('');
   $('cardsBo').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_BO = CARD_BO === e.dataset.k ? '' : e.dataset.k; pintaBonif(); });
-  $('tBo').innerHTML = BONIF.filter(x => !CARD_BO || x.situacao === CARD_BO).map(x => { const vs = VINC.filter(b => b.bonif_id === x.id);
-    return `<tr><td>${x.id}</td><td>${esc(x.nome || '')}</td><td>${fcnpj(x.cnpj)}</td><td>${chip(x.classificacao, 'c-ok')}</td>
-    <td>${nb.filter(b => b.bonif_id === x.id).map(b => `${esc(b.doc)}/${esc(b.serie)} · ${fdia(b.emissao)}`).join('<br>')}</td>
-    <td class="n">${fmoeda(+x.valor_notas)}</td><td class="n">${fmoeda(+x.bonificacao)}</td><td>${esc(x.aprovado_por || '')}<br><span class="nota">${fdata(x.aprovado_em)}</span></td>
-    <td>${chip(x.situacao || 'AGUARDANDO NOTA', SITB[x.situacao] || 'c-in')}</td>
-    <td>${vs.map(b => `NF ${esc(b.doc)}/${esc(b.serie)} · ${fdia(b.emissao)} · ${fmoeda(+b.valor)}${b.cnpj !== x.cnpj ? `<div class="nota">emitida para ${fcnpj(b.cnpj)} (mesmo grupo)</div>` : ''}`).join('<br>') || '—'}</td></tr>`; }).join('')
-    || '<tr><td colspan="10" class="status">Nenhuma bonificação aprovada.</td></tr>';
+  const diaBR = t => new Date(t).toLocaleDateString('sv-SE', {timeZone:'America/Bahia'});   // aaaa-mm-dd no fuso da empresa
+  $('tBo').innerHTML = BONIF.filter(filtro).map(x => { const vs = VINC.filter(b => b.bonif_id === x.id), ped = nb.filter(b => b.bonif_id === x.id);
+    const antes = vs.some(b => b.emissao < diaBR(x.aprovado_em));
+    return `<tr><td>${x.id}</td>
+    <td>${esc(x.nome || '')}<div class="nota">${fcnpj(x.cnpj)} · ${esc((x.classificacao || '').toLowerCase())}</div></td>
+    <td>${ped.map(b => `NF ${esc(b.doc.replace(/^0+/, ''))} · ${fdia(b.emissao)}`).join('<br>')}<div class="nota">${fmoeda(+x.valor_notas)}</div></td>
+    <td class="n">${fmoeda(+x.bonificacao)}<div class="nota" title="${esc(x.aprovado_por || '')}">aprovada ${fdata(x.aprovado_em)}</div></td>
+    <td>${chip(x.situacao || 'AGUARDANDO NOTA', SITB[x.situacao] || 'c-in')}
+      ${vs.map(b => `<div class="nota">NF ${esc(b.doc.replace(/^0+/, ''))} · ${fdia(b.emissao)} · ${fmoeda(+b.valor)}${b.cnpj !== x.cnpj ? ' · outro CNPJ do grupo' : ''}</div>`).join('')}
+      ${antes ? `<div style="margin-top:4px">${chip('NF de bonificação emitida antes da aprovação', 'c-av')}</div>` : ''}</td></tr>`; }).join('')
+    || '<tr><td colspan="5" class="status">Nenhuma bonificação nesta situação.</td></tr>';
 }
-$('bConferir').onclick = async () => { const u = await SB.rpc('bonif_conferir'); if(u.error) return alert(u.error.message);
-  $('bSt').textContent = `Conferência feita: ${u.data.ligadas} aprovação(ões) ligada(s) a nota de bonificação.`; await pintaBonif(); await pintaNfBonif(); };
+/* baixa automática (Silvio 10/10/2026): a Controladoria não precisa clicar — confere ao abrir a aba e logo após registrar;
+   a rotina de hora em hora também confere */
+async function confereAuto(){ if(E_ADM){ const u = await SB.rpc('bonif_conferir'); if(u.error) console.warn(u.error.message); } }
 
 /* ---- NOTAS DE BONIFICAÇÃO (CFOP 5910/6910) + ANOMALIAS — Silvio 10/10/2026 (caso NF 000281079 OTAVIO REFIL) ---- */
 const SITNB = {'BONIFICAÇÃO SEM FATURAMENTO':'tarja', 'SEM APROVAÇÃO NO APP':'tarja av', 'JUSTIFICADA':'c-ne', 'APROVADA NO APP':'c-ok'};
@@ -583,11 +587,12 @@ async function pintaNfBonif(){
   $('nbBloco').style.display = '';
   const r = await SB.rpc('bonif_nf_painel', {p_cnpj:null}); if(r.error){ $('tNb').innerHTML = `<tr><td colspan="10" class="status err">${esc(r.error.message)}</td></tr>`; return; }
   NFB = r.data || []; const totV = NFB.reduce((a, x) => a + +x.valor, 0) || 1;
-  const grupos = [['', 'Notas de bonificação'], ['BONIFICAÇÃO SEM FATURAMENTO', 'Sem faturamento'], ['SEM APROVAÇÃO NO APP', 'Sem aprovação no app'], ['JUSTIFICADA', 'Justificadas'], ['APROVADA NO APP', 'Aprovadas no app']];
-  $('cardsNb').innerHTML = grupos.map(([k, t]) => { const l = NFB.filter(x => !k || x.situacao === k), v = l.reduce((a, x) => a + +x.valor, 0);
+  const grupos = [['', 'Notas de bonificação'], ['BONIFICAÇÃO SEM FATURAMENTO', 'Sem faturamento'], ['SEM APROVAÇÃO NO APP', 'Sem aprovação no app'], ['OK', 'Regularizadas']];
+  const casa = (x, k) => !k || (k === 'OK' ? ['JUSTIFICADA', 'APROVADA NO APP'].includes(x.situacao) : x.situacao === k);
+  $('cardsNb').innerHTML = grupos.map(([k, t]) => { const l = NFB.filter(x => casa(x, k)), v = l.reduce((a, x) => a + +x.valor, 0);
     return `<div class="kpi ${CARD_NB === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / totV * 100, 1)}%</div></div>`; }).join('');
   $('cardsNb').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_NB = CARD_NB === e.dataset.k ? '' : e.dataset.k; pintaNfBonif(); });
-  $('tNb').innerHTML = NFB.filter(x => !CARD_NB || x.situacao === CARD_NB).map(x => linhaNb(x, true)).join('')
+  $('tNb').innerHTML = NFB.filter(x => casa(x, CARD_NB)).map(x => linhaNb(x, true)).join('')
     || '<tr><td colspan="10" class="status">Nenhuma nota de bonificação nesta situação.</td></tr>';
   ligaBotoesNb($('tNb'), () => NFB);
   const pend = NFB.filter(x => x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO' && !x.avisado_em);   // avisada = e-mail em Itens Enviados
@@ -656,7 +661,7 @@ async function avaliaBonif(){
   if($('bRegistrar')) $('bRegistrar').onclick = async () => {
     const u = await SB.rpc('bonif_registrar', {p_cnpj:CNPJ_B, p_notas:pn, p_obs:($('bObs').value || '').trim() || null});
     if(u.error) return alert(u.error.message);
-    $('bSt').textContent = `Registrada: nº ${u.data.id} · bonificação ${fmoeda(+u.data.bonificacao)}`; await pintaBonif(); await buscaNotas(); };
+    $('bSt').textContent = `Registrada: nº ${u.data.id} · bonificação ${fmoeda(+u.data.bonificacao)}`; await confereAuto(); await pintaBonif(); await pintaNfBonif(); await buscaNotas(); };
 }
 $('bConsultar').onclick = buscaNotas; $('bAvaliar').onclick = avaliaBonif;
 async function pintaCarga(){
@@ -711,7 +716,7 @@ function pintaPar(){
 /* ================================================================== navegação */
 function vaiPara(t){ document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tela === t));
   document.querySelectorAll('.tela').forEach(s => s.classList.toggle('on', s.id === 'tela-' + t));
-  if(t === 'acomp') pintaAc(); if(t === 'ordens') pintaOr(); if(t === 'regras') pintaRegras(); if(t === 'param') pintaPar(); if(t === 'nova') valida(); if(t === 'bonif'){ pintaBonif(); pintaCarga(); pintaNfBonif(); } }
+  if(t === 'acomp') pintaAc(); if(t === 'ordens') pintaOr(); if(t === 'regras') pintaRegras(); if(t === 'param') pintaPar(); if(t === 'nova') valida(); if(t === 'bonif'){ pintaCarga(); confereAuto().then(() => { pintaBonif(); pintaNfBonif(); }); } }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaiPara(b.dataset.tela));
 $('bTestes').onclick = pintaRegras;
 async function recarrega(det){ try { await carrega(); VENDAS = new Map(); pintaSol(); if(det){ S.det = det; detalhe(det); } $('st').textContent = statusTxt(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Erro: ' + (e.message || e); } }
