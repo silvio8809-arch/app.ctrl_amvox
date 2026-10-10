@@ -529,7 +529,9 @@ const chaveNb = x => [x.filial, x.doc, x.serie, x.cliente, x.loja].join('|');
 function linhaNb(x, completa){
   const semFat = x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO';
   const just = x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(x.motivo || '')}</div>` : x.situacao === 'APROVADA NO APP' ? `<div class="nota">bonificação nº ${x.bonif_id}</div>` : '';
-  const aviso = semFat ? (x.avisado_em ? `<div class="nota" title="${esc(x.avisado_por || '')}">📧 avisada ${fdata(x.avisado_em)}</div>` : `<div class="nota" style="color:var(--ru)">Logística não avisada</div>`) : '';
+  const aviso = semFat ? (x.avisado_em ? `<div class="nota" title="e-mail em Itens Enviados · ${esc(x.avisado_por || '')}">📧 avisada ${fdata(x.avisado_em)}</div>`
+    : x.preparado_em ? `<div class="nota" style="color:var(--av)" title="O aviso só conta quando o e-mail aparece em Itens Enviados (conferência de hora em hora)">✉️ e-mail preparado ${fdata(x.preparado_em)} — aguardando envio</div>`
+    : `<div class="nota" style="color:var(--ru)">Logística não avisada</div>`) : '';
   const acao = E_ADM && (semFat || x.situacao === 'SEM APROVAÇÃO NO APP')
     ? (semFat ? `<button class="btn" data-avisa="${esc(chaveNb(x))}" title="E-mail RETER EXPEDIÇÃO para a Logística">📧 Logística</button>` : '') +
       (completa ? `<button class="btn" data-just="${esc(chaveNb(x))}">Justificar</button>` : '') : '';
@@ -540,14 +542,15 @@ function linhaNb(x, completa){
 }
 /* "Não pode haver expedição até que haja faturamento" (Silvio 10/10/2026): abre o e-mail pronto no Outlook de quem
    clicou (Controladoria) para a Logística, com cópia ao Faturamento, e registra o aviso no app. */
-function emailReter(lista){
+function emailReter(lista, lote){
   const p2 = n => String(n).padStart(2, '0'), dc = d => { const t = new Date(d + 'T12:00'); return `${p2(t.getDate())}/${p2(t.getMonth() + 1)}/${t.getFullYear()}`; };
   /* texto aprovado pelo Silvio em 10/10/2026 (modelo enviado por ele); o link do Outlook só aceita texto simples */
   const um = lista.length === 1;
   const blocos = lista.map(x => [`• NF: ${x.doc}/${x.serie}`, `• Data de emissão: ${dc(x.emissao)}`, `• CFOP: ${x.cfop || ''}`, `• Filial: ${x.filial}`,
     `• Cliente: ${x.nome || ''} (${x.cliente}/${x.loja})`, `• CNPJ: ${fcnpj(x.cnpj || '')}`, `• UF: ${x.uf || ''}`,
     `• Valor: ${fmoeda(+x.valor)}`, `• Quantidade: ${fmt(+x.pecas, 0)} peça${+x.pecas === 1 ? '' : 's'}`].join('\n')).join('\n\n');
-  const assunto = um ? `RETER EXPEDIÇÃO — NF ${lista[0].doc} (bonificação sem faturamento)` : `RETER EXPEDIÇÃO — ${lista.length} notas de bonificação sem faturamento`;
+  // [AV-n] no assunto = chave que a conferência procura em Itens Enviados para dar o aviso como feito
+  const assunto = (um ? `RETER EXPEDIÇÃO — NF ${lista[0].doc} (bonificação sem faturamento)` : `RETER EXPEDIÇÃO — ${lista.length} notas de bonificação sem faturamento`) + ` [AV-${lote}]`;
   const corpo = `Prezados,\n\n` +
     `Favor RETER A EXPEDIÇÃO ${um ? 'da nota de bonificação abaixo' : 'das notas de bonificação abaixo'} até que haja faturamento (nota fiscal de venda) para o cliente ou grupo econômico correspondente.\n\n` +
     `${um ? 'Dados da nota:' : 'Dados das notas:'}\n\n${blocos}\n\n` +
@@ -564,10 +567,12 @@ function emailReter(lista){
 async function avisaLogistica(lista){
   if(!lista.length) return;
   if(!P.LOG_AVISO_PARA) return alert('Cadastre os destinatários em Parâmetros (LOG_AVISO_PARA).');
-  if(!confirm(`Abrir no Outlook o e-mail "RETER EXPEDIÇÃO" com ${lista.length} nota(s)?\nPara: ${P.LOG_AVISO_PARA}${P.LOG_AVISO_CC ? ';' + P.LOG_AVISO_CC : ''}\nVocê revisa e clica em Enviar no Outlook; o app registra o aviso.`)) return;
-  window.open(emailReter(lista), '_blank');
+  if(!confirm(`Abrir no Outlook o e-mail "RETER EXPEDIÇÃO" com ${lista.length} nota(s)?\nPara: ${P.LOG_AVISO_PARA}${P.LOG_AVISO_CC ? ';' + P.LOG_AVISO_CC : ''}\nVocê revisa e clica em Enviar no Outlook. A nota só passa a "avisada" quando o e-mail aparecer em Itens Enviados (conferência de hora em hora).`)) return;
+  const w = window.open('', '_blank');   // abre já no clique (bloqueador de pop-up) e recebe o endereço depois do nº do lote
   const u = await SB.rpc('bonif_nf_avisar', {p_notas:lista.map(x => ({filial:x.filial, doc:x.doc, serie:x.serie, cliente:x.cliente, loja:x.loja})), p_para:P.LOG_AVISO_PARA, p_cc:P.LOG_AVISO_CC || ''});
-  if(u.error) return alert(u.error.message);
+  if(u.error){ if(w) w.close(); return alert(u.error.message); }
+  const link = emailReter(lista, u.data);
+  if(w) w.location.href = link; else window.open(link, '_blank');
   await pintaNfBonif(); if(CNPJ_B) await nfBonifGrupo();
 }
 function ligaBotoesNb(raiz, fonte){
@@ -585,9 +590,9 @@ async function pintaNfBonif(){
   $('tNb').innerHTML = NFB.filter(x => !CARD_NB || x.situacao === CARD_NB).map(x => linhaNb(x, true)).join('')
     || '<tr><td colspan="10" class="status">Nenhuma nota de bonificação nesta situação.</td></tr>';
   ligaBotoesNb($('tNb'), () => NFB);
-  const pend = NFB.filter(x => x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO' && !x.avisado_em);
+  const pend = NFB.filter(x => x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO' && !x.avisado_em);   // avisada = e-mail em Itens Enviados
   $('nbAvisaTodas').style.display = E_ADM && pend.length ? '' : 'none';
-  $('nbAvisaTodas').textContent = `📧 Avisar Logística — ${pend.length} nota(s) sem faturamento ainda não avisada(s)`;
+  $('nbAvisaTodas').textContent = `📧 Avisar Logística — ${pend.length} nota(s) sem faturamento sem e-mail enviado`;
   $('nbAvisaTodas').onclick = () => avisaLogistica(pend);
   $('tNb').querySelectorAll('[data-just]').forEach(b => b.onclick = async () => {
     const [f, d, s, c, l] = b.dataset.just.split('|');
