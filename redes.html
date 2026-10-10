@@ -24,7 +24,8 @@
   header{background:var(--topo);color:#fff;padding:14px 20px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
   .marca{font:800 20px var(--sans);letter-spacing:.06em} .marca b{color:var(--accent)}
   header h1{font:600 15px var(--sans);margin:0;letter-spacing:.02em;color:#E8E8E6}
-  header .data{margin-left:auto;font:500 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9A9A97;text-align:right}
+  header .data{margin-left:auto;font:500 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9A9A97}
+  header .data + .data{margin-left:0}
   nav{background:var(--topo);display:flex;gap:2px;padding:0 20px;border-bottom:3px solid var(--accent);overflow-x:auto}
   nav button{background:none;border:0;color:#B9B9B6;font:600 12px var(--sans);letter-spacing:.07em;text-transform:uppercase;padding:10px 14px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-3px;white-space:nowrap}
   nav button:hover{color:#fff} nav button.on{color:#fff;border-color:var(--accent)}
@@ -77,7 +78,8 @@
 <header>
   <span class="marca">AMVO<b>X</b></span>
   <h1>Redes — tabelas por faixa de faturamento</h1>
-  <span class="data" id="cab">carregando…</span>
+  <span class="data" id="quemlog"></span>
+  <span class="data" id="atualizado">Base: clientes e notas TOTVS · carregando…</span>
 </header>
 <nav>
   <button class="on" data-tela="sol">Solicitações</button>
@@ -143,10 +145,15 @@
 
 <!-- ================= ORDENS ================= -->
 <section class="tela" id="tela-ordens">
+  <div class="painel"><h2>Tabelas de rede no TOTVS <span>reconhecidas AUTOMATICAMENTE pelo nome (DA0) — "REDES FAIXA 1", "REDES FAIXA 2", "REDES FAIXA 3"</span>
+    <button class="btn acao so-adm" id="oVarrer">Varrer agora</button></h2><div class="corpo" id="oTabs"></div></div>
   <div class="cards" id="cardsOr"></div>
   <div class="painel"><h2>Ordens ao Faturamento <span>responsável: Samuel (Faturamento) — cria as tabelas REDES FAIXA 1/2/3 e vincula a tabela no cadastro de cada CNPJ; o app confere no cadastro do TOTVS se foi feito</span></h2>
-    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Rede</th><th>Ordem</th><th>Tabela</th><th class="n">CNPJs</th><th>Criada</th><th>Prazo</th><th>Conferência</th><th>Situação</th><th class="so-adm"></th></tr></thead>
-      <tbody id="tOr"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Rede</th><th>Ordem</th><th>Tabela</th><th class="n">CNPJs</th><th>Criada</th><th>Prazo</th><th>Conferência</th><th>Situação</th></tr></thead>
+      <tbody id="tOr"></tbody></table></div>
+    <div class="corpo nota">A ordem é dada como CUMPRIDA sozinha pela varredura (de hora em hora) quando o cadastro de todos os CNPJs bate com a tabela — não há baixa manual.</div></div>
+  <div class="painel" id="oDivP" style="display:none"><h2>Varredura de vínculos <span>clientes em tabela de rede sem rede aprovada (vínculo indevido) e CNPJs de rede fora da tabela da faixa</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Divergência</th><th>CNPJ</th><th>Cliente</th><th>Tabela no cadastro</th><th>Detalhe</th></tr></thead><tbody id="tDiv"></tbody></table></div></div>
 </section>
 
 <!-- ================= BONIFICAÇÃO CLIENTE NOVO / REATIVAÇÃO ================= -->
@@ -301,7 +308,7 @@ async function detalhe(id){
       <textarea id="dParecer" placeholder="Parecer (obrigatório)"></textarea>
       <div class="linha-b"><button class="btn ver" id="dAprovar" ${v.podeEnviar ? '' : 'disabled title="há regra bloqueando"'}>Aprovar — Faixa ${v.faixa} (${fpct(RD.desconto(v.faixa, P))})</button>
         <button class="btn" id="dDevolver">Devolver para ajuste</button><button class="btn ver-2" id="dReprovar">Reprovar</button><span class="status" id="dSt" style="margin:0"></span></div>
-      <div class="nota">Aprovar gera a ordem ao Faturamento para vincular os ${v.validos} CNPJs à tabela ${esc(P['TABELA_F' + v.faixa] || '(código da tabela da faixa ainda não definido — Parâmetros)')}.</div></div></div>` : ''}
+      <div class="nota">Aprovar gera a ordem ao Faturamento (Samuel) para vincular os ${v.validos} CNPJs à tabela ${esc(P['TABELA_F' + v.faixa] || '"REDES FAIXA ' + v.faixa + '" (será reconhecida automaticamente quando existir no TOTVS)')}.</div></div></div>` : ''}
   </div></div>
   <div class="painel"><h2>Validação automática</h2><div class="corpo">${quadroReq(v)}</div></div>
   <div class="painel"><h2>Metas trimestrais acumuladas <span>sazonalidade da política</span></h2><div class="tbl-wrap">${quadroMetas(r)}</div></div>
@@ -457,7 +464,7 @@ function detalheAc(id){
 /* ================================================================== ORDENS */
 function confere(o){
   const tabsRede = [P.TABELA_F1, P.TABELA_F2, P.TABELA_F3].filter(Boolean), lis = o.cnpjs || [];
-  if(['VINCULAR','TROCAR_FAIXA'].includes(o.tipo) && !o.tabela) return {ok:0, n:lis.length, txt:'defina o código da tabela da faixa em Parâmetros'};
+  if(['VINCULAR','TROCAR_FAIXA'].includes(o.tipo) && !o.tabela) return {ok:0, n:lis.length, txt:`aguardando a tabela "REDES FAIXA ${o.faixa}" existir no TOTVS`};
   let ok = 0; lis.forEach(c => { const l = (CAD.get(c.cnpj) || []).find(x => !c.cod || (x.cod === c.cod && x.loja === c.loja)) || (CAD.get(c.cnpj) || [])[0];
     const tab = l ? (l.tabela || '') : null;
     if(tab == null) return;
@@ -475,8 +482,8 @@ function pintaOr(){
     return `<tr><td>${o.id}</td><td>${esc(r.nome || o.rede_id)}</td><td>${NOME[o.tipo]}${o.faixa ? ' — Faixa ' + o.faixa : ''}</td><td>${esc(o.tabela || '—')}</td><td class="n">${(o.cnpjs || []).length}</td>
       <td>${fdata(o.criada_em)}</td><td>${o.prazo ? new Date(o.prazo + 'T12:00').toLocaleDateString('pt-BR') : '—'}${venc(o) ? ' ' + chip('vencida', 'c-ru') : ''}</td>
       <td>${chip(c.txt, c.n && c.ok === c.n ? 'c-ok' : 'c-av')}</td><td>${chip(o.status === 'ABERTA' ? 'Aberta' : o.status === 'CUMPRIDA' ? 'Cumprida ' + fdata(o.cumprida_em) : 'Cancelada', o.status === 'CUMPRIDA' ? 'c-ok' : 'c-in')}</td>
-      <td class="so-adm">${E_ADM && o.status === 'ABERTA' ? `<button class="btn" data-ord="${o.id}" data-rede="${o.rede_id}" ${c.n && c.ok === c.n ? '' : 'disabled title="só depois de conferir todos os CNPJs no cadastro"'}>Dar como cumprida</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="10" class="status">Nenhuma ordem.</td></tr>';
-  $('tOr').querySelectorAll('[data-ord]').forEach(b => b.onclick = async () => { const u = await SB.rpc('rede_acao', {p_id:+b.dataset.rede, p_acao:'ORDEM_CUMPRIDA', p_detalhe:{ordem:+b.dataset.ord}}); if(u.error) return alert(u.error.message); await recarrega(); vaiPara('ordens'); });
+      </tr>`; }).join('') || '<tr><td colspan="9" class="status">Nenhuma ordem.</td></tr>';
+  pintaVarredura();
 }
 
 /* ================================================================== BONIFICAÇÃO */
@@ -565,6 +572,21 @@ async function pintaCarga(){
 }
 $('bAtualiza').onclick = async () => { const u = await SB.from('carga_pedido').insert({}); if(u.error) return alert(u.error.message); pintaCarga(); };
 
+async function pintaVarredura(){
+  const [t, d] = await Promise.all([SB.from('tab_preco').select('codtab,descricao,ativa,faixa_rede').not('faixa_rede', 'is', null).order('codtab'),
+                                    SB.from('rede_divergencia').select('*').order('tipo').order('cnpj')]);
+  const tabs = t.data || [];
+  $('oTabs').innerHTML = [1, 2, 3].map(f => { const cod = P['TABELA_F' + f], x = tabs.filter(q => q.faixa_rede === f);
+    return `<div class="req"><span class="ic">${cod ? '✅' : '⏳'}</span><span class="id">FAIXA ${f}</span><div>${cod ? `<b>${esc(cod)}</b> — ${esc((tabs.find(q => q.codtab === cod) || {}).descricao || '')}` : 'ainda não existe no TOTVS uma tabela ativa com o nome "REDES FAIXA ' + f + '"'}
+      ${x.length > 1 ? `<div class="det">⚠️ mais de uma tabela com esse nome: ${x.map(q => esc(q.codtab) + (q.ativa ? '' : ' (inativa)')).join(', ')} — vale a menor ativa</div>` : ''}</div></div>`; }).join('');
+  const div = d.error || !(E_ADM || window.PAPEL === 'GERENTE') ? null : d.data;   // varredura: só Controladoria e gerentes
+  $('oDivP').style.display = div == null ? 'none' : '';
+  if(div) $('tDiv').innerHTML = div.map(x => `<tr><td>${chip(x.tipo, x.tipo.startsWith('VÍNCULO') ? 'c-ru' : 'c-av')}</td><td>${fcnpj(x.cnpj || '')}</td><td>${esc(x.nome || '')} <span class="nota">${esc(x.cod || '')}/${esc(x.loja || '')}</span></td>
+    <td>${esc(x.tabela || '—')}</td><td>${esc(x.detalhe || '')}</td></tr>`).join('') || `<tr><td colspan="5" class="status">Nenhuma divergência na última varredura${div.length === 0 ? '' : ''}.</td></tr>`;
+}
+$('oVarrer').onclick = async () => { const u = await SB.rpc('rede_varrer'); if(u.error) return alert(u.error.message);
+  alert(`Varredura feita: ${u.data.ordens_cumpridas} ordem(ns) cumprida(s), ${u.data.divergencias} divergência(s).`); await recarrega(); vaiPara('ordens'); };
+
 /* ================================================================== REGRAS E TESTES */
 function pintaRegras(){
   const res = rodaTestes(), ok = res.filter(x => x.ok).length;
@@ -580,7 +602,7 @@ function pintaPar(){
   $('tPar').innerHTML = PARROWS.map(x => { const txt = x.valor == null;
     const vis = txt ? esc(x.texto || '—') : (+x.valor < 1 && +x.valor > 0 ? fpct(+x.valor, 1) : fmt(+x.valor, +x.valor % 1 ? 2 : 0));
     return `<tr><td><b>${esc(x.chave)}</b></td><td>${esc(x.descricao || '')}</td><td class="n">${vis}</td><td>${esc(x.atualizado_por || '')} ${fdata(x.atualizado_em)}</td>
-      <td class="so-adm">${E_ADM ? `<input data-par="${esc(x.chave)}" data-txt="${txt ? 1 : 0}" value="${esc(txt ? (x.texto || '') : x.valor)}" style="width:120px"> <button class="btn" data-salva="${esc(x.chave)}">Salvar</button>` : ''}</td></tr>`; }).join('');
+      <td class="so-adm">${E_ADM && !/^TABELA_F/.test(x.chave) && x.chave !== 'NOTA_DESDE' ? `<input data-par="${esc(x.chave)}" data-txt="${txt ? 1 : 0}" value="${esc(txt ? (x.texto || '') : x.valor)}" style="width:120px"> <button class="btn" data-salva="${esc(x.chave)}">Salvar</button>` : ''}</td></tr>`; }).join('');
   $('tPar').querySelectorAll('[data-salva]').forEach(b => b.onclick = async () => {
     const i = $('tPar').querySelector(`[data-par="${b.dataset.salva}"]`), t = i.dataset.txt === '1';
     const u = await SB.from('rede_parametro').update(t ? {texto:i.value.trim(), atualizado_em:new Date().toISOString(), atualizado_por:window.USUARIO_EMAIL}
@@ -595,12 +617,24 @@ function vaiPara(t){ document.querySelectorAll('nav button').forEach(b => b.clas
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaiPara(b.dataset.tela));
 $('bTestes').onclick = pintaRegras;
 async function recarrega(det){ try { await carrega(); VENDAS = new Map(); pintaSol(); if(det){ S.det = det; detalhe(det); } $('st').textContent = statusTxt(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Erro: ' + (e.message || e); } }
-const statusTxt = () => `${REDES.length} solicitação(ões) · cadastro de clientes atualizado diariamente · regras ${RD_DEF.versaoPolitica}`;
+const statusTxt = () => `${REDES.length} solicitação(ões) · clientes e notas atualizados de hora em hora (08:30 às 15:30) · regras ${RD_DEF.versaoPolitica}`;
+async function marcaAtualizacao(){
+  // hora da carga concluída: tab_preco é gravada no fim de toda carga (rotina horária, botão do app ou rodada manual)
+  const [t, c] = await Promise.all([
+    SB.from('tab_preco').select('atualizado_em').order('atualizado_em', {ascending:false}).limit(1),
+    SB.from('carga_pedido').select('concluido_em').eq('status', 'OK').order('concluido_em', {ascending:false}).limit(1)]);
+  const ds = [t.data && t.data[0] && t.data[0].atualizado_em, c.data && c.data[0] && c.data[0].concluido_em].filter(Boolean).map(x => new Date(x));
+  const d = ds.length ? new Date(Math.max(...ds)) : null;
+  // mesmo padrão do cabeçalho do app de preços: "Base: … · dd/mm/aaaa · atualizado às HHhMM"
+  const p2 = n => String(n).padStart(2, '0');
+  $('atualizado').textContent = 'Base: clientes e notas TOTVS · ' + (d ? `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} · atualizado às ${p2(d.getHours())}h${p2(d.getMinutes())}` : 'sem carga registrada');
+}
 
 async function inicia(){
   E_ADM = window.PAPEL === 'ADM'; document.body.classList.toggle('e-adm', E_ADM);
   UID = (await SB.auth.getUser()).data.user.id;
-  $('cab').innerHTML = `${esc(window.USUARIO_EMAIL || '')} · ${esc(window.PAPEL || '')}<br>${E_ADM ? 'Controladoria — aprovação final' : 'Comercial — solicitações'}`;
+  $('quemlog').textContent = '👤 ' + (window.USUARIO_EMAIL || '') + ' · ' + (window.PAPEL || 'CONSULTA');
+  marcaAtualizacao();
   opcoesInicio();
   try { await carrega(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Sem acesso aos dados de redes: ' + (e.message || e); return; }
   $('st').textContent = statusTxt(); pintaSol();
