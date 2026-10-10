@@ -6,7 +6,7 @@
    padrões abaixo só valem se o banco não responder. Nenhum dado de negócio neste arquivo.
    ===================================================================================== */
 const RD_DEF = {
-  versaoTela: '0.1',
+  versaoTela: '0.2',
   versaoPolitica: 'minuta v0.5 (07/10/2026) + aprovação final pela Controladoria',
   padrao: { MIN_CNPJS: 30, META_MINIMA: 0, TETO_F1: 5e6, TETO_F2: 10e6, DESC_F1: .05, DESC_F2: .075, DESC_F3: .10,
             TOLERANCIA: .90, TRIM_REBAIXA: 2, TRIM_INATIVO: 2, CARENCIA: 1,
@@ -26,7 +26,8 @@ const RD_DEF = {
     { id: 'R11', grupo: 'Solicitação', nome: 'Grupo', texto: 'Aviso: numa rede do tipo GRUPO todos os CNPJs deveriam ser do mesmo grupo de clientes do TOTVS; grupos diferentes indicam rede ASSOCIATIVA.' },
     { id: 'R12', grupo: 'Solicitação', nome: 'Grupo dividido', texto: 'Aviso: lista os outros CNPJs do mesmo GRUPO (grupo de clientes ou mesma raiz de CNPJ) que ficaram fora da lista e os que já estão em outra rede — para evitar vinculação indevida da tabela a só parte do grupo.' },
     { id: 'A01', grupo: 'Aprovação', nome: 'Aprovação final da Controladoria', texto: 'Só a Controladoria (perfil ADM) aprova, reprova ou devolve, sempre com parecer. A decisão fica registrada (quem, quando, parecer).' },
-    { id: 'A02', grupo: 'Aprovação', nome: 'Ordem ao Faturamento', texto: 'A aprovação gera a ordem de VINCULAR os CNPJs à tabela da faixa no TOTVS. O app confere no cadastro se a tabela foi trocada; a ordem só é dada como cumprida depois da conferência.' },
+    { id: 'A02', grupo: 'Aprovação', nome: 'Ordem ao Faturamento', texto: 'A aprovação gera a ordem ao Faturamento (Samuel) de VINCULAR os CNPJs à tabela da faixa no TOTVS. As tabelas são reconhecidas AUTOMATICAMENTE pelo nome no TOTVS ("REDES FAIXA 1/2/3") e a ordem é dada como CUMPRIDA sozinha quando o cadastro de todos os CNPJs bate — sem baixa manual.' },
+    { id: 'A03', grupo: 'Aprovação', nome: 'Varredura de vínculos', texto: 'De hora em hora o app varre o cadastro: cliente em tabela de rede sem estar numa rede aprovada daquela faixa = VÍNCULO INDEVIDO; CNPJ de rede aprovada fora da tabela da sua faixa (sem ordem aberta no prazo) = FORA DA TABELA.' },
     { id: 'M01', grupo: 'Acompanhamento', nome: 'Meta acumulada com sazonalidade', texto: P => `A meta é distribuída pelos trimestres do contrato pelo peso de cada trimestre civil nas vendas (${pct(P.SAZ_T1)} · ${pct(P.SAZ_T2)} · ${pct(P.SAZ_T3)} · ${pct(P.SAZ_T4)}). Cobra-se a meta ACUMULADA desde o início.` },
     { id: 'M02', grupo: 'Acompanhamento', nome: 'Realizado', texto: 'Realizado = venda de todos os CNPJs ativos da rede no trimestre (valor da mercadoria sem IPI, vendas normais de produto acabado/revenda, sem bonificação), pela mesma carga diária da aba Curva.' },
     { id: 'M03', grupo: 'Acompanhamento', nome: 'Aviso', texto: P => `Realizado acumulado abaixo de ${pct(P.TOLERANCIA)} da meta acumulada = AVISO.` },
