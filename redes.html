@@ -50,7 +50,8 @@
   tbody td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
   tbody tr.clic{cursor:pointer} tbody tr.clic:hover td{background:#F3F2EF} tbody tr.sel td{background:#FFF8E6}
   .chip{display:inline-block;font:700 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:99px;white-space:nowrap}
-  .tarja{display:inline-block;background:var(--ru);color:#fff;font:800 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:4px;white-space:nowrap}
+  .tarja{display:inline-block;background:var(--ru);color:#fff;font:800 10px/1.25 var(--sans);letter-spacing:.04em;text-transform:uppercase;padding:4px 8px;border-radius:4px;max-width:150px}
+  .acoes-nb .btn{display:block;width:100%;margin:0 0 4px;padding:4px 8px;font-size:11px;white-space:nowrap}
   .tarja.av{background:var(--av)}
   .c-ok{background:var(--ok-bg);color:var(--ok)} .c-av{background:var(--av-bg);color:var(--av)} .c-ru{background:var(--ru-bg);color:var(--ru)}
   .c-in{background:var(--in-bg);color:var(--in)} .c-ne{background:var(--ne-bg);color:var(--ne)}
@@ -172,7 +173,7 @@
     <div class="tbl-wrap"><table><thead><tr><th></th><th>Filial</th><th>Nota / série</th><th>Emissão</th><th class="n">Valor sem IPI</th><th class="n">IPI</th><th class="n">Peças</th><th>Situação</th></tr></thead><tbody id="bNotas"></tbody></table></div>
     <div class="corpo"><button class="btn pri" id="bAvaliar" disabled>Avaliar a nota marcada</button></div></div>
   <div class="painel" id="bNfGrupoP" style="display:none"><h2>Notas de bonificação do grupo na campanha <span>CFOP 5910/6910 emitidas para qualquer CNPJ do grupo</span></h2>
-    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>Nota / série</th><th>Cliente</th><th class="n">Valor</th><th class="n">Peças</th><th class="n">Venda do grupo nos dias antes</th><th>Situação</th><th></th></tr></thead><tbody id="bNfGrupo"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo nos dias anteriores à bonificação (prazo em Parâmetros)">Venda prévia</th><th>Situação</th><th></th></tr></thead><tbody id="bNfGrupo"></tbody></table></div></div>
   <div id="bRes"></div>
   <div class="cards" id="cardsBo" style="margin-top:14px"></div>
   <div class="painel"><h2>Bonificações aprovadas <span>uma por grupo · o app liga cada aprovação à nota de bonificação emitida (CFOP 5910/6910) e dá a baixa</span>
@@ -182,7 +183,7 @@
   <div class="cards" id="cardsNb" style="margin-top:14px"></div>
   <div class="painel"><h2>Notas de bonificação emitidas na campanha <span>toda NF CFOP 5910/6910 desde o início da campanha · tarja = anomalia para a Controladoria atuar</span>
     <button class="btn acao so-adm" id="nbAvisaTodas" style="display:none"></button></h2>
-    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>Nota / série</th><th>Cliente</th><th>UF</th><th class="n">Valor</th><th class="n">Peças</th><th class="n">Venda do grupo nos dias antes</th><th>Última venda do grupo</th><th>Situação</th><th></th></tr></thead><tbody id="tNb"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th>UF</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo nos dias anteriores à bonificação (prazo em Parâmetros)">Venda prévia</th><th title="Última nota de venda do grupo até a bonificação">Últ. venda</th><th>Situação</th><th></th></tr></thead><tbody id="tNb"></tbody></table></div></div>
   </div>
 </section>
 
@@ -528,14 +529,14 @@ const chaveNb = x => [x.filial, x.doc, x.serie, x.cliente, x.loja].join('|');
 function linhaNb(x, completa){
   const semFat = x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO';
   const just = x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(x.motivo || '')}</div>` : x.situacao === 'APROVADA NO APP' ? `<div class="nota">bonificação nº ${x.bonif_id}</div>` : '';
-  const aviso = semFat ? (x.avisado_em ? `<div class="nota">📧 Logística avisada em ${fdata(x.avisado_em)} · ${esc(x.avisado_por || '')}</div>` : `<div class="nota" style="color:var(--ru)">Logística ainda não avisada</div>`) : '';
+  const aviso = semFat ? (x.avisado_em ? `<div class="nota" title="${esc(x.avisado_por || '')}">📧 avisada ${fdata(x.avisado_em)}</div>` : `<div class="nota" style="color:var(--ru)">Logística não avisada</div>`) : '';
   const acao = E_ADM && (semFat || x.situacao === 'SEM APROVAÇÃO NO APP')
-    ? (semFat ? `<button class="btn" data-avisa="${esc(chaveNb(x))}">📧 Avisar Logística</button> ` : '') +
+    ? (semFat ? `<button class="btn" data-avisa="${esc(chaveNb(x))}" title="E-mail RETER EXPEDIÇÃO para a Logística">📧 Logística</button>` : '') +
       (completa ? `<button class="btn" data-just="${esc(chaveNb(x))}">Justificar</button>` : '') : '';
-  return `<tr><td>${fdia(x.emissao)}</td><td>${esc(x.doc)}/${esc(x.serie)}<div class="nota">fil. ${esc(x.filial)} · CFOP ${esc(x.cfop || '')}</div></td>
+  return `<tr><td>${fdia(x.emissao)}</td><td style="white-space:nowrap">${esc(x.doc.replace(/^0+/, ''))}/${esc(x.serie)}<div class="nota">CFOP ${esc(x.cfop || '')}</div></td>
     <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>${completa ? `<td>${esc(x.uf || '')}</td>` : ''}
     <td class="n">${fmoeda(+x.valor)}</td><td class="n">${fmt(+x.pecas, 0)}</td><td class="n">${+x.venda_janela ? fmoeda(+x.venda_janela) : '—'}</td>
-    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td>${selNb(x)}${just}${aviso}</td><td style="white-space:nowrap">${acao}</td></tr>`;
+    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td>${selNb(x)}${just}${aviso}</td><td class="acoes-nb">${acao}</td></tr>`;
 }
 /* "Não pode haver expedição até que haja faturamento" (Silvio 10/10/2026): abre o e-mail pronto no Outlook de quem
    clicou (Controladoria) para a Logística, com cópia ao Faturamento, e registra o aviso no app. */
