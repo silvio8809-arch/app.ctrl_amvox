@@ -50,6 +50,8 @@
   tbody td.n{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
   tbody tr.clic{cursor:pointer} tbody tr.clic:hover td{background:#F3F2EF} tbody tr.sel td{background:#FFF8E6}
   .chip{display:inline-block;font:700 10px var(--sans);letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:99px;white-space:nowrap}
+  .tarja{display:inline-block;background:var(--ru);color:#fff;font:800 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:4px;white-space:nowrap}
+  .tarja.av{background:var(--av)}
   .c-ok{background:var(--ok-bg);color:var(--ok)} .c-av{background:var(--av-bg);color:var(--av)} .c-ru{background:var(--ru-bg);color:var(--ru)}
   .c-in{background:var(--in-bg);color:var(--in)} .c-ne{background:var(--ne-bg);color:var(--ne)}
   .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 12px var(--sans);padding:8px 13px;border-radius:6px;cursor:pointer}
@@ -169,11 +171,19 @@
   <div class="painel" id="bNotasP" style="display:none"><h2>Notas de venda do CNPJ na campanha <span>marque a(s) nota(s) do 1º pedido (mesmo dia)</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th></th><th>Filial</th><th>Nota / série</th><th>Emissão</th><th class="n">Valor sem IPI</th><th class="n">IPI</th><th class="n">Peças</th><th>Situação</th></tr></thead><tbody id="bNotas"></tbody></table></div>
     <div class="corpo"><button class="btn pri" id="bAvaliar" disabled>Avaliar a nota marcada</button></div></div>
+  <div class="painel" id="bNfGrupoP" style="display:none"><h2>Notas de bonificação do grupo na campanha <span>CFOP 5910/6910 emitidas para qualquer CNPJ do grupo</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>Nota / série</th><th>Cliente</th><th class="n">Valor</th><th class="n">Peças</th><th class="n">Venda do grupo nos dias antes</th><th>Situação</th><th></th></tr></thead><tbody id="bNfGrupo"></tbody></table></div></div>
   <div id="bRes"></div>
   <div class="cards" id="cardsBo" style="margin-top:14px"></div>
   <div class="painel"><h2>Bonificações aprovadas <span>uma por grupo · o app liga cada aprovação à nota de bonificação emitida (CFOP 5910/6910) e dá a baixa</span>
     <button class="btn acao so-adm" id="bConferir">Conferir notas de bonificação agora</button></h2>
     <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>CNPJ</th><th>Classificação</th><th>Nota(s) do 1º pedido</th><th class="n">Valor sem IPI</th><th class="n">Bonificação aprovada</th><th>Aprovado por</th><th>Situação</th><th>Nota de bonificação</th></tr></thead><tbody id="tBo"></tbody></table></div></div>
+  <div id="nbBloco" style="display:none">
+  <div class="cards" id="cardsNb" style="margin-top:14px"></div>
+  <div class="painel"><h2>Notas de bonificação emitidas na campanha <span>toda NF CFOP 5910/6910 desde o início da campanha · tarja = anomalia para a Controladoria atuar</span>
+    <button class="btn acao so-adm" id="nbAvisaTodas" style="display:none"></button></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>Nota / série</th><th>Cliente</th><th>UF</th><th class="n">Valor</th><th class="n">Peças</th><th class="n">Venda do grupo nos dias antes</th><th>Última venda do grupo</th><th>Situação</th><th></th></tr></thead><tbody id="tNb"></tbody></table></div></div>
+  </div>
 </section>
 
 <!-- ================= REGRAS ================= -->
@@ -508,7 +518,78 @@ async function pintaBonif(){
     || '<tr><td colspan="10" class="status">Nenhuma bonificação aprovada.</td></tr>';
 }
 $('bConferir').onclick = async () => { const u = await SB.rpc('bonif_conferir'); if(u.error) return alert(u.error.message);
-  $('bSt').textContent = `Conferência feita: ${u.data.ligadas} aprovação(ões) ligada(s) a nota de bonificação.`; await pintaBonif(); };
+  $('bSt').textContent = `Conferência feita: ${u.data.ligadas} aprovação(ões) ligada(s) a nota de bonificação.`; await pintaBonif(); await pintaNfBonif(); };
+
+/* ---- NOTAS DE BONIFICAÇÃO (CFOP 5910/6910) + ANOMALIAS — Silvio 10/10/2026 (caso NF 000281079 OTAVIO REFIL) ---- */
+const SITNB = {'BONIFICAÇÃO SEM FATURAMENTO':'tarja', 'SEM APROVAÇÃO NO APP':'tarja av', 'JUSTIFICADA':'c-ne', 'APROVADA NO APP':'c-ok'};
+let NFB = [], NFB_G = [], CARD_NB = '';
+const selNb = x => x.situacao.startsWith('BONIFICAÇÃO') || x.situacao.startsWith('SEM') ? `<span class="${SITNB[x.situacao]}">${esc(x.situacao)}</span>` : chip(x.situacao, SITNB[x.situacao] || 'c-in');
+const chaveNb = x => [x.filial, x.doc, x.serie, x.cliente, x.loja].join('|');
+function linhaNb(x, completa){
+  const semFat = x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO';
+  const just = x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(x.motivo || '')}</div>` : x.situacao === 'APROVADA NO APP' ? `<div class="nota">bonificação nº ${x.bonif_id}</div>` : '';
+  const aviso = semFat ? (x.avisado_em ? `<div class="nota">📧 Logística avisada em ${fdata(x.avisado_em)} · ${esc(x.avisado_por || '')}</div>` : `<div class="nota" style="color:var(--ru)">Logística ainda não avisada</div>`) : '';
+  const acao = E_ADM && (semFat || x.situacao === 'SEM APROVAÇÃO NO APP')
+    ? (semFat ? `<button class="btn" data-avisa="${esc(chaveNb(x))}">📧 Avisar Logística</button> ` : '') +
+      (completa ? `<button class="btn" data-just="${esc(chaveNb(x))}">Justificar</button>` : '') : '';
+  return `<tr><td>${fdia(x.emissao)}</td><td>${esc(x.doc)}/${esc(x.serie)}<div class="nota">fil. ${esc(x.filial)} · CFOP ${esc(x.cfop || '')}</div></td>
+    <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>${completa ? `<td>${esc(x.uf || '')}</td>` : ''}
+    <td class="n">${fmoeda(+x.valor)}</td><td class="n">${fmt(+x.pecas, 0)}</td><td class="n">${+x.venda_janela ? fmoeda(+x.venda_janela) : '—'}</td>
+    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td>${selNb(x)}${just}${aviso}</td><td style="white-space:nowrap">${acao}</td></tr>`;
+}
+/* "Não pode haver expedição até que haja faturamento" (Silvio 10/10/2026): abre o e-mail pronto no Outlook de quem
+   clicou (Controladoria) para a Logística, com cópia ao Faturamento, e registra o aviso no app. */
+function emailReter(lista){
+  const p2 = n => String(n).padStart(2, '0'), dc = d => { const t = new Date(d + 'T12:00'); return `${p2(t.getDate())}/${p2(t.getMonth() + 1)}/${t.getFullYear()}`; };
+  const linhas = lista.map(x => `• NF ${x.doc}/${x.serie} · emissão ${dc(x.emissao)} · CFOP ${x.cfop || ''} · filial ${x.filial}\n   Cliente: ${x.nome || ''} (${x.cliente}/${x.loja}) · CNPJ ${fcnpj(x.cnpj || '')} · ${x.uf || ''}\n   Valor ${fmoeda(+x.valor)} · ${fmt(+x.pecas, 0)} peça(s)`).join('\n\n');
+  const assunto = lista.length === 1 ? `RETER EXPEDIÇÃO — NF ${lista[0].doc} (bonificação sem faturamento)` : `RETER EXPEDIÇÃO — ${lista.length} notas de bonificação sem faturamento`;
+  const corpo = `Prezados,\n\nfavor RETER A EXPEDIÇÃO da(s) nota(s) de bonificação abaixo até haver FATURAMENTO (nota de venda) para o cliente/rede:\n\n${linhas}\n\n` +
+    `Motivo: bonificação emitida sem faturamento do cliente/grupo — não há nota de venda nos ${P.BONIF_PRAZO_DIAS} dias anteriores à bonificação. ` +
+    `Não se envia bonificação para cliente ou rede que não faturou. Caso a(s) nota(s) já conste(m) em Protocolo de Liberação para Expedição, desconsiderar a liberação.\n\n` +
+    `A liberação será comunicada pela Controladoria.\n\nControladoria AMVOX`;
+  const q = o => Object.entries(o).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
+  return 'https://outlook.office.com/mail/deeplink/compose?' + q({to:(P.LOG_AVISO_PARA || '').replace(/\s/g, ''), cc:(P.LOG_AVISO_CC || '').replace(/\s/g, ''), subject:assunto, body:corpo});
+}
+async function avisaLogistica(lista){
+  if(!lista.length) return;
+  if(!P.LOG_AVISO_PARA) return alert('Cadastre os destinatários em Parâmetros (LOG_AVISO_PARA).');
+  if(!confirm(`Abrir no Outlook o e-mail "RETER EXPEDIÇÃO" para a Logística (${P.LOG_AVISO_PARA}) com ${lista.length} nota(s)?\nVocê revisa e clica em Enviar no Outlook; o app registra o aviso.`)) return;
+  window.open(emailReter(lista), '_blank');
+  const u = await SB.rpc('bonif_nf_avisar', {p_notas:lista.map(x => ({filial:x.filial, doc:x.doc, serie:x.serie, cliente:x.cliente, loja:x.loja})), p_para:P.LOG_AVISO_PARA, p_cc:P.LOG_AVISO_CC || ''});
+  if(u.error) return alert(u.error.message);
+  await pintaNfBonif(); if(CNPJ_B) await nfBonifGrupo();
+}
+function ligaBotoesNb(raiz, fonte){
+  raiz.querySelectorAll('[data-avisa]').forEach(b => b.onclick = () => avisaLogistica(fonte().filter(x => chaveNb(x) === b.dataset.avisa)));
+}
+async function pintaNfBonif(){
+  if(!(E_ADM || window.PAPEL === 'GERENTE')){ $('nbBloco').style.display = 'none'; return; }
+  $('nbBloco').style.display = '';
+  const r = await SB.rpc('bonif_nf_painel', {p_cnpj:null}); if(r.error){ $('tNb').innerHTML = `<tr><td colspan="10" class="status err">${esc(r.error.message)}</td></tr>`; return; }
+  NFB = r.data || []; const totV = NFB.reduce((a, x) => a + +x.valor, 0) || 1;
+  const grupos = [['', 'Notas de bonificação'], ['BONIFICAÇÃO SEM FATURAMENTO', 'Sem faturamento'], ['SEM APROVAÇÃO NO APP', 'Sem aprovação no app'], ['JUSTIFICADA', 'Justificadas'], ['APROVADA NO APP', 'Aprovadas no app']];
+  $('cardsNb').innerHTML = grupos.map(([k, t]) => { const l = NFB.filter(x => !k || x.situacao === k), v = l.reduce((a, x) => a + +x.valor, 0);
+    return `<div class="kpi ${CARD_NB === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / totV * 100, 1)}%</div></div>`; }).join('');
+  $('cardsNb').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_NB = CARD_NB === e.dataset.k ? '' : e.dataset.k; pintaNfBonif(); });
+  $('tNb').innerHTML = NFB.filter(x => !CARD_NB || x.situacao === CARD_NB).map(x => linhaNb(x, true)).join('')
+    || '<tr><td colspan="10" class="status">Nenhuma nota de bonificação nesta situação.</td></tr>';
+  ligaBotoesNb($('tNb'), () => NFB);
+  const pend = NFB.filter(x => x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO' && !x.avisado_em);
+  $('nbAvisaTodas').style.display = E_ADM && pend.length ? '' : 'none';
+  $('nbAvisaTodas').textContent = `📧 Avisar Logística — ${pend.length} nota(s) sem faturamento ainda não avisada(s)`;
+  $('nbAvisaTodas').onclick = () => avisaLogistica(pend);
+  $('tNb').querySelectorAll('[data-just]').forEach(b => b.onclick = async () => {
+    const [f, d, s, c, l] = b.dataset.just.split('|');
+    const m = prompt(`Justificativa da nota de bonificação ${d}/${s} (fica registrada com seu e-mail e a data):`); if(!m) return;
+    const u = await SB.rpc('bonif_nf_justificar', {p_filial:f, p_doc:d, p_serie:s, p_cliente:c, p_loja:l, p_motivo:m});
+    if(u.error) return alert(u.error.message); await pintaNfBonif(); });
+}
+async function nfBonifGrupo(){
+  if(!(E_ADM || window.PAPEL === 'GERENTE')) return;
+  const r = await SB.rpc('bonif_nf_painel', {p_cnpj:CNPJ_B}); const l = r.error ? [] : (r.data || []);
+  $('bNfGrupoP').style.display = l.length ? '' : 'none';
+  NFB_G = l; $('bNfGrupo').innerHTML = l.map(x => linhaNb(x, false)).join(''); ligaBotoesNb($('bNfGrupo'), () => NFB_G);
+}
 async function buscaNotas(){
   CNPJ_B = RD.dig($('bCnpj').value); $('bRes').innerHTML = '';
   if(CNPJ_B.length < 11){ $('bSt').textContent = 'Informe o CNPJ.'; return; }
@@ -525,6 +606,7 @@ async function buscaNotas(){
     $('bAvaliar').disabled = !sel.length || new Set(sel.map(x => x.emissao)).size > 1;
     $('bAvaliar').textContent = !sel.length ? 'Avaliar a nota marcada' : new Set(sel.map(x => x.emissao)).size > 1 ? 'As notas precisam ser do mesmo dia' : `Avaliar ${sel.length} nota(s) — ${fmoeda(sel.reduce((a, x) => a + +x.valor, 0))}`; };
   $('bNotas').querySelectorAll('input').forEach(x => x.onchange = marca); marca();
+  await nfBonifGrupo();
 }
 async function avaliaBonif(){
   const sel = [...$('bNotas').querySelectorAll('input:checked')].map(x => NOTAS_B[+x.dataset.i]), pn = sel.map(n => ({filial:n.filial, doc:n.doc, serie:n.serie}));
@@ -613,7 +695,7 @@ function pintaPar(){
 /* ================================================================== navegação */
 function vaiPara(t){ document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tela === t));
   document.querySelectorAll('.tela').forEach(s => s.classList.toggle('on', s.id === 'tela-' + t));
-  if(t === 'acomp') pintaAc(); if(t === 'ordens') pintaOr(); if(t === 'regras') pintaRegras(); if(t === 'param') pintaPar(); if(t === 'nova') valida(); if(t === 'bonif'){ pintaBonif(); pintaCarga(); } }
+  if(t === 'acomp') pintaAc(); if(t === 'ordens') pintaOr(); if(t === 'regras') pintaRegras(); if(t === 'param') pintaPar(); if(t === 'nova') valida(); if(t === 'bonif'){ pintaBonif(); pintaCarga(); pintaNfBonif(); } }
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaiPara(b.dataset.tela));
 $('bTestes').onclick = pintaRegras;
 async function recarrega(det){ try { await carrega(); VENDAS = new Map(); pintaSol(); if(det){ S.det = det; detalhe(det); } $('st').textContent = statusTxt(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Erro: ' + (e.message || e); } }
