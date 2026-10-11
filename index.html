@@ -1,12 +1,13 @@
 <!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AMVOX Preços</title>
+<title>AMVOX — Central da Controladoria</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&display=swap">
 <style>
 :root{--ink:#17181A;--muted:#8B8B87;--line:#E6E5E2;--accent:#D71920;--topo:#121214}
 *{box-sizing:border-box;margin:0}
 body{background:var(--topo);color:#fff;font:15px/1.55 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+body.logado{justify-content:flex-start;padding-top:34px}
 .marca{font:800 30px 'Archivo',sans-serif;letter-spacing:.05em}
 .marca b{color:var(--accent)}
 .sub{font:600 11px 'Archivo',sans-serif;letter-spacing:.22em;text-transform:uppercase;color:#9A9A97;margin-top:6px}
@@ -25,26 +26,42 @@ input:focus{outline:2px solid var(--accent)}
 .msg{margin-top:14px;font-size:13px;color:#9A9A97;min-height:18px}
 .msg.err{color:#FF7A7E}
 .msg.ok{color:#7BD88F}
-/* hub */
-.hub{display:none;width:100%;max-width:720px;text-align:center}
-.hub .quem{margin-top:10px;font-size:13px;color:#9A9A97}
-.hub .papel{display:inline-block;margin-left:8px;padding:2px 10px;border-radius:99px;background:#2C2C30;
-  font:700 10px 'Archivo',sans-serif;letter-spacing:.1em}
-.hub .papel.adm{background:var(--accent)}
-.apps{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:28px}
-.appc{display:block;background:#1C1C1F;border:1px solid #2C2C30;border-radius:12px;padding:24px 22px;
-  text-align:left;text-decoration:none;color:#fff}
-.appc:hover{border-color:var(--accent)}
-.appc .ic{font-size:26px}
-.appc h3{font:700 17px 'Archivo',sans-serif;margin-top:10px}
-.appc p{font-size:13px;color:#9A9A97;margin-top:6px;line-height:1.5}
-.rodape{margin-top:34px;font:500 10.5px 'Archivo',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5A5A5E}
+/* hub executivo (10/10/2026) */
+.hub{display:none;width:100%;max-width:980px}
+.topo{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid #2C2C30}
+.topo .marca{font-size:24px}
+.topo .sub{margin-top:2px}
+.quem{display:flex;align-items:center;gap:10px;font-size:12.5px;color:#9A9A97}
+.quem b{color:#E8E8E6;font-weight:600}
+.papel{display:inline-block;padding:2px 9px;border-radius:99px;background:#2C2C30;font:700 10px 'Archivo',sans-serif;letter-spacing:.1em;color:#fff}
+.papel.adm{background:var(--accent)}
+.quem .ghost{margin:0}
+.ola{margin:26px 0 4px;font:700 22px 'Archivo',sans-serif;color:#fff}
+.hoje{font-size:13px;color:#8B8B87}
+.secoes{display:grid;grid-template-columns:1fr 1fr;gap:0 24px}
+.secoes .secao:first-child{grid-column:1/-1}
+@media (max-width:720px){.secoes{grid-template-columns:1fr}}
+.secao{margin-top:28px}
+.secao h2{font:700 10.5px 'Archivo',sans-serif;letter-spacing:.18em;text-transform:uppercase;color:#8B8B87;margin-bottom:10px;display:flex;align-items:center;gap:10px}
+.secao h2::after{content:"";flex:1;height:1px;background:#2C2C30}
+.apps{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+.appc{display:flex;align-items:center;gap:14px;background:#1A1A1D;border:1px solid #2C2C30;border-radius:12px;padding:16px 16px;
+  text-decoration:none;color:#fff;transition:border-color .15s,transform .15s,background .15s}
+.appc:hover{border-color:var(--accent);background:#1F1F23;transform:translateY(-1px)}
+.appc .ic{flex:none;width:42px;height:42px;border-radius:10px;background:rgba(215,25,32,.12);color:#FF5A60;display:grid;place-items:center}
+.appc .ic svg{width:22px;height:22px}
+.appc .tx{flex:1;min-width:0}
+.appc h3{font:700 15px 'Archivo',sans-serif;line-height:1.25}
+.appc p{font-size:12.5px;color:#9A9A97;margin-top:3px;line-height:1.4}
+.appc .seta{flex:none;color:#5A5A5E;font-size:18px;transition:color .15s,transform .15s}
+.appc:hover .seta{color:var(--accent);transform:translateX(2px)}
+.rodape{margin-top:36px;padding-top:14px;border-top:1px solid #2C2C30;font:500 10.5px 'Archivo',sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#5A5A5E;text-align:center}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 </head><body>
-<div class="marca">AMVO<b>X</b></div>
-<div class="sub">Preços · Controladoria</div>
+<div id="marcaLogin" style="text-align:center"><div class="marca">AMVO<b>X</b></div>
+<div class="sub">Preços · Controladoria</div></div>
 
 <div class="card" id="cardLogin">
   <div id="fLogin">
@@ -73,24 +90,28 @@ input:focus{outline:2px solid var(--accent)}
 </div>
 
 <div class="hub" id="hub">
-  <div class="quem">Conectado como <b id="quemEmail"></b><span class="papel" id="quemPapel"></span>
-    <button class="ghost" onclick="sair()">Sair</button></div>
-  <div class="apps">
-    <a class="appc" data-app="precos" href="custos.html"><span class="ic">🚢</span>
-      <h3>Custo de Aquisição 2025×2026</h3>
-      <p>Simulador de custo e preço, visão comparativa dos modelos e frete real × projetado (EIC ao vivo).</p></a>
-    <a class="appc" data-app="precos" href="tabelas.html"><span class="ic">🏷️</span>
-      <h3>Tabelas de Preço 2026</h3>
-      <p>Consulta por SKU: tabela base 078, Tabela 5, pós-venda, mostruário, avarias, funcionários e Suframa.</p></a>
-    <a class="appc" data-app="precos" href="curva.html"><span class="ic">📈</span>
-      <h3>Curva de Venda × Preço</h3>
-      <p>O que aconteceu com a venda e o preço de cada linha ou SKU, por quê, e o que isso significou — com leitura automática e perguntas à base de conhecimento.</p></a>
-    <a class="appc" data-app="precos" href="redes.html"><span class="ic">🤝</span>
-      <h3>Redes — Tabelas por Faixa</h3>
-      <p>Solicitação de tabela de rede pelo Comercial, aprovação da Controladoria, ordens ao Faturamento e acompanhamento trimestral da meta.</p></a>
-    <a class="appc" data-app="dash" href="https://silvio8809-arch.github.io/amvox-dash-faturamento/web/"><span class="ic">🚚</span>
-      <h3>Dash de Faturamento &amp; Logística</h3>
-      <p>Notas emitidas, top clientes, notas sem data de entrega com plano de ação, devoluções e auditoria — o painel da TV.</p></a>
+  <div class="topo">
+    <div><div class="marca">AMVO<b>X</b></div><div class="sub">Central da Controladoria</div></div>
+    <div class="quem"><span>👤 <b id="quemEmail"></b></span><span class="papel" id="quemPapel"></span><button class="ghost" onclick="sair()">Sair</button></div>
+  </div>
+  <div class="ola" id="ola">Olá</div><div class="hoje" id="hoje"></div>
+  <div class="secoes">
+  <div class="secao"><h2>Preço e margem</h2><div class="apps">
+    <a class="appc" data-app="precos" href="tabelas.html"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span>
+      <span class="tx"><h3>Tabelas de Preço 2026</h3><p>Preços por SKU e tabela, simulador Suframa e auditoria.</p></span><span class="seta">→</span></a>
+    <a class="appc" data-app="precos" href="custos.html"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l2 4h14l2-4"/><path d="M5 17V9h14v8"/><path d="M9 9V5h6v4"/><path d="M12 5V2"/></svg></span>
+      <span class="tx"><h3>Custo de Aquisição 2025×2026</h3><p>Custo e preço por modelo e frete real × projetado.</p></span><span class="seta">→</span></a>
+    <a class="appc" data-app="precos" href="curva.html"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg></span>
+      <span class="tx"><h3>Curva de Venda × Preço</h3><p>Venda e preço por linha e SKU, com leitura automática.</p></span><span class="seta">→</span></a>
+  </div></div>
+  <div class="secao"><h2>Gestão comercial</h2><div class="apps">
+    <a class="appc" data-app="precos" href="redes.html"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="2.5"/><circle cx="5" cy="19" r="2.5"/><circle cx="19" cy="19" r="2.5"/><path d="M12 7.5v4M12 11.5L6.5 17M12 11.5l5.5 5.5"/></svg></span>
+      <span class="tx"><h3>Gestão Tabelas e Bonificações - REDES</h3><p>Tabelas de rede e bonificação de cliente novo/reativação.</p></span><span class="seta">→</span></a>
+  </div></div>
+  <div class="secao"><h2>Operação</h2><div class="apps">
+    <a class="appc" data-app="dash" href="https://silvio8809-arch.github.io/amvox-dash-faturamento/web/"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 6h12v10H2z"/><path d="M14 9h4l4 4v3h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>
+      <span class="tx"><h3>Dash de Faturamento &amp; Logística</h3><p>Faturamento, entregas, devoluções e plano de ação.</p></span><span class="seta">→</span></a>
+  </div></div>
   </div>
   <div class="msg" id="semApps" style="display:none;text-align:center;margin-top:24px">Seu usuário ainda não tem aplicativo liberado. Fale com a Controladoria.</div>
   <div class="rodape">AMVOX · Reistar — acesso restrito · dados sob demanda da Controladoria</div>
@@ -108,8 +129,12 @@ document.querySelectorAll('.pweye').forEach(b=>{
 });
 
 async function mostraHub(session){
-  $('cardLogin').style.display='none';
-  $('hub').style.display='block';
+  $('cardLogin').style.display='none'; $('marcaLogin').style.display='none';
+  $('hub').style.display='block'; document.body.classList.add('logado');
+  const h = new Date().getHours();
+  $('ola').textContent = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+  const hoje = new Date().toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+  $('hoje').textContent = hoje.charAt(0).toUpperCase() + hoje.slice(1);
   $('quemEmail').textContent = session.user.email;
   try{
     const { data } = await SB.from('profiles').select('*').eq('id', session.user.id).single();
@@ -124,6 +149,11 @@ async function mostraHub(session){
       const cardCustos = document.querySelector('a.appc[href="custos.html"]');
       if (cardCustos) cardCustos.style.display='none';
     }
+    /* seção sem nenhum aplicativo liberado some inteira */
+    document.querySelectorAll('.secao').forEach(sc => { sc.style.display = [...sc.querySelectorAll('a.appc')].some(a => a.style.display !== 'none') ? '' : 'none'; });
+    /* seções lado a lado só quando as duas de baixo existem */
+    const vis = [...document.querySelectorAll('.secao')].filter(sc => sc.style.display !== 'none');
+    document.querySelector('.secoes').style.gridTemplateColumns = vis.length === 3 ? '' : '1fr';
   }catch(e){ $('quemPapel').textContent = 'CONSULTA'; }
 }
 
