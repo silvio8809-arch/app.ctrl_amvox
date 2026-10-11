@@ -6,7 +6,7 @@
 <script>guardaPagina();</script>
 <script src="redes_definicoes.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<title>Redes — Tabelas por Faixa</title>
+<title>Gestão Tabelas e Bonificações - REDES</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&display=swap">
 <style>
   /* REDES — política de vendas para redes (minuta v0.5 + decisões 07/10/2026). Solicitação → validação automática →
@@ -29,6 +29,10 @@
   nav{background:var(--topo);display:flex;gap:2px;padding:0 20px;border-bottom:3px solid var(--accent);overflow-x:auto}
   nav button{background:none;border:0;color:#B9B9B6;font:600 12px var(--sans);letter-spacing:.07em;text-transform:uppercase;padding:10px 14px;cursor:pointer;border-bottom:3px solid transparent;margin-bottom:-3px;white-space:nowrap}
   nav button:hover{color:#fff} nav button.on{color:#fff;border-color:var(--accent)}
+  /* 2º nível: abas do grupo escolhido (Silvio 10/10/2026: separar Tabelas de rede · Bonificação · Regras e parâmetros) */
+  .subnav{background:var(--panel);display:flex;gap:2px;padding:0 20px;border-bottom:1px solid var(--line);overflow-x:auto}
+  .subnav button{background:none;border:0;color:var(--muted);font:600 11.5px var(--sans);letter-spacing:.05em;padding:9px 12px;cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+  .subnav button:hover{color:var(--ink)} .subnav button.on{color:var(--ink);border-color:var(--accent)} .subnav button.fora{display:none}
   button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   main{padding:18px 20px 70px;max-width:1280px;margin:0 auto}
   .tela{display:none}.tela.on{display:block}
@@ -80,19 +84,24 @@
 </head><body>
 <header>
   <span class="marca">AMVO<b>X</b></span>
-  <h1>Redes — tabelas por faixa de faturamento</h1>
+  <h1>Gestão Tabelas e Bonificações - REDES</h1>
   <span class="data" id="quemlog"></span>
   <span class="data" id="atualizado">Base: clientes e notas TOTVS · carregando…</span>
 </header>
-<nav>
-  <button class="on" data-tela="sol">Solicitações</button>
-  <button data-tela="nova">Nova solicitação</button>
-  <button data-tela="acomp">Acompanhamento</button>
-  <button data-tela="ordens">Ordens ao Faturamento</button>
-  <button data-tela="bonif">Bonificação cliente novo</button>
-  <button data-tela="regras">Regras e testes</button>
-  <button data-tela="param">Parâmetros</button>
+<nav id="grupos">
+  <button class="on" data-grupo="rede">Tabelas de rede</button>
+  <button data-grupo="bonif">Bonificação</button>
+  <button data-grupo="regras">Regras e parâmetros</button>
 </nav>
+<div class="subnav" id="subnav">
+  <button class="on" data-tela="sol" data-grupo="rede">Solicitações</button>
+  <button data-tela="nova" data-grupo="rede">Nova solicitação</button>
+  <button data-tela="acomp" data-grupo="rede">Acompanhamento</button>
+  <button data-tela="ordens" data-grupo="rede">Ordens ao Faturamento</button>
+  <button data-tela="bonif" data-grupo="bonif">Cliente novo / reativação</button>
+  <button data-tela="regras" data-grupo="regras">Regras e testes</button>
+  <button data-tela="param" data-grupo="regras">Parâmetros</button>
+</div>
 <main>
 <div class="status" id="st">Carregando…</div>
 
@@ -714,10 +723,17 @@ function pintaPar(){
 }
 
 /* ================================================================== navegação */
-function vaiPara(t){ document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.tela === t));
+const ULT_ABA = {};   // última aba aberta em cada grupo
+function vaiPara(t){
+  const g = (document.querySelector(`#subnav button[data-tela="${t}"]`) || {}).dataset?.grupo || 'rede'; ULT_ABA[g] = t;
+  document.querySelectorAll('#grupos button').forEach(b => b.classList.toggle('on', b.dataset.grupo === g));
+  document.querySelectorAll('#subnav button').forEach(b => { b.classList.toggle('on', b.dataset.tela === t); b.classList.toggle('fora', b.dataset.grupo !== g); });
   document.querySelectorAll('.tela').forEach(s => s.classList.toggle('on', s.id === 'tela-' + t));
   if(t === 'acomp') pintaAc(); if(t === 'ordens') pintaOr(); if(t === 'regras') pintaRegras(); if(t === 'param') pintaPar(); if(t === 'nova') valida(); if(t === 'bonif'){ pintaCarga(); confereAuto().then(() => { pintaBonif(); pintaNfBonif(); }); } }
-document.querySelectorAll('nav button').forEach(b => b.onclick = () => vaiPara(b.dataset.tela));
+document.querySelectorAll('#subnav button').forEach(b => b.onclick = () => vaiPara(b.dataset.tela));
+document.querySelectorAll('#grupos button').forEach(b => b.onclick = () =>
+  vaiPara(ULT_ABA[b.dataset.grupo] || document.querySelector(`#subnav button[data-grupo="${b.dataset.grupo}"]`).dataset.tela));
+document.querySelectorAll('#subnav button').forEach(b => b.classList.toggle('fora', b.dataset.grupo !== 'rede'));
 $('bTestes').onclick = pintaRegras;
 async function recarrega(det){ try { await carrega(); VENDAS = new Map(); pintaSol(); if(det){ S.det = det; detalhe(det); } $('st').textContent = statusTxt(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Erro: ' + (e.message || e); } }
 const statusTxt = () => `${REDES.length} solicitação(ões) · clientes e notas atualizados de hora em hora (08:30 às 15:30) · regras ${RD_DEF.versaoPolitica}`;
