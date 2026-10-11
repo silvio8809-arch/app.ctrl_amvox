@@ -77,6 +77,7 @@
   .nota{font-size:12px;color:var(--muted);margin-top:8px}
   .trilha div{font-size:12.5px;padding:4px 0;border-top:1px dashed var(--line)} .trilha div:first-child{border-top:0}
   .so-adm{display:none} body.e-adm .so-adm{display:initial}
+  .so-aprova{display:none} body.e-aprova .so-aprova{display:initial}
   .met h3{font:700 13px var(--sans);margin:16px 0 6px} .met .r{font-size:13.5px;padding:6px 0;border-top:1px solid var(--line)}
   .fixos{position:fixed;right:14px;bottom:14px;z-index:99}
   .fixos button{cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3);margin-left:8px}
@@ -173,7 +174,7 @@
   <div class="painel"><h2>Consultar cliente <span>avaliado pelo GRUPO (grupo de clientes + mesma raiz de CNPJ) · fature o 1º pedido → busque → marque a nota → registre</span></h2>
     <div class="corpo"><div class="linha-b" style="margin-top:0">
       <input id="bCnpj" placeholder="CNPJ ou código TOTVS (ex.: A04390)" title="CNPJ, ou código do cliente no TOTVS (com /loja opcional: 000594/0001)" style="width:280px"><button class="btn pri" id="bConsultar">Buscar</button><span class="status" id="bSt" style="margin:0"></span></div>
-      <div class="linha-b"><span class="nota" id="bCarga">—</span><button class="btn so-adm" id="bAtualiza" title="A nota entra na próxima rodada (até 1h); precisa do Mac ligado com VPN">Atualizar notas</button></div>
+      <div class="linha-b"><span class="nota" id="bCarga">—</span><button class="btn so-aprova" id="bAtualiza" title="A nota entra na próxima rodada (até 1h); precisa do Mac ligado com VPN">Atualizar notas</button></div>
     </div></div>
   <div class="painel" id="bNotasP" style="display:none"><h2>Notas de venda do CNPJ na campanha <span>marque a(s) nota(s) do 1º pedido (mesmo dia)</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th></th><th>Filial</th><th>Nota / série</th><th>Emissão</th><th class="n">Valor sem IPI</th><th class="n">IPI</th><th class="n">Peças</th><th>Situação</th></tr></thead><tbody id="bNotas"></tbody></table></div>
@@ -224,7 +225,7 @@ const SITU = {RASCUNHO:['Rascunho','c-ne'], ENVIADA:['Aguardando aprovação','c
 const chip = (txt, cls) => `<span class="chip ${cls}">${esc(txt)}</span>`;
 
 /* ---------------- estado ---------------- */
-let P = {...RD_DEF.padrao}, PARROWS = [], E_ADM = false, UID = null;
+let P = {...RD_DEF.padrao}, PARROWS = [], E_ADM = false, APROVA = false, UID = null;
 let REDES = [], CNPJS = new Map(), ORDENS = [], EXC = [], CAD = new Map(), VENDAS = new Map();
 const S = {cardSol:'', cardAc:'', cardOr:'', det:null, detAc:null, edit:null, lista:[], arquivo:null};
 
@@ -532,7 +533,7 @@ async function pintaBonif(){
 }
 /* baixa automática (Silvio 10/10/2026): a Controladoria não precisa clicar — confere ao abrir a aba e logo após registrar;
    a rotina de hora em hora também confere */
-async function confereAuto(){ if(E_ADM){ const u = await SB.rpc('bonif_conferir'); if(u.error) console.warn(u.error.message); } }
+async function confereAuto(){ if(APROVA){ const u = await SB.rpc('bonif_conferir'); if(u.error) console.warn(u.error.message); } }
 
 /* ---- NOTAS DE BONIFICAÇÃO (CFOP 5910/6910) + ANOMALIAS — Silvio 10/10/2026 (caso NF 000281079 OTAVIO REFIL) ---- */
 const SITNB = {'BONIFICAÇÃO SEM FATURAMENTO':'tarja', 'SEM APROVAÇÃO NO APP':'tarja av', 'JUSTIFICADA':'c-ne', 'APROVADA NO APP':'c-ok'};
@@ -688,7 +689,7 @@ async function avaliaBonif(){
       <div><b>Última compra do grupo antes da nota</b>${a.ult_compra_grupo ? fdia(a.ult_compra_grupo) + ' · NF ' + esc(a.ult_doc || '') : (a.antigo ? 'antes de ' + fdia(a.nota_desde) : 'nenhuma')}</div>
       <div><b>Corte (${a.meses} meses antes da nota)</b>${fdia(a.corte)}</div>
       <div><b>Valor da(s) nota(s) sem IPI</b>${fmoeda(+a.valor_notas)}</div><div><b>Bonificação máxima</b>${a.elegivel ? fmoeda(+a.bonificacao) + ` (${fpct(+a.pct)})` : '—'}</div></div>` : ''}
-    ${E_ADM && a.elegivel ? `<div class="linha-b"><input id="bObs" placeholder="Observação (opcional)" style="flex:1;min-width:240px"><button class="btn ver" id="bRegistrar">Registrar bonificação aprovada — ${fmoeda(+a.bonificacao)}</button></div>
+    ${APROVA && a.elegivel ? `<div class="linha-b"><input id="bObs" placeholder="Observação (opcional)" style="flex:1;min-width:240px"><button class="btn ver" id="bRegistrar">Registrar bonificação aprovada — ${fmoeda(+a.bonificacao)}</button></div>
       <div class="nota">O registro reavalia no banco na hora e recusa se o cliente deixar de ser elegível. A nota fica marcada como usada e o grupo não recebe outra nesta campanha.</div>` : ''}
   </div></div>
   ${membros.length ? `<div class="painel"><h2>CNPJs do grupo <span>linhas em destaque = compra a menos de ${a.meses} meses antes da nota</span></h2><div class="tbl-wrap"><table><thead><tr><th>CNPJ</th><th>Cliente</th><th>UF</th><th>Grupo</th><th>1ª compra</th><th>Última compra ANTES da nota</th><th>Última compra (hoje)</th><th></th></tr></thead><tbody>${lin}</tbody></table></div></div>` : ''}`;
@@ -778,7 +779,10 @@ async function marcaAtualizacao(){
 async function inicia(){
   E_ADM = window.PAPEL === 'ADM'; document.body.classList.toggle('e-adm', E_ADM);
   UID = (await SB.auth.getUser()).data.user.id;
-  $('quemlog').textContent = '👤 ' + (window.USUARIO_EMAIL || '') + ' · ' + (window.PAPEL || 'CONSULTA');
+  /* aprovador de bonificação (Silvio 11/10/2026): ADM ou e-mail em BONIF_APROVADORES registra a aprovação e pede "Atualizar notas" */
+  try { APROVA = E_ADM || (await SB.rpc('bonif_aprova')).data === true; } catch(e){ APROVA = E_ADM; }
+  document.body.classList.toggle('e-aprova', APROVA);
+  $('quemlog').textContent = '👤 ' + (window.USUARIO_EMAIL || '') + ' · ' + (window.PAPEL || 'CONSULTA') + (APROVA && !E_ADM ? ' · aprovador de bonificação' : '');
   marcaAtualizacao();
   opcoesInicio();
   try { await carrega(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Sem acesso aos dados de redes: ' + (e.message || e); return; }
