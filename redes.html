@@ -548,7 +548,7 @@ function linhaNb(x, completa){
   const just = x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(x.motivo || '')}</div>` : x.situacao === 'APROVADA NO APP'
     ? `<div class="nota">bonificação nº ${x.bonif_id}${x.vendas ? ' · venda: ' + esc(x.vendas) : ''}</div>` : '';
   /* PODE LIBERAR (Silvio 12/10/2026): nota que foi RETIDA (e-mail enviado) e depois ligada à venda pela Controladoria */
-  const lib = x.situacao === 'APROVADA NO APP' && x.avisado_em
+  const lib = regularizadaNb(x) && x.avisado_em
     ? (x.liberado_em ? `<div class="nota" style="color:var(--ok)" title="${esc(x.liberado_por || '')}">✅ liberação enviada ${fdata(x.liberado_em)}</div>`
       : `<div><span class="tarja ok">LIBERAR EXPEDIÇÃO</span></div>` + (x.liberar_preparado_em
         ? `<div class="nota" style="color:var(--av)" title="Só conta quando o e-mail aparece como enviado (conferência de hora em hora)">✉️ liberação preparada ${fdata(x.liberar_preparado_em)} — aguardando envio</div>`
@@ -559,13 +559,15 @@ function linhaNb(x, completa){
   const acao = (E_ADM && (semFat || x.situacao === 'SEM APROVAÇÃO NO APP')
     ? (semFat ? `<button class="btn" data-avisa="${esc(chaveNb(x))}" title="E-mail RETER EXPEDIÇÃO para a Logística">📧 Logística</button>` : '') +
       (completa ? `<button class="btn" data-just="${esc(chaveNb(x))}">Justificar</button>` : '') : '') +
-    (APROVA && aLiberar ? `<button class="btn ver" data-libera="${esc(chaveNb(x))}" title="E-mail PODE LIBERAR para a Logística, com a(s) nota(s) de venda">📧 Liberar</button>` : '');
+    (APROVA && aLiberar ? `<button class="btn ver" data-libera="${esc(chaveNb(x))}" title="E-mail PODE LIBERAR para a Logística (venda vinculada ou justificativa)">📧 Liberar</button>` : '');
   return `<tr><td>${fdia(x.emissao)}</td><td style="white-space:nowrap">${esc(x.doc.replace(/^0+/, ''))}/${esc(x.serie)}<div class="nota">CFOP ${esc(x.cfop || '')}</div></td>
     <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>${completa ? `<td>${esc(x.uf || '')}</td>` : ''}
     <td class="n">${fmoeda(+x.valor)}</td><td class="n">${fmt(+x.pecas, 0)}</td><td class="n">${+x.venda_janela ? fmoeda(+x.venda_janela) : '—'}</td>
     ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td>${selNb(x)}${just}${aviso}${lib}</td><td class="acoes-nb">${acao}</td></tr>`;
 }
-const aLiberarNb = x => x.situacao === 'APROVADA NO APP' && !!x.avisado_em && !x.liberado_em;
+/* liberação posterior à retenção (Silvio 12/10/2026): vinculação à venda OU justificativa da Controladoria */
+const regularizadaNb = x => ['APROVADA NO APP', 'JUSTIFICADA'].includes(x.situacao);
+const aLiberarNb = x => regularizadaNb(x) && !!x.avisado_em && !x.liberado_em;
 /* destinatários dos comunicados à Logística; o link do Outlook IGNORA cc → todos no "Para". Se quem envia não é a
    Controladoria (ex.: aprovador nas férias), a Controladoria vai junto para a conferência achar o [AV-n] na caixa dela. */
 function destLogistica(){
@@ -580,13 +582,19 @@ function emailLiberar(lista, lote){
   const blocos = lista.map(x => [`• NF de bonificação: ${x.doc}/${x.serie} — emissão ${dc(x.emissao)} — CFOP ${x.cfop || ''} — filial ${x.filial}`,
     `  Cliente: ${x.nome || ''} (${x.cliente}/${x.loja}) — CNPJ ${fcnpj(x.cnpj || '')} — UF ${x.uf || ''}`,
     `  Valor: ${fmoeda(+x.valor)} — ${fmt(+x.pecas, 0)} peça${+x.pecas === 1 ? '' : 's'}`,
-    `  Nota(s) de venda vinculada(s): ${x.vendas || '(ver aprovação nº ' + x.bonif_id + ')'}`].join('\n')).join('\n\n');
-  const assunto = (um ? `PODE LIBERAR EXPEDIÇÃO — NF ${lista[0].doc} (bonificação com faturamento)` : `PODE LIBERAR EXPEDIÇÃO — ${lista.length} notas de bonificação com faturamento`) + ` [AV-${lote}]`;
+    x.situacao === 'JUSTIFICADA' ? `  Liberada por JUSTIFICATIVA da Controladoria: ${x.motivo || ''}`
+      : `  Nota(s) de venda vinculada(s): ${x.vendas || '(ver aprovação nº ' + x.bonif_id + ')'}`].join('\n')).join('\n\n');
+  const temVenda = lista.some(x => x.situacao === 'APROVADA NO APP'), temJust = lista.some(x => x.situacao === 'JUSTIFICADA');
+  const assunto = (um ? `PODE LIBERAR EXPEDIÇÃO — NF ${lista[0].doc} (bonificação ${lista[0].situacao === 'JUSTIFICADA' ? 'justificada' : 'com faturamento'})`
+    : `PODE LIBERAR EXPEDIÇÃO — ${lista.length} notas de bonificação regularizadas`) + ` [AV-${lote}]`;
   const corpo = `Prezados,\n\n` +
     `Fica LIBERADA a expedição ${um ? 'da nota de bonificação abaixo, retida anteriormente' : 'das notas de bonificação abaixo, retidas anteriormente'} por falta de faturamento. ` +
-    `O faturamento do cliente/grupo econômico foi identificado e a Controladoria vinculou a bonificação às respectivas notas de venda.\n\n` +
+    (temVenda && temJust ? `A Controladoria regularizou ${um ? 'a nota' : 'as notas'}: vinculando a bonificação às respectivas notas de venda ou registrando justificativa, conforme indicado em cada uma.\n\n`
+      : temJust ? `A Controladoria registrou justificativa para ${um ? 'a bonificação' : 'as bonificações'}, conforme indicado abaixo.\n\n`
+      : `O faturamento do cliente/grupo econômico foi identificado e a Controladoria vinculou a bonificação às respectivas notas de venda.\n\n`) +
     `${um ? 'Nota liberada:' : 'Notas liberadas:'}\n\n${blocos}\n\n` +
-    `Orientação: ${um ? 'a nota de bonificação deve ser expedida' : 'as notas de bonificação devem ser expedidas'} juntamente com as respectivas notas de venda indicadas acima.\n\n` +
+    (temVenda ? `Orientação: ${temJust ? 'as notas com venda vinculada devem ser expedidas' : um ? 'a nota de bonificação deve ser expedida' : 'as notas de bonificação devem ser expedidas'} juntamente com as respectivas notas de venda indicadas acima${temJust ? '; as justificadas seguem a expedição normal' : ''}.\n\n`
+      : `Orientação: ${um ? 'a nota segue' : 'as notas seguem'} a expedição normal.\n\n`) +
     `Este comunicado encerra a retenção informada no e-mail "RETER EXPEDIÇÃO" anterior para ${um ? 'esta nota' : 'estas notas'}.\n\n` +
     `Atenciosamente,\nControladoria AMVOX`;
   const q = o => Object.entries(o).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
@@ -595,7 +603,7 @@ function emailLiberar(lista, lote){
 async function liberaLogistica(lista){
   if(!lista.length) return;
   if(!P.LOG_AVISO_PARA) return alert('Cadastre os destinatários em Parâmetros (LOG_AVISO_PARA).');
-  if(!confirm(`Abrir no Outlook o e-mail "PODE LIBERAR EXPEDIÇÃO" com ${lista.length} nota(s) de bonificação e as respectivas notas de venda?\nPara: ${destLogistica()}\nVocê revisa e clica em Enviar no Outlook. A nota só passa a "liberação enviada" quando o e-mail aparecer como enviado (conferência de hora em hora).`)) return;
+  if(!confirm(`Abrir no Outlook o e-mail "PODE LIBERAR EXPEDIÇÃO" com ${lista.length} nota(s) de bonificação regularizada(s) (venda vinculada ou justificativa)?\nPara: ${destLogistica()}\nVocê revisa e clica em Enviar no Outlook. A nota só passa a "liberação enviada" quando o e-mail aparecer como enviado (conferência de hora em hora).`)) return;
   const w = window.open('', '_blank');
   const u = await SB.rpc('bonif_nf_liberar', {p_notas:lista.map(x => ({filial:x.filial, doc:x.doc, serie:x.serie, cliente:x.cliente, loja:x.loja})), p_para:P.LOG_AVISO_PARA, p_cc:P.LOG_AVISO_CC || ''});
   if(u.error){ if(w) w.close(); return alert(u.error.message); }
@@ -660,7 +668,7 @@ async function pintaNfBonif(){
   $('nbAvisaTodas').onclick = () => avisaLogistica(pend);
   const lib = NFB.filter(x => aLiberarNb(x) && !x.liberar_preparado_em);
   $('nbLiberaTodas').style.display = APROVA && lib.length ? '' : 'none';
-  $('nbLiberaTodas').textContent = `📧 Pode liberar — ${lib.length} nota(s) retida(s) que já têm venda`;
+  $('nbLiberaTodas').textContent = `📧 Pode liberar — ${lib.length} nota(s) retida(s) já regularizada(s)`;
   $('nbLiberaTodas').onclick = () => liberaLogistica(lib);
   $('tNb').querySelectorAll('[data-just]').forEach(b => b.onclick = async () => {
     const [f, d, s, c, l] = b.dataset.just.split('|');
