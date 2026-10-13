@@ -180,8 +180,11 @@
   <div class="painel" id="bNotasP" style="display:none"><h2>Notas de venda do CNPJ na campanha <span>marque a(s) nota(s) do 1º pedido (mesmo dia)</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th></th><th>Filial</th><th>Nota / série</th><th>Emissão</th><th class="n">Valor sem IPI</th><th class="n">IPI</th><th class="n">Peças</th><th>Situação</th></tr></thead><tbody id="bNotas"></tbody></table></div>
     <div class="corpo"><button class="btn pri" id="bAvaliar" disabled>Avaliar a nota marcada</button></div></div>
+  <div class="painel" id="bPedP" style="display:none"><h2>Pedidos de venda do grupo ainda sem nota <span>situação no TOTVS: aprovação comercial → crédito (FIN) → faturamento · atualizado de hora em hora</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Pedido</th><th>Emissão</th><th>Cliente</th><th class="n">Saldo a faturar</th><th>Situação</th></tr></thead><tbody id="bPed"></tbody></table></div>
+    <div class="corpo nota">Enquanto o pedido de venda não vira nota, a venda não aparece acima e a bonificação ainda NÃO deve ser aprovada — não é erro do app.</div></div>
   <div class="painel" id="bNfGrupoP" style="display:none"><h2>Notas de bonificação do grupo na campanha <span>CFOP 5910/6910 emitidas para qualquer CNPJ do grupo</span></h2>
-    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo de 30 dias ANTES a 30 dias DEPOIS da bonificação (prazo em Parâmetros)">Venda ±30d</th><th>Situação</th><th></th></tr></thead><tbody id="bNfGrupo"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo de 30 dias ANTES a 30 dias DEPOIS da bonificação (prazo em Parâmetros)">Venda ±30d</th><th title="Pedidos de VENDA do grupo ainda sem nota e a situação no crédito (FIN)">Pedido de venda</th><th>Situação</th><th></th></tr></thead><tbody id="bNfGrupo"></tbody></table></div></div>
   <div id="bRes"></div>
   <div class="cards" id="cardsBo" style="margin-top:14px"></div>
   <div class="painel"><h2>Bonificações aprovadas <span>baixa automática: o app liga a aprovação à nota de bonificação do grupo</span></h2>
@@ -191,7 +194,7 @@
   <div class="painel"><h2>Notas de bonificação emitidas <span>CFOP 5910/6910 desde o início da campanha · tarja = anomalia</span>
     <button class="btn acao so-adm" id="nbAvisaTodas" style="display:none"></button>
     <button class="btn acao so-aprova" id="nbLiberaTodas" style="display:none"></button></h2>
-    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th>UF</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo de 30 dias ANTES a 30 dias DEPOIS da bonificação (prazo em Parâmetros)">Venda ±30d</th><th title="Última nota de venda do grupo até 30 dias depois da bonificação">Últ. venda</th><th>Situação</th><th></th></tr></thead><tbody id="tNb"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th>UF</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo de 30 dias ANTES a 30 dias DEPOIS da bonificação (prazo em Parâmetros)">Venda ±30d</th><th title="Última nota de venda do grupo até 30 dias depois da bonificação">Últ. venda</th><th title="Pedidos de VENDA do grupo ainda sem nota e a situação no crédito (FIN)">Pedido de venda</th><th>Situação</th><th></th></tr></thead><tbody id="tNb"></tbody></table></div></div>
   </div>
 </section>
 
@@ -563,10 +566,15 @@ function linhaNb(x, completa){
   return `<tr><td>${fdia(x.emissao)}</td><td style="white-space:nowrap">${esc(x.doc.replace(/^0+/, ''))}/${esc(x.serie)}<div class="nota">CFOP ${esc(x.cfop || '')}</div></td>
     <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>${completa ? `<td>${esc(x.uf || '')}</td>` : ''}
     <td class="n">${fmoeda(+x.valor)}</td><td class="n">${fmt(+x.pecas, 0)}</td><td class="n">${+x.venda_janela ? fmoeda(+x.venda_janela) : '—'}</td>
-    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td>${selNb(x)}${just}${aviso}${lib}</td><td class="acoes-nb">${acao}</td></tr>`;
+    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td style="min-width:150px">${pedidosNb(x)}</td><td>${selNb(x)}${just}${aviso}${lib}</td><td class="acoes-nb">${acao}</td></tr>`;
 }
 /* liberação posterior à retenção (Silvio 12/10/2026): vinculação à venda OU justificativa da Controladoria */
 const regularizadaNb = x => ['APROVADA NO APP', 'JUSTIFICADA'].includes(x.situacao);
+/* pedido de VENDA ainda sem nota e a situação do crédito no FIN (Silvio 13/10/2026 — caso OTAVIO REFIL, pedido A7340G) */
+const COR_PED = {'EM APROVAÇÃO DE CRÉDITO (FIN)':'c-av', 'BLOQUEADO NO CRÉDITO (FIN)':'c-ru', 'CRÉDITO REJEITADO (FIN)':'c-ru',
+                 'EM APROVAÇÃO COMERCIAL':'c-av', 'REPROVADO (COMERCIAL)':'c-ne', 'CRÉDITO APROVADO — AGUARDANDO FATURAMENTO':'c-in'};
+const pedLinha = p => `<div style="margin-bottom:4px"><b>${esc(p.pedido)}</b> <span class="nota">${fdia(p.emissao)} · ${fmoeda(+p.valor || +p.valor_saldo || 0)}</span><br>${chip(p.status, COR_PED[p.status] || 'c-in')}</div>`;
+const pedidosNb = x => (x.pedidos_fat || []).length ? x.pedidos_fat.map(pedLinha).join('') : '<span class="nota">—</span>';
 const aLiberarNb = x => regularizadaNb(x) && !!x.avisado_em && !x.liberado_em;
 /* destinatários dos comunicados à Logística; o link do Outlook IGNORA cc → todos no "Para". Se quem envia não é a
    Controladoria (ex.: aprovador nas férias), a Controladoria vai junto para a conferência achar o [AV-n] na caixa dela. */
@@ -699,8 +707,22 @@ async function resolveCliente(txt){
   if(new Set(l.map(x => x.cnpj)).size === 1) return {cnpj:l[0].cnpj};
   return {opcoes:l};   // o mesmo código com lojas de CNPJs diferentes: escolher a loja
 }
+async function pedidosGrupo(c){
+  const raiz = (CNPJ_B || '').length === 14 ? CNPJ_B.slice(0, 8) : null;
+  let q = SB.from('cli_cadastro').select('cod,loja,nome');
+  q = c && c.grupo ? (raiz ? q.or(`grupo.eq.${c.grupo},cnpj.like.${raiz}*`) : q.eq('grupo', c.grupo)) : raiz ? q.like('cnpj', raiz + '%') : q.eq('cnpj', CNPJ_B);
+  const m = await q.limit(1000); if(m.error || !(m.data || []).length) return;
+  const nome = new Map(m.data.map(x => [x.cod + '|' + x.loja, x.nome]));
+  const r = await SB.from('cli_pedido_aberto').select('*').eq('tipo', 'FAT').in('cliente', [...new Set(m.data.map(x => x.cod))]).order('emissao', {ascending:false});
+  const l = (r.data || []).filter(p => nome.has(p.cliente + '|' + p.loja));
+  if(!l.length) return;
+  $('bPedP').style.display = '';
+  $('bPed').innerHTML = l.map(p => `<tr><td><b>${esc(p.pedido)}</b><div class="nota">filial ${esc(p.filial)}</div></td><td>${fdia(p.emissao)}</td>
+    <td>${esc(nome.get(p.cliente + '|' + p.loja) || '')} <span class="nota">${esc(p.cliente)}/${esc(p.loja)}</span></td><td class="n">${fmoeda(+p.valor_saldo)}</td>
+    <td>${chip(p.status, COR_PED[p.status] || 'c-in')}</td></tr>`).join('');
+}
 async function buscaNotas(){
-  $('bRes').innerHTML = ''; $('bNotasP').style.display = 'none'; $('bNfGrupoP').style.display = 'none';
+  $('bRes').innerHTML = ''; $('bNotasP').style.display = 'none'; $('bNfGrupoP').style.display = 'none'; $('bPedP').style.display = 'none';
   const rc = await resolveCliente($('bCnpj').value);
   if(rc.erro){ $('bSt').textContent = rc.erro; return; }
   if(rc.opcoes){
@@ -716,6 +738,7 @@ async function buscaNotas(){
   await carregaCadastro([CNPJ_B]); const c = (CAD.get(CNPJ_B) || [])[0];
   $('bSt').textContent = c ? `${c.nome} (${c.cod}/${c.loja}) · ${c.grupo_nome || 'sem grupo'} · ${NOTAS_B.length} nota(s) na campanha` : 'CNPJ não está no cadastro do TOTVS';
   $('bNotasP').style.display = '';
+  pedidosGrupo(c);
   $('bNotas').innerHTML = NOTAS_B.map((n, i) => `<tr><td>${n.usada_em ? '' : `<input type="checkbox" data-i="${i}">`}</td><td>${esc(n.filial)}</td><td>${esc(n.doc)}/${esc(n.serie)}</td><td>${fdia(n.emissao)}</td>
     <td class="n">${fmoeda(+n.valor)}</td><td class="n">${fmoeda(+n.ipi)}</td><td class="n">${fmt(+n.pecas, 0)}</td><td>${n.usada_em ? chip('usada na bonificação nº ' + n.usada_em, 'c-ne') : ''}</td></tr>`).join('')
     || '<tr><td colspan="8" class="status">Nenhuma nota de venda deste CNPJ no período da campanha. Nota emitida há pouco? Ela entra na próxima rodada de hora em hora.</td></tr>';
