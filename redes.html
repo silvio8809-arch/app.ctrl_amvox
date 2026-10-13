@@ -223,7 +223,9 @@ const fcurto = v => { if(v == null || !isFinite(v)) return '—'; const a = Math
   return a >= 1e6 ? 'R$ ' + fmt(v / 1e6, 2) + ' mi' : a >= 1e3 ? 'R$ ' + fmt(v / 1e3, 1) + ' mil' : 'R$ ' + fmt(v, 0); };
 const fpct = (v, d = 1) => v == null || !isFinite(v) ? '—' : (v * 100).toLocaleString('pt-BR', {minimumFractionDigits:d, maximumFractionDigits:d}) + '%';
 const fdata = s => s ? new Date(s).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—';
-const fcnpj = c => String(c).length === 14 ? c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : c;
+const fcnpj = c => { c = String(c || ''); return c.length === 14 ? c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
+  : c.length === 11 ? c.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4') : c; };   // CNPJ 00.000.000/0000-00 · CPF 000.000.000-00
+const tdoc = c => String(c || '').length === 11 ? 'CPF' : 'CNPJ';
 const triRot = (a, t) => `${t}º tri/${a}`;
 const SITU = {RASCUNHO:['Rascunho','c-ne'], ENVIADA:['Aguardando aprovação','c-in'], DEVOLVIDA:['Devolvida p/ ajuste','c-av'],
               APROVADA:['Aprovada — ativa','c-ok'], REPROVADA:['Reprovada','c-ru'], ENCERRADA:['Encerrada','c-ne']};
@@ -596,7 +598,7 @@ function emailLiberar(lista, lote){
   const p2 = n => String(n).padStart(2, '0'), dc = d => { const t = new Date(d + 'T12:00'); return `${p2(t.getDate())}/${p2(t.getMonth() + 1)}/${t.getFullYear()}`; };
   const um = lista.length === 1;
   const blocos = lista.map(x => [`• NF de bonificação: ${x.doc}/${x.serie} — emissão ${dc(x.emissao)} — CFOP ${x.cfop || ''} — filial ${x.filial}`,
-    `  Cliente: ${x.nome || ''} (${x.cliente}/${x.loja}) — CNPJ ${fcnpj(x.cnpj || '')} — UF ${x.uf || ''}`,
+    `  Cliente: ${x.nome || ''} (${x.cliente}/${x.loja}) — ${tdoc(x.cnpj)} ${fcnpj(x.cnpj || '')} — UF ${x.uf || ''}`,
     `  Valor: ${fmoeda(+x.valor)} — ${fmt(+x.pecas, 0)} peça${+x.pecas === 1 ? '' : 's'}`,
     x.situacao === 'JUSTIFICADA' ? `  Liberada por JUSTIFICATIVA da Controladoria: ${x.motivo || ''}`
       : `  Nota(s) de venda vinculada(s): ${x.vendas || '(ver aprovação nº ' + x.bonif_id + ')'}`].join('\n')).join('\n\n');
@@ -635,7 +637,7 @@ function emailReter(lista, lote){
   /* texto aprovado pelo Silvio em 10/10/2026 (modelo enviado por ele); o link do Outlook só aceita texto simples */
   const um = lista.length === 1;
   const blocos = lista.map(x => [`• NF: ${x.doc}/${x.serie}`, `• Data de emissão: ${dc(x.emissao)}`, `• CFOP: ${x.cfop || ''}`, `• Filial: ${x.filial}`,
-    `• Cliente: ${x.nome || ''} (${x.cliente}/${x.loja})`, `• CNPJ: ${fcnpj(x.cnpj || '')}`, `• UF: ${x.uf || ''}`,
+    `• Cliente: ${x.nome || ''} (${x.cliente}/${x.loja})`, `• ${tdoc(x.cnpj)}: ${fcnpj(x.cnpj || '')}`, `• UF: ${x.uf || ''}`,
     `• Valor: ${fmoeda(+x.valor)}`, `• Quantidade: ${fmt(+x.pecas, 0)} peça${+x.pecas === 1 ? '' : 's'}`].join('\n')).join('\n\n');
   // [AV-n] no assunto = chave que a conferência procura em Itens Enviados para dar o aviso como feito
   const assunto = (um ? `RETER EXPEDIÇÃO — NF ${lista[0].doc} (bonificação sem faturamento)` : `RETER EXPEDIÇÃO — ${lista.length} notas de bonificação sem faturamento`) + ` [AV-${lote}]`;
@@ -655,7 +657,7 @@ function emailReter(lista, lote){
 function emailReterErro(lista, lote, dc){
   const um = lista.length === 1;
   const blocos = lista.map(x => [`• NF: ${x.doc}/${x.serie} — emissão ${dc(x.emissao)} — CFOP ${x.cfop || ''} — filial ${x.filial}`,
-    `  Cliente: ${x.nome || ''} (${x.cliente}/${x.loja}) — CNPJ ${fcnpj(x.cnpj || '')} — UF ${x.uf || ''}`,
+    `  Cliente: ${x.nome || ''} (${x.cliente}/${x.loja}) — ${tdoc(x.cnpj)} ${fcnpj(x.cnpj || '')} — UF ${x.uf || ''}`,
     `  Valor: ${fmoeda(+x.valor)} — ${fmt(+x.pecas, 0)} peça${+x.pecas === 1 ? '' : 's'}`,
     `  Constava no protocolo: ${x.protocolo || '—'}${x.protocolo_em ? ' de ' + dc(x.protocolo_em) : ''}`,
     `  Justificativa da Controladoria: ${x.motivo || 'nota emitida por erro'}`].join('\n')).join('\n\n');
