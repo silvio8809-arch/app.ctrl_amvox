@@ -769,13 +769,16 @@ async function pintaFila(){
     return {p, c, cnpj, av, notas};
   }));
   $('tFila').innerHTML = linhas.map(({p, c, cnpj, av, notas}) => {
-    const pedido = +p.valor_saldo, max = av && av.elegivel ? +av.bonificacao : null;
+    const pedido = +p.valor_saldo, max = av && av.elegivel ? +av.bonificacao : null, tol = +P.BONIF_TOLERANCIA || 0, maxTol = max === null ? null : max * (1 + tol);
     const avTxt = !cnpj ? chip('sem cadastro', 'c-ne')
       : !av ? chip('SEM VENDA NA CAMPANHA', 'c-ru') + '<div class="nota">não aprovar: o 1º pedido ainda não virou nota</div>' +
         fatDe(p.cliente + '|' + p.loja).map(f => `<div style="margin-top:3px"><b>${esc(f.pedido)}</b> <span class="nota">${fdia(f.emissao)} · ${fmoeda(+f.valor_saldo)}</span> ${chip(f.status, COR_PED[f.status] || 'c-in')}</div>`).join('')
       : chip((av.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + av.classificacao, av.elegivel ? 'c-ok' : 'c-ru') +
         `<div class="nota">venda: ${notas.map(n => esc(n.doc.replace(/^0+/, ''))).join(', ')} de ${fdia(notas[0].emissao)} · ${fmoeda(+av.valor_notas)}</div>`;
-    const maxTxt = max === null ? '—' : fmoeda(max) + (pedido > max + 0.01 ? `<div class="nota" style="color:var(--ru)">⚠️ pedido acima do máximo em ${fmoeda(pedido - max)}</div>` : '<div class="nota" style="color:var(--ok)">dentro do máximo</div>');
+    /* tolerância (Silvio 13/10/2026): até BONIF_TOLERANCIA (5%) acima dos 10% = OK; acima disso NÃO aprovar o excedente */
+    const maxTxt = max === null ? '—' : fmoeda(max) + (pedido <= max + 0.01 ? '<div class="nota" style="color:var(--ok)">dentro do máximo</div>'
+      : pedido <= maxTol + 0.01 ? `<div class="nota" style="color:var(--ok)">✓ ${fmt((pedido / max - 1) * 100, 1)}% acima — dentro da tolerância de ${fmt(tol * 100, 0)}%</div>`
+      : `<div class="nota" style="color:var(--ru)">⛔ ${fmt((pedido / max - 1) * 100, 1)}% acima — NÃO aprovar o excedente de ${fmoeda(pedido - max)} (limite c/ tolerância ${fmoeda(maxTol)})</div>`);
     return `<tr><td><b>${esc(p.pedido)}</b><div class="nota">${fdia(p.emissao)}</div></td>
       <td>${esc(c.nome || '')} <span class="nota">${esc(p.cliente)}/${esc(p.loja)}</span><div class="nota">${fcnpj(cnpj || '')}</div></td>
       <td>${chip(p.status, COR_PED[p.status] || 'c-in')}</td><td class="n">${fmoeda(pedido)}</td><td>${avTxt}</td><td class="n">${maxTxt}</td>
@@ -939,6 +942,15 @@ async function marcaAtualizacao(){
   // mesmo padrão do cabeçalho do app de preços: "Base: … · dd/mm/aaaa · atualizado às HHhMM"
   const p2 = n => String(n).padStart(2, '0');
   $('atualizado').textContent = 'Base: clientes e notas TOTVS · ' + (d ? `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} · atualizado às ${p2(d.getHours())}h${p2(d.getMinutes())}` : 'sem carga registrada');
+  /* alerta de carga atrasada (Silvio 13/10/2026 — execução da tarefa travou de 11 a 13/10 sem ninguém ver):
+     a carga roda de hora em hora 08:30–15:30; entre 10:30 e 17:30 mais de 2h sem carga, ou mais de 20h a qualquer hora = atraso */
+  const agora = new Date(), min = agora.getHours() * 60 + agora.getMinutes(), idadeH = d ? (agora - d) / 36e5 : 999;
+  if((min >= 630 && min <= 1050 && idadeH > 2) || idadeH > 20){
+    const aviso = document.createElement('span'); aviso.style.cssText = 'color:#fff;background:#B42318;padding:1px 7px;border-radius:4px;margin-left:8px;font-weight:700';
+    aviso.title = 'A carga de clientes e notas roda de hora em hora (08:30–15:30) pela tarefa agendada no Mac da Controladoria. Mac desligado, VPN fora ou tarefa travada atrasam a carga.';
+    aviso.textContent = `⚠️ CARGA ATRASADA — última há ${idadeH >= 999 ? '—' : Math.floor(idadeH) + 'h'}`;
+    $('atualizado').appendChild(aviso);
+  }
 }
 
 async function inicia(){
