@@ -173,6 +173,7 @@
 <!-- ================= BONIFICAÇÃO CLIENTE NOVO / REATIVAÇÃO ================= -->
 <section class="tela" id="tela-bonif">
   <div class="painel" id="filaP"><h2>Pedidos de bonificação aguardando aprovação <span>pedidos de bonificação (CFOP 5910/6910) ainda sem nota no TOTVS · pré-avaliação pela 1ª venda do cliente na campanha · atualizado de hora em hora</span></h2>
+    <div class="cards" id="cardsFila" style="margin:10px 14px 0"></div>
     <div class="tbl-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Situação no TOTVS</th><th class="n" title="Saldo do pedido de bonificação, sem IPI">Bonificação pedida</th><th>Pré-avaliação</th><th class="n" title="10% da(s) nota(s) do 1º pedido, sem IPI">Máximo</th><th></th></tr></thead><tbody id="tFila"><tr><td colspan="7" class="status">Carregando…</td></tr></tbody></table></div></div>
   <div class="painel"><h2>Consultar cliente <span>avaliado pelo GRUPO (grupo de clientes + mesma raiz de CNPJ) · fature o 1º pedido → busque → marque a nota → registre</span></h2>
     <div class="corpo"><div class="linha-b" style="margin-top:0">
@@ -517,17 +518,21 @@ let BONIF = [], NOTAS_B = [], CNPJ_B = '';
 const fdia = d => d ? new Date(d + 'T12:00').toLocaleDateString('pt-BR') : '—';
 const SITB = {'AGUARDANDO NOTA':'c-in', 'CONCEDIDA (NF EMITIDA)':'c-ok', 'NF ACIMA DO APROVADO':'c-ru', 'NOTA NÃO EMITIDA NO PRAZO':'c-av'};
 let VINC = [], CARD_BO = '';
-async function pintaBonif(){
-  const [r, n, v] = await Promise.all([SB.from('bonif_campanha').select('*').order('id', {ascending:false}), SB.from('bonif_nota').select('*'), SB.from('bonif_nf_vinculo').select('*')]);
-  if(r.error){ $('tBo').innerHTML = `<tr><td colspan="5" class="status err">${esc(r.error.message)}</td></tr>`; return; }
-  BONIF = r.data; VINC = v.data || []; const nb = n.data || [];
+let BONOTA = [];
+async function pintaBonif(recarrega = true){   // card = filtro instantâneo
+  if(recarrega || !BONIF.length){
+    const [r, n, v] = await Promise.all([SB.from('bonif_campanha').select('*').order('id', {ascending:false}), SB.from('bonif_nota').select('*'), SB.from('bonif_nf_vinculo').select('*')]);
+    if(r.error){ $('tBo').innerHTML = `<tr><td colspan="5" class="status err">${esc(r.error.message)}</td></tr>`; return; }
+    BONIF = r.data; VINC = v.data || []; BONOTA = n.data || [];
+  }
+  const nb = BONOTA;
   const GRUPOS_BO = [['', 'Aprovadas', () => true], ['OK', 'Concedidas', x => x.situacao === 'CONCEDIDA (NF EMITIDA)'],
                      ['AG', 'Aguardando nota', x => !x.situacao || x.situacao === 'AGUARDANDO NOTA'],
                      ['PB', 'Com problema', x => ['NF ACIMA DO APROVADO', 'NOTA NÃO EMITIDA NO PRAZO'].includes(x.situacao)]];
   const totB = BONIF.reduce((a, x) => a + +x.bonificacao, 0) || 1, filtro = (GRUPOS_BO.find(g => g[0] === CARD_BO) || GRUPOS_BO[0])[2];
   $('cardsBo').innerHTML = GRUPOS_BO.map(([k, t, f]) => { const l = BONIF.filter(f), val = l.reduce((a, x) => a + +x.bonificacao, 0);
     return `<div class="kpi ${CARD_BO === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(val)} · ${fmt(val / totB * 100, 1)}%</div></div>`; }).join('');
-  $('cardsBo').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_BO = CARD_BO === e.dataset.k ? '' : e.dataset.k; pintaBonif(); });
+  $('cardsBo').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_BO = CARD_BO === e.dataset.k ? '' : e.dataset.k; pintaBonif(false); });
   const diaBR = t => new Date(t).toLocaleDateString('sv-SE', {timeZone:'America/Bahia'});   // aaaa-mm-dd no fuso da empresa
   $('tBo').innerHTML = BONIF.filter(filtro).map(x => { const vs = VINC.filter(b => b.bonif_id === x.id), ped = nb.filter(b => b.bonif_id === x.id);
     const antes = vs.some(b => b.emissao < diaBR(x.aprovado_em));
@@ -703,16 +708,19 @@ function ligaBotoesNb(raiz, fonte){
   raiz.querySelectorAll('[data-erro]').forEach(b => b.onclick = () => justifica(b.dataset.erro, 'ERRO_EMISSAO'));
   raiz.querySelectorAll('[data-just]').forEach(b => b.onclick = () => justifica(b.dataset.just, 'JUSTIFICADA'));
 }
-async function pintaNfBonif(){
+async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: só redesenha, sem ir ao banco (Silvio 13/10/2026)
   if(!(E_ADM || window.PAPEL === 'GERENTE')){ $('nbBloco').style.display = 'none'; return; }
   $('nbBloco').style.display = '';
-  const r = await SB.rpc('bonif_nf_painel', {p_cnpj:null}); if(r.error){ $('tNb').innerHTML = `<tr><td colspan="10" class="status err">${esc(r.error.message)}</td></tr>`; return; }
-  NFB = r.data || []; const totV = NFB.reduce((a, x) => a + +x.valor, 0) || 1;
+  if(recarrega || !NFB.length){
+    const r = await SB.rpc('bonif_nf_painel', {p_cnpj:null}); if(r.error){ $('tNb').innerHTML = `<tr><td colspan="10" class="status err">${esc(r.error.message)}</td></tr>`; return; }
+    NFB = r.data || [];
+  }
+  const totV = NFB.reduce((a, x) => a + +x.valor, 0) || 1;
   const grupos = [['', 'Notas de bonificação'], ['BONIFICAÇÃO SEM FATURAMENTO', 'Sem faturamento'], ['SEM APROVAÇÃO NO APP', 'Sem aprovação no app'], ['LIB', 'A liberar'], ['OK', 'Regularizadas']];
   const casa = (x, k) => !k || (k === 'LIB' ? aLiberarNb(x) : k === 'OK' ? ['JUSTIFICADA', 'APROVADA NO APP', ERRO_EMI].includes(x.situacao) : x.situacao === k);
   $('cardsNb').innerHTML = grupos.map(([k, t]) => { const l = NFB.filter(x => casa(x, k)), v = l.reduce((a, x) => a + +x.valor, 0);
     return `<div class="kpi ${CARD_NB === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / totV * 100, 1)}%</div></div>`; }).join('');
-  $('cardsNb').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_NB = CARD_NB === e.dataset.k ? '' : e.dataset.k; pintaNfBonif(); });
+  $('cardsNb').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_NB = CARD_NB === e.dataset.k ? '' : e.dataset.k; pintaNfBonif(false); });
   $('tNb').innerHTML = NFB.filter(x => casa(x, CARD_NB)).map(x => linhaNb(x, true)).join('')
     || '<tr><td colspan="10" class="status">Nenhuma nota de bonificação nesta situação.</td></tr>';
   ligaBotoesNb($('tNb'), () => NFB);
@@ -766,13 +774,28 @@ async function pintaFila(){
       if(livres.length){ const d = livres.map(x => x.emissao).sort()[0]; notas = livres.filter(x => x.emissao === d);
         const a = await SB.rpc('bonif_avaliar', {p_cnpj:cnpj, p_notas:notas.map(x => ({filial:x.filial, doc:x.doc, serie:x.serie}))}); av = a.data || null; }
     }
-    return {p, c, cnpj, av, notas};
+    return {p, c, cnpj, av, notas, fat:fatDe(p.cliente + '|' + p.loja)};
   }));
-  $('tFila').innerHTML = linhas.map(({p, c, cnpj, av, notas}) => {
+  FILA = linhas; desenhaFila();
+}
+let FILA = [], CARD_FILA = '';
+function classeFila({p, cnpj, av}){
+  const pedido = +p.valor_saldo, max = av && av.elegivel ? +av.bonificacao : null, maxTol = max === null ? null : max * (1 + (+P.BONIF_TOLERANCIA || 0));
+  return !cnpj || !av ? 'SV' : !av.elegivel ? 'NE' : pedido <= maxTol + 0.01 ? 'OK' : 'AC';
+}
+function desenhaFila(){
+  const grupos = [['', 'Aguardando aprovação'], ['OK', 'Elegível — dentro do limite'], ['AC', 'Elegível — acima da tolerância'], ['NE', 'Não elegível'], ['SV', 'Sem venda na campanha']];
+  const tot = FILA.reduce((a, x) => a + +x.p.valor_saldo, 0) || 1;
+  $('cardsFila').innerHTML = grupos.map(([k, t]) => { const l = FILA.filter(x => !k || classeFila(x) === k), v = l.reduce((a, x) => a + +x.p.valor_saldo, 0);
+    return `<div class="kpi ${CARD_FILA === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / tot * 100, 1)}%</div></div>`; }).join('');
+  $('cardsFila').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_FILA = CARD_FILA === e.dataset.k ? '' : e.dataset.k; desenhaFila(); });
+  const lista = FILA.filter(x => !CARD_FILA || classeFila(x) === CARD_FILA);
+  if(!lista.length){ $('tFila').innerHTML = '<tr><td colspan="7" class="status">Nenhum pedido nesta situação.</td></tr>'; return; }
+  $('tFila').innerHTML = lista.map(({p, c, cnpj, av, notas, fat}) => {
     const pedido = +p.valor_saldo, max = av && av.elegivel ? +av.bonificacao : null, tol = +P.BONIF_TOLERANCIA || 0, maxTol = max === null ? null : max * (1 + tol);
     const avTxt = !cnpj ? chip('sem cadastro', 'c-ne')
       : !av ? chip('SEM VENDA NA CAMPANHA', 'c-ru') + '<div class="nota">não aprovar: o 1º pedido ainda não virou nota</div>' +
-        fatDe(p.cliente + '|' + p.loja).map(f => `<div style="margin-top:3px"><b>${esc(f.pedido)}</b> <span class="nota">${fdia(f.emissao)} · ${fmoeda(+f.valor_saldo)}</span> ${chip(f.status, COR_PED[f.status] || 'c-in')}</div>`).join('')
+        fat.map(f => `<div style="margin-top:3px"><b>${esc(f.pedido)}</b> <span class="nota">${fdia(f.emissao)} · ${fmoeda(+f.valor_saldo)}</span> ${chip(f.status, COR_PED[f.status] || 'c-in')}</div>`).join('')
       : chip((av.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + av.classificacao, av.elegivel ? 'c-ok' : 'c-ru') +
         `<div class="nota">venda: ${notas.map(n => esc(n.doc.replace(/^0+/, ''))).join(', ')} de ${fdia(notas[0].emissao)} · ${fmoeda(+av.valor_notas)}</div>`;
     /* tolerância (Silvio 13/10/2026): até BONIF_TOLERANCIA (5%) acima dos 10% = OK; acima disso NÃO aprovar o excedente */
