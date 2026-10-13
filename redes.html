@@ -541,7 +541,10 @@ async function pintaBonif(){
 async function confereAuto(){ if(APROVA){ const u = await SB.rpc('bonif_conferir'); if(u.error) console.warn(u.error.message); } }
 
 /* ---- NOTAS DE BONIFICAÇÃO (CFOP 5910/6910) + ANOMALIAS — Silvio 10/10/2026 (caso NF 000281079 OTAVIO REFIL) ---- */
-const SITNB = {'BONIFICAÇÃO SEM FATURAMENTO':'tarja', 'SEM APROVAÇÃO NO APP':'tarja av', 'JUSTIFICADA':'c-ne', 'APROVADA NO APP':'c-ok'};
+const SITNB = {'BONIFICAÇÃO SEM FATURAMENTO':'tarja', 'SEM APROVAÇÃO NO APP':'tarja av', 'JUSTIFICADA':'c-ne', 'APROVADA NO APP':'c-ok', 'ERRO DE EMISSÃO (SEM EXPEDIÇÃO)':'c-ne'};
+const ERRO_EMI = 'ERRO DE EMISSÃO (SEM EXPEDIÇÃO)';
+/* erro de emissão que JÁ foi à LOG em protocolo e ainda não teve o e-mail de retenção (Silvio 13/10/2026) */
+const reterErroNb = x => x.situacao === ERRO_EMI && !!x.protocolo && !x.avisado_em;
 let NFB = [], NFB_G = [], CARD_NB = '';
 const selNb = x => x.situacao.startsWith('BONIFICAÇÃO') || x.situacao.startsWith('SEM') ? `<span class="${SITNB[x.situacao]}">${esc(x.situacao)}</span>` : chip(x.situacao, SITNB[x.situacao] || 'c-in');
 const chaveNb = x => [x.filial, x.doc, x.serie, x.cliente, x.loja].join('|');
@@ -551,6 +554,10 @@ function linhaNb(x, completa){
   const just = x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(x.motivo || '')}</div>` : x.situacao === 'APROVADA NO APP'
     ? `<div class="nota">bonificação nº ${x.bonif_id}${x.vendas ? ' · venda: ' + esc(x.vendas) : ''}</div>` : '';
   /* PODE LIBERAR (Silvio 12/10/2026): nota que foi RETIDA (e-mail enviado) e depois ligada à venda pela Controladoria */
+  const erro = x.situacao !== ERRO_EMI ? '' : !x.protocolo
+    ? `<div class="nota">🚫 sem expedição — fica fora do protocolo${x.avisado_em ? ` · retida ${fdata(x.avisado_em)}` : ''}</div>`
+    : x.avisado_em ? `<div class="nota" style="color:var(--ok)">📧 retenção enviada ${fdata(x.avisado_em)} (estava no ${esc(x.protocolo)})</div>`
+    : `<div><span class="tarja">RETER — JÁ FOI À LOG</span></div><div class="nota" style="color:var(--ru)">no ${esc(x.protocolo)} de ${fdia(x.protocolo_em)}${x.preparado_em ? ` · ✉️ retenção preparada ${fdata(x.preparado_em)} — aguardando envio` : ' · enviar e-mail de retenção'}</div>`;
   const lib = regularizadaNb(x) && x.avisado_em
     ? (x.liberado_em ? `<div class="nota" style="color:var(--ok)" title="${esc(x.liberado_por || '')}">✅ liberação enviada ${fdata(x.liberado_em)}</div>`
       : `<div><span class="tarja ok">LIBERAR EXPEDIÇÃO</span></div>` + (x.liberar_preparado_em
@@ -561,12 +568,13 @@ function linhaNb(x, completa){
     : `<div class="nota" style="color:var(--ru)">Logística não avisada</div>`) : '';
   const acao = (E_ADM && (semFat || x.situacao === 'SEM APROVAÇÃO NO APP')
     ? (semFat ? `<button class="btn" data-avisa="${esc(chaveNb(x))}" title="E-mail RETER EXPEDIÇÃO para a Logística">📧 Logística</button>` : '') +
-      (completa ? `<button class="btn" data-just="${esc(chaveNb(x))}">Justificar</button>` : '') : '') +
+      (completa ? `<button class="btn" data-just="${esc(chaveNb(x))}">Justificar</button><button class="btn" data-erro="${esc(chaveNb(x))}" title="Nota emitida por erro: sem expedição — fica fora do protocolo">Erro de emissão</button>` : '') : '') +
+    (E_ADM && reterErroNb(x) ? `<button class="btn" data-avisa="${esc(chaveNb(x))}" title="E-mail RETER EXPEDIÇÃO: nota emitida por erro já foi à LOG em protocolo">📧 Reter (erro)</button>` : '') +
     (APROVA && aLiberar ? `<button class="btn ver" data-libera="${esc(chaveNb(x))}" title="E-mail PODE LIBERAR para a Logística (venda vinculada ou justificativa)">📧 Liberar</button>` : '');
   return `<tr><td>${fdia(x.emissao)}</td><td style="white-space:nowrap">${esc(x.doc.replace(/^0+/, ''))}/${esc(x.serie)}<div class="nota">CFOP ${esc(x.cfop || '')}</div></td>
     <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>${completa ? `<td>${esc(x.uf || '')}</td>` : ''}
     <td class="n">${fmoeda(+x.valor)}</td><td class="n">${fmt(+x.pecas, 0)}</td><td class="n">${+x.venda_janela ? fmoeda(+x.venda_janela) : '—'}</td>
-    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td style="min-width:150px">${pedidosNb(x)}</td><td>${selNb(x)}${just}${aviso}${lib}</td><td class="acoes-nb">${acao}</td></tr>`;
+    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td style="min-width:150px">${pedidosNb(x)}</td><td>${selNb(x)}${just}${aviso}${erro}${lib}</td><td class="acoes-nb">${acao}</td></tr>`;
 }
 /* liberação posterior à retenção (Silvio 12/10/2026): vinculação à venda OU justificativa da Controladoria */
 const regularizadaNb = x => ['APROVADA NO APP', 'JUSTIFICADA'].includes(x.situacao);
@@ -623,6 +631,7 @@ async function liberaLogistica(lista){
    clicou (Controladoria) para a Logística, com cópia ao Faturamento, e registra o aviso no app. */
 function emailReter(lista, lote){
   const p2 = n => String(n).padStart(2, '0'), dc = d => { const t = new Date(d + 'T12:00'); return `${p2(t.getDate())}/${p2(t.getMonth() + 1)}/${t.getFullYear()}`; };
+  if(lista.every(x => x.situacao === ERRO_EMI)) return emailReterErro(lista, lote, dc);
   /* texto aprovado pelo Silvio em 10/10/2026 (modelo enviado por ele); o link do Outlook só aceita texto simples */
   const um = lista.length === 1;
   const blocos = lista.map(x => [`• NF: ${x.doc}/${x.serie}`, `• Data de emissão: ${dc(x.emissao)}`, `• CFOP: ${x.cfop || ''}`, `• Filial: ${x.filial}`,
@@ -640,6 +649,23 @@ function emailReter(lista, lote){
     `Atenciosamente,\nControladoria AMVOX`;
   const q = o => Object.entries(o).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
   /* o link de rascunho do Outlook Web IGNORA o campo cc (testado 10/10/2026): Fiscal/Faturamento vai junto no "Para" */
+  return 'https://outlook.office.com/mail/deeplink/compose?' + q({to:destLogistica(), subject:assunto, body:corpo});
+}
+/* RETENÇÃO de nota emitida por ERRO que já constava em protocolo enviado à LOG (Silvio 13/10/2026) */
+function emailReterErro(lista, lote, dc){
+  const um = lista.length === 1;
+  const blocos = lista.map(x => [`• NF: ${x.doc}/${x.serie} — emissão ${dc(x.emissao)} — CFOP ${x.cfop || ''} — filial ${x.filial}`,
+    `  Cliente: ${x.nome || ''} (${x.cliente}/${x.loja}) — CNPJ ${fcnpj(x.cnpj || '')} — UF ${x.uf || ''}`,
+    `  Valor: ${fmoeda(+x.valor)} — ${fmt(+x.pecas, 0)} peça${+x.pecas === 1 ? '' : 's'}`,
+    `  Constava no protocolo: ${x.protocolo || '—'}${x.protocolo_em ? ' de ' + dc(x.protocolo_em) : ''}`,
+    `  Justificativa da Controladoria: ${x.motivo || 'nota emitida por erro'}`].join('\n')).join('\n\n');
+  const assunto = (um ? `RETER EXPEDIÇÃO — NF ${lista[0].doc} (erro de emissão, não expedir)` : `RETER EXPEDIÇÃO — ${lista.length} notas de bonificação emitidas por erro (não expedir)`) + ` [AV-${lote}]`;
+  const corpo = `Prezados,\n\n` +
+    `Favor RETER A EXPEDIÇÃO ${um ? 'da nota de bonificação abaixo: ela foi emitida' : 'das notas de bonificação abaixo: elas foram emitidas'} por ERRO e NÃO ${um ? 'deve' : 'devem'} ser ${um ? 'expedida' : 'expedidas'}.\n\n` +
+    `${um ? 'Dados da nota:' : 'Dados das notas:'}\n\n${blocos}\n\n` +
+    `A liberação dada no Protocolo de Liberação para Expedição indicado deve ser desconsiderada para ${um ? 'esta nota' : 'estas notas'}. Não haverá comunicado de liberação posterior.\n\n` +
+    `Atenciosamente,\nControladoria AMVOX`;
+  const q = o => Object.entries(o).map(([k, v]) => k + '=' + encodeURIComponent(v)).join('&');
   return 'https://outlook.office.com/mail/deeplink/compose?' + q({to:destLogistica(), subject:assunto, body:corpo});
 }
 async function avisaLogistica(lista){
@@ -663,7 +689,7 @@ async function pintaNfBonif(){
   const r = await SB.rpc('bonif_nf_painel', {p_cnpj:null}); if(r.error){ $('tNb').innerHTML = `<tr><td colspan="10" class="status err">${esc(r.error.message)}</td></tr>`; return; }
   NFB = r.data || []; const totV = NFB.reduce((a, x) => a + +x.valor, 0) || 1;
   const grupos = [['', 'Notas de bonificação'], ['BONIFICAÇÃO SEM FATURAMENTO', 'Sem faturamento'], ['SEM APROVAÇÃO NO APP', 'Sem aprovação no app'], ['LIB', 'A liberar'], ['OK', 'Regularizadas']];
-  const casa = (x, k) => !k || (k === 'LIB' ? aLiberarNb(x) : k === 'OK' ? ['JUSTIFICADA', 'APROVADA NO APP'].includes(x.situacao) : x.situacao === k);
+  const casa = (x, k) => !k || (k === 'LIB' ? aLiberarNb(x) : k === 'OK' ? ['JUSTIFICADA', 'APROVADA NO APP', ERRO_EMI].includes(x.situacao) : x.situacao === k);
   $('cardsNb').innerHTML = grupos.map(([k, t]) => { const l = NFB.filter(x => casa(x, k)), v = l.reduce((a, x) => a + +x.valor, 0);
     return `<div class="kpi ${CARD_NB === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / totV * 100, 1)}%</div></div>`; }).join('');
   $('cardsNb').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_NB = CARD_NB === e.dataset.k ? '' : e.dataset.k; pintaNfBonif(); });
@@ -678,6 +704,13 @@ async function pintaNfBonif(){
   $('nbLiberaTodas').style.display = APROVA && lib.length ? '' : 'none';
   $('nbLiberaTodas').textContent = `📧 Pode liberar — ${lib.length} nota(s) retida(s) já regularizada(s)`;
   $('nbLiberaTodas').onclick = () => liberaLogistica(lib);
+  $('tNb').querySelectorAll('[data-erro]').forEach(b => b.onclick = async () => {
+    const [f, d, s, c, l] = b.dataset.erro.split('|'), x = NFB.find(y => chaveNb(y) === b.dataset.erro) || {};
+    const m = prompt(`ERRO DE EMISSÃO — NF ${d}/${s}: a nota fica SEM EXPEDIÇÃO e fora do protocolo.` +
+      (x.protocolo ? `\nAtenção: ela já foi à LOG no ${x.protocolo} — depois, use "📧 Reter (erro)".` : '') +
+      `\nDescreva o erro (fica registrado com seu e-mail e a data):`, 'Nota emitida por erro pelo pós-venda — sem expedição'); if(!m) return;
+    const u = await SB.rpc('bonif_nf_justificar', {p_filial:f, p_doc:d, p_serie:s, p_cliente:c, p_loja:l, p_motivo:m, p_tipo:'ERRO_EMISSAO'});
+    if(u.error) return alert(u.error.message); await pintaNfBonif(); });
   $('tNb').querySelectorAll('[data-just]').forEach(b => b.onclick = async () => {
     const [f, d, s, c, l] = b.dataset.just.split('|');
     const m = prompt(`Justificativa da nota de bonificação ${d}/${s} (fica registrada com seu e-mail e a data):`); if(!m) return;
