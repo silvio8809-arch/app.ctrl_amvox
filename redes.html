@@ -863,10 +863,15 @@ async function avaliaBonif(){
   const esp = ['SEM CADASTRO', 'NOTA INVÁLIDA'].includes(a.classificacao) ? null
             : RD.bonif({membros, data:a.data_nota, usada: sel.some(n => n.usada_em), concedida: a.bonificacao_anterior}, P);
   const diverge = esp && esp.classificacao !== a.classificacao, cls = a.elegivel ? 'c-ok' : 'c-ru';
+  // "Última compra até hoje" pode ser a PRÓPRIA nota avaliada (ou outra posterior a ela) — Silvio 14/10/2026 achou
+  // incoerente ver 21/08 "antes da nota" ao lado de 09/10 "hoje" sem saber que 09/10 era a nota. A tela diz qual é.
+  const ultRot = m => !m.ult || !a.data_nota ? '' : m.ult.slice(0,10) === String(a.data_nota).slice(0,10)
+    ? ` <span class="nota">(${m.cnpj === CNPJ_B ? 'a nota avaliada' : 'mesmo dia da nota'})</span>`
+    : m.ult.slice(0,10) > String(a.data_nota).slice(0,10) ? ' <span class="nota">(depois da nota)</span>' : '';
   const lin = membros.map(m => { const rec = m.ult_antes && m.ult_antes >= a.corte;
     return `<tr${rec ? ' class="sel"' : ''}><td>${fcnpj(m.cnpj)}${m.cnpj === CNPJ_B ? ' <span class="nota">(nota)</span>' : ''}</td><td>${esc(m.nome || '')}</td><td>${esc(m.uf || '')}</td><td>${esc(m.grupo || '')}</td>
       <td>${fdia(m.pri)}</td><td>${m.ult_antes ? fdia(m.ult_antes) : (m.antigo ? 'antes de ' + fdia(a.nota_desde) : '—')}${rec ? ' ' + chip(`menos de ${a.meses} meses antes da nota`, 'c-ru') : ''}</td>
-      <td>${fdia(m.ult)}</td><td>${m.bloqueado ? chip('bloqueado', 'c-ne') : ''}</td></tr>`; }).join('');
+      <td>${fdia(m.ult)}${ultRot(m)}</td><td>${m.bloqueado ? chip('bloqueado', 'c-ne') : ''}</td></tr>`; }).join('');
   const md = (a.mesmo_dia || []).map(n => `${fcnpj(n.cnpj)} NF ${n.doc}/${n.serie} (${fmoeda(+n.valor)})`).join(' · ');
   $('bRes').innerHTML = `<div class="painel"><h2>Resultado ${chip((a.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + a.classificacao, cls)}</h2><div class="corpo">
     <div style="font-size:14.5px">${esc(a.motivo)}</div>
@@ -883,7 +888,7 @@ async function avaliaBonif(){
     ${APROVA && a.elegivel ? `<div class="linha-b"><input id="bObs" placeholder="Observação (opcional)" style="flex:1;min-width:240px"><button class="btn ver" id="bRegistrar">Registrar bonificação aprovada — ${fmoeda(+a.bonificacao)}</button></div>
       <div class="nota">O registro reavalia no banco na hora e recusa se o cliente deixar de ser elegível. A nota fica marcada como usada e o grupo não recebe outra nesta campanha.</div>` : ''}
   </div></div>
-  ${membros.length ? `<div class="painel"><h2>CNPJs do grupo <span>linhas em destaque = compra a menos de ${a.meses} meses antes da nota</span></h2><div class="tbl-wrap"><table><thead><tr><th>CNPJ</th><th>Cliente</th><th>UF</th><th>Grupo</th><th>1ª compra</th><th>Última compra ANTES da nota</th><th>Última compra (hoje)</th><th></th></tr></thead><tbody>${lin}</tbody></table></div></div>` : ''}`;
+  ${membros.length ? `<div class="painel"><h2>CNPJs do grupo <span>linhas em destaque = compra a menos de ${a.meses} meses antes da nota</span></h2><div class="tbl-wrap"><table><thead><tr><th>CNPJ</th><th>Cliente</th><th>UF</th><th>Grupo</th><th>1ª compra</th><th>Última compra ANTES da nota</th><th>Última compra até hoje</th><th></th></tr></thead><tbody>${lin}</tbody></table></div></div>` : ''}`;
   if($('bRegistrar')) $('bRegistrar').onclick = async () => {
     const u = await SB.rpc('bonif_registrar', {p_cnpj:CNPJ_B, p_notas:pn, p_obs:($('bObs').value || '').trim() || null});
     if(u.error) return alert(u.error.message);
