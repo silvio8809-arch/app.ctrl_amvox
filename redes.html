@@ -959,7 +959,7 @@ document.querySelectorAll('#grupos button').forEach(b => b.onclick = () =>
 document.querySelectorAll('#subnav button').forEach(b => b.classList.toggle('fora', b.dataset.grupo !== 'rede'));
 $('bTestes').onclick = pintaRegras;
 async function recarrega(det){ try { await carrega(); VENDAS = new Map(); pintaSol(); if(det){ S.det = det; detalhe(det); } $('st').textContent = statusTxt(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Erro: ' + (e.message || e); } }
-const statusTxt = () => `${REDES.length} solicitação(ões) · clientes e notas atualizados de hora em hora (08:30 às 15:30) · regras ${RD_DEF.versaoPolitica}`;
+const statusTxt = () => `${REDES.length} solicitação(ões) · clientes e notas atualizados de hora em hora (08:30 às 15:30, seg a sex; sábado e domingo sob demanda — botão Atualizar notas) · regras ${RD_DEF.versaoPolitica}`;
 async function marcaAtualizacao(){
   // hora da carga concluída: tab_preco é gravada no fim de toda carga (rotina horária, botão do app ou rodada manual)
   const [t, c] = await Promise.all([
@@ -973,9 +973,11 @@ async function marcaAtualizacao(){
   /* alerta de carga atrasada (Silvio 13/10/2026 — execução da tarefa travou de 11 a 13/10 sem ninguém ver):
      a carga roda de hora em hora 08:30–15:30; entre 10:30 e 17:30 mais de 2h sem carga, ou mais de 20h a qualquer hora = atraso */
   const agora = new Date(), min = agora.getHours() * 60 + agora.getMinutes(), idadeH = d ? (agora - d) / 36e5 : 999;
-  if((min >= 630 && min <= 1050 && idadeH > 2) || idadeH > 20){
+  // sábado e domingo a carga é SOB DEMANDA (Silvio 16/10/2026): sem alerta; segunda antes das 10:30 ainda vale a de sexta
+  const dia = agora.getDay(), semAlerta = dia === 0 || dia === 6 || (dia === 1 && min < 630);
+  if(!semAlerta && ((min >= 630 && min <= 1050 && idadeH > 2) || idadeH > 20)){
     const aviso = document.createElement('span'); aviso.style.cssText = 'color:#fff;background:#B42318;padding:1px 7px;border-radius:4px;margin-left:8px;font-weight:700';
-    aviso.title = 'A carga de clientes e notas roda de hora em hora (08:30–15:30) pela tarefa agendada no Mac da Controladoria. Mac desligado, VPN fora ou tarefa travada atrasam a carga.';
+    aviso.title = 'A carga de clientes e notas roda de hora em hora (08:30–15:30, seg a sex; fim de semana sob demanda) pela tarefa agendada no Mac da Controladoria. Mac desligado, VPN fora ou tarefa travada atrasam a carga.';
     aviso.textContent = `⚠️ CARGA ATRASADA — última há ${idadeH >= 999 ? '—' : Math.floor(idadeH) + 'h'}`;
     $('atualizado').appendChild(aviso);
   }
