@@ -959,7 +959,27 @@ document.querySelectorAll('#grupos button').forEach(b => b.onclick = () =>
 document.querySelectorAll('#subnav button').forEach(b => b.classList.toggle('fora', b.dataset.grupo !== 'rede'));
 $('bTestes').onclick = pintaRegras;
 async function recarrega(det){ try { await carrega(); VENDAS = new Map(); pintaSol(); if(det){ S.det = det; detalhe(det); } $('st').textContent = statusTxt(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Erro: ' + (e.message || e); } }
-const statusTxt = () => `${REDES.length} solicitação(ões) · clientes e notas atualizados de hora em hora (08:30 às 15:30, seg a sex; sábado e domingo sob demanda — botão Atualizar notas) · regras ${RD_DEF.versaoPolitica}`;
+const statusTxt = () => `${REDES.length} solicitação(ões) · clientes e notas atualizados de hora em hora (08:30 às 15:30, dias úteis; sábado, domingo e feriados sob demanda — botão Atualizar notas) · regras ${RD_DEF.versaoPolitica}`;
+/* DIAS ÚTEIS — mesmo calendário de .claude/scripts/dias_uteis.py e do Dash (Silvio 11/10/2026): sábado, domingo e feriado
+   NACIONAL ou de CAMAÇARI (fixos + Carnaval, Sexta-feira Santa e Corpus Christi). */
+const FER_FIXOS = new Set(['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25',     // nacionais
+                           '01-07','06-24','07-02','09-28']);                                          // Camaçari
+const _ferMov = {};
+function feriadosMoveis(ano){
+  if(_ferMov[ano]) return _ferMov[ano];
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25),
+        g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4,
+        l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451),
+        mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  const pas = new Date(ano, mes - 1, dia), iso = n => { const x = new Date(pas); x.setDate(x.getDate() + n);
+    return `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`; };
+  return _ferMov[ano] = new Set([iso(-48), iso(-47), iso(-2), iso(60)]);   // Carnaval (seg, ter), Sexta Santa, Corpus Christi
+}
+function diaUtil(dt){
+  const w = dt.getDay(); if(w === 0 || w === 6) return false;
+  const iso = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}`;
+  return !FER_FIXOS.has(iso.slice(5)) && !feriadosMoveis(dt.getFullYear()).has(iso);
+}
 async function marcaAtualizacao(){
   // hora da carga concluída: tab_preco é gravada no fim de toda carga (rotina horária, botão do app ou rodada manual)
   const [t, c] = await Promise.all([
@@ -973,11 +993,13 @@ async function marcaAtualizacao(){
   /* alerta de carga atrasada (Silvio 13/10/2026 — execução da tarefa travou de 11 a 13/10 sem ninguém ver):
      a carga roda de hora em hora 08:30–15:30; entre 10:30 e 17:30 mais de 2h sem carga, ou mais de 20h a qualquer hora = atraso */
   const agora = new Date(), min = agora.getHours() * 60 + agora.getMinutes(), idadeH = d ? (agora - d) / 36e5 : 999;
-  // sábado e domingo a carga é SOB DEMANDA (Silvio 16/10/2026): sem alerta; segunda antes das 10:30 ainda vale a de sexta
-  const dia = agora.getDay(), semAlerta = dia === 0 || dia === 6 || (dia === 1 && min < 630);
+  // sábado, domingo e FERIADO a carga é SOB DEMANDA (Silvio 16/10/2026: "Feriados = finais de semana"): sem alerta no dia
+  // não útil, nem no dia útil seguinte antes das 10:30 (ainda vale a carga do último dia útil)
+  const ontem = new Date(agora); ontem.setDate(ontem.getDate() - 1);
+  const semAlerta = !diaUtil(agora) || (min < 630 && !diaUtil(ontem));
   if(!semAlerta && ((min >= 630 && min <= 1050 && idadeH > 2) || idadeH > 20)){
     const aviso = document.createElement('span'); aviso.style.cssText = 'color:#fff;background:#B42318;padding:1px 7px;border-radius:4px;margin-left:8px;font-weight:700';
-    aviso.title = 'A carga de clientes e notas roda de hora em hora (08:30–15:30, seg a sex; fim de semana sob demanda) pela tarefa agendada no Mac da Controladoria. Mac desligado, VPN fora ou tarefa travada atrasam a carga.';
+    aviso.title = 'A carga de clientes e notas roda de hora em hora (08:30–15:30, dias úteis; fim de semana e feriado sob demanda) pela tarefa agendada no Mac da Controladoria. Mac desligado, VPN fora ou tarefa travada atrasam a carga.';
     aviso.textContent = `⚠️ CARGA ATRASADA — última há ${idadeH >= 999 ? '—' : Math.floor(idadeH) + 'h'}`;
     $('atualizado').appendChild(aviso);
   }
