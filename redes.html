@@ -735,14 +735,14 @@ function linhaNb(x, completa){
   const erro = x.situacao !== ERRO_EMI ? '' : !x.protocolo
     ? `<div class="nota">🚫 sem expedição — fica fora do protocolo${x.avisado_em ? ` · retida ${fdata(x.avisado_em)}` : ''}</div>`
     : x.avisado_em ? `<div class="nota" style="color:var(--ok)">📧 retenção enviada ${fdata(x.avisado_em)} (estava no ${esc(x.protocolo)})</div>`
-    : `<div><span class="tarja">RETER — JÁ FOI À LOG</span></div><div class="nota" style="color:var(--ru)">no ${esc(x.protocolo)} de ${fdia(x.protocolo_em)}${x.preparado_em ? ` · ✉️ retenção preparada ${fdata(x.preparado_em)} — aguardando envio` : ' · enviar e-mail de retenção'}</div>`;
+    : `<div><span class="tarja">RETER — JÁ FOI À LOG</span></div><div class="nota" style="color:var(--ru)">no ${esc(x.protocolo)} de ${fdia(x.protocolo_em)}${x.preparado_em ? ` · ✉️ retenção preparada ${fdata(x.preparado_em)} — o envio é confirmado na próxima rodada (até 1h)` : ' · enviar e-mail de retenção'}</div>`;
   const lib = regularizadaNb(x) && x.avisado_em
     ? (x.liberado_em ? `<div class="nota" style="color:var(--ok)" title="${esc(x.liberado_por || '')}">✅ liberação enviada ${fdata(x.liberado_em)}</div>`
       : `<div><span class="tarja ok">LIBERAR EXPEDIÇÃO</span></div>` + (x.liberar_preparado_em
-        ? `<div class="nota" style="color:var(--av)" title="Só conta quando o e-mail aparece como enviado (conferência de hora em hora)">✉️ liberação preparada ${fdata(x.liberar_preparado_em)} — aguardando envio</div>`
+        ? `<div class="nota" style="color:var(--av)" title="Só conta quando o e-mail aparece como enviado (conferência de hora em hora)">✉️ liberação preparada ${fdata(x.liberar_preparado_em)} — o envio é confirmado na próxima rodada (até 1h)</div>`
         : `<div class="nota" style="color:var(--ru)">Logística ainda retendo (retida em ${fdata(x.avisado_em)})</div>`)) : '';
   const aviso = semFat ? (x.avisado_em ? `<div class="nota" title="e-mail em Itens Enviados · ${esc(x.avisado_por || '')}">📧 avisada ${fdata(x.avisado_em)}</div>`
-    : x.preparado_em ? `<div class="nota" style="color:var(--av)" title="O aviso só conta quando o e-mail aparece em Itens Enviados (conferência de hora em hora)">✉️ e-mail preparado ${fdata(x.preparado_em)} — aguardando envio</div>`
+    : x.preparado_em ? `<div class="nota" style="color:var(--av)" title="O aviso só conta quando o e-mail aparece em Itens Enviados (conferência de hora em hora)">✉️ e-mail preparado ${fdata(x.preparado_em)} — o envio é confirmado na próxima rodada (até 1h)</div>`
     : `<div class="nota" style="color:var(--ru)">Logística não avisada</div>`) : '';
   const acao = (E_ADM && (semFat || x.situacao === 'SEM APROVAÇÃO NO APP')
     ? (semFat ? `<button class="btn" data-avisa="${esc(chaveNb(x))}" title="E-mail RETER EXPEDIÇÃO para a Logística">📧 Logística</button>` : '') +
