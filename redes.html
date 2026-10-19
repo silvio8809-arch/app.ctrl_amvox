@@ -726,6 +726,9 @@ const reterErroNb = x => x.situacao === ERRO_EMI && !!x.protocolo && !x.avisado_
 let NFB = [], NFB_G = [], CARD_NB = '';
 const selNb = x => x.situacao.startsWith('BONIFICAÇÃO') || x.situacao.startsWith('SEM') ? `<span class="${SITNB[x.situacao]}">${esc(x.situacao)}</span>` : chip(x.situacao, SITNB[x.situacao] || 'c-in');
 const chaveNb = x => [x.filial, x.doc, x.serie, x.cliente, x.loja].join('|');
+/* "e-mail enviado à LOG dia 19/10/2026, às 10:33" (Silvio 19/10/2026) */
+const diaHoraLog = s => { if(!s) return '—'; const d = new Date(s);
+  return `dia ${d.toLocaleDateString('pt-BR')}, às ${d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}`; };
 function linhaNb(x, completa){
   const semFat = x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO';
   const aLiberar = aLiberarNb(x);
@@ -734,14 +737,14 @@ function linhaNb(x, completa){
   /* PODE LIBERAR (Silvio 12/10/2026): nota que foi RETIDA (e-mail enviado) e depois ligada à venda pela Controladoria */
   const erro = x.situacao !== ERRO_EMI ? '' : !x.protocolo
     ? `<div class="nota">🚫 sem expedição — fica fora do protocolo${x.avisado_em ? ` · retida ${fdata(x.avisado_em)}` : ''}</div>`
-    : x.avisado_em ? `<div class="nota" style="color:var(--ok)">📧 retenção enviada ${fdata(x.avisado_em)} (estava no ${esc(x.protocolo)})</div>`
+    : x.avisado_em ? `<div class="nota" style="color:var(--ok)">📧 e-mail de retenção enviado à LOG ${diaHoraLog(x.avisado_em)} (estava no ${esc(x.protocolo)})</div>`
     : `<div><span class="tarja">RETER — JÁ FOI À LOG</span></div><div class="nota" style="color:var(--ru)">no ${esc(x.protocolo)} de ${fdia(x.protocolo_em)}${x.preparado_em ? ` · ✉️ retenção preparada ${fdata(x.preparado_em)} — o envio é confirmado na próxima rodada (até 1h)` : ' · enviar e-mail de retenção'}</div>`;
   const lib = regularizadaNb(x) && x.avisado_em
-    ? (x.liberado_em ? `<div class="nota" style="color:var(--ok)" title="${esc(x.liberado_por || '')}">✅ liberação enviada ${fdata(x.liberado_em)}</div>`
+    ? (x.liberado_em ? `<div class="nota" style="color:var(--ok)" title="${esc(x.liberado_por || '')}">✅ e-mail de liberação enviado à LOG ${diaHoraLog(x.liberado_em)}</div>`
       : `<div><span class="tarja ok">LIBERAR EXPEDIÇÃO</span></div>` + (x.liberar_preparado_em
         ? `<div class="nota" style="color:var(--av)" title="Só conta quando o e-mail aparece como enviado (conferência de hora em hora)">✉️ liberação preparada ${fdata(x.liberar_preparado_em)} — o envio é confirmado na próxima rodada (até 1h)</div>`
         : `<div class="nota" style="color:var(--ru)">Logística ainda retendo (retida em ${fdata(x.avisado_em)})</div>`)) : '';
-  const aviso = semFat ? (x.avisado_em ? `<div class="nota" title="e-mail em Itens Enviados · ${esc(x.avisado_por || '')}">📧 avisada ${fdata(x.avisado_em)}</div>`
+  const aviso = semFat ? (x.avisado_em ? `<div class="nota" title="e-mail em Itens Enviados · ${esc(x.avisado_por || '')}">📧 e-mail enviado à LOG ${diaHoraLog(x.avisado_em)}</div>`
     : x.preparado_em ? `<div class="nota" style="color:var(--av)" title="O aviso só conta quando o e-mail aparece em Itens Enviados (conferência de hora em hora)">✉️ e-mail preparado ${fdata(x.preparado_em)} — o envio é confirmado na próxima rodada (até 1h)</div>`
     : `<div class="nota" style="color:var(--ru)">Logística não avisada</div>`) : '';
   const acao = (E_ADM && (semFat || x.situacao === 'SEM APROVAÇÃO NO APP')
