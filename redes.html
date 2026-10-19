@@ -177,7 +177,7 @@
     <div class="tbl-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Situação no TOTVS</th><th class="n" title="Saldo do pedido de bonificação, sem IPI">Bonificação pedida</th><th>Pré-avaliação</th><th class="n" title="10% da(s) nota(s) do 1º pedido, sem IPI">Máximo</th><th></th></tr></thead><tbody id="tFila"><tr><td colspan="7" class="status">Carregando…</td></tr></tbody></table></div></div>
   <div class="painel"><h2>Consultar cliente <span>avaliado pelo GRUPO (grupo de clientes + mesma raiz de CNPJ) · fature o 1º pedido → busque → marque a nota → registre</span></h2>
     <div class="corpo"><div class="linha-b" style="margin-top:0">
-      <input id="bCnpj" placeholder="CNPJ ou código TOTVS (ex.: A04390)" title="CNPJ, ou código do cliente no TOTVS (com /loja opcional: 000594/0001)" style="width:280px"><button class="btn pri" id="bConsultar">Buscar</button><span class="status" id="bSt" style="margin:0"></span></div>
+      <input id="bCnpj" placeholder="CNPJ, código TOTVS ou parte do nome" title="CNPJ/CPF, código do cliente no TOTVS (com /loja opcional: 000594/0001) ou parte do nome (ex.: Marcos Eletro)" style="width:280px"><button class="btn pri" id="bConsultar">Buscar</button><span class="status" id="bSt" style="margin:0"></span></div>
       <div class="linha-b"><span class="nota" id="bCarga">—</span><button class="btn so-aprova" id="bAtualiza" title="A nota entra na próxima rodada (até 1h); precisa do Mac ligado com VPN">Atualizar notas</button></div>
     </div></div>
   <div class="painel" id="bNotasP" style="display:none"><h2>Notas de venda do CNPJ na campanha <span>marque a(s) nota(s) do 1º pedido (mesmo dia)</span></h2>
@@ -742,8 +742,20 @@ async function nfBonifGrupo(){
 /* busca por CNPJ OU pelo código do cliente no TOTVS (Silvio 10/10/2026): "A04390", "594" (= 000594) ou "000594/0001" */
 async function resolveCliente(txt){
   const t = String(txt || '').trim().toUpperCase(), d = RD.dig(t);
-  if(!t) return {erro:'Informe o CNPJ ou o código do cliente.'};
+  if(!t) return {erro:'Informe o CNPJ, o código ou parte do nome do cliente.'};
   if((d.length === 11 || d.length === 14) && /^[\d.\-\/\s]+$/.test(t)) return {cnpj:d};
+  /* PARTE DO NOME (Silvio 19/10/2026 — ex.: "Marcos Eletro"): o que não é CNPJ nem código TOTVS (até 6 letras/números com
+     pelo menos um número, /loja opcional) é procurado no nome do cliente; cada palavra precisa aparecer, nessa ordem */
+  if(!/^[A-Z0-9]{1,6}(?:[\/\-\s]+\d{1,4})?$/.test(t) || !/\d/.test(t)){
+    const termo = t.replace(/[%_*,()]/g, ' ').trim().split(/\s+/).filter(Boolean).join('%');
+    if(termo.replace(/%/g, '').length < 3) return {erro:'Digite pelo menos 3 letras do nome.'};
+    const r = await SB.from('cli_cadastro').select('cnpj,cod,loja,nome,bloqueado').ilike('nome', `%${termo}%`).order('nome').limit(200);
+    if(r.error) return {erro:r.error.message};
+    const vistos = new Set(), l = (r.data || []).filter(x => x.cnpj && !vistos.has(x.cnpj) && vistos.add(x.cnpj));
+    if(!l.length) return {erro:`Nenhum cliente com "${txt.trim()}" no nome (cadastro do TOTVS).`};
+    if(l.length === 1) return {cnpj:l[0].cnpj};
+    return {opcoes:l.slice(0, 30), porNome:true, total:l.length};
+  }
   let [cod, loja] = t.split(/[\/\-\s]+/);
   if(/^\d+$/.test(cod) && cod.length < 6) cod = cod.padStart(6, '0');
   if(loja && /^\d+$/.test(loja) && loja.length < 4) loja = loja.padStart(4, '0');
@@ -851,8 +863,9 @@ async function buscaNotas(){
   const rc = await resolveCliente($('bCnpj').value);
   if(rc.erro){ $('bSt').textContent = rc.erro; return; }
   if(rc.opcoes){
-    $('bSt').innerHTML = 'Este código tem mais de uma loja — escolha: ' + rc.opcoes.map(x =>
-      `<button class="btn" data-cnpj="${esc(x.cnpj)}" style="margin:2px">${esc(x.loja)} · ${fcnpj(x.cnpj)}${x.bloqueado ? ' (bloq.)' : ''}</button>`).join('');
+    $('bSt').innerHTML = (rc.porNome ? `${rc.total} cliente(s) com esse nome${rc.total > rc.opcoes.length ? ` — mostrando ${rc.opcoes.length}; detalhe mais o nome` : ''} — escolha: `
+                                     : 'Este código tem mais de uma loja — escolha: ') + rc.opcoes.map(x =>
+      `<button class="btn" data-cnpj="${esc(x.cnpj)}" style="margin:2px">${rc.porNome ? esc(x.nome) + ' · ' + esc(x.cod) + '/' : ''}${esc(x.loja)} · ${fcnpj(x.cnpj)}${x.bloqueado ? ' (bloq.)' : ''}</button>`).join('');
     $('bSt').querySelectorAll('[data-cnpj]').forEach(b => b.onclick = () => { $('bCnpj').value = fcnpj(b.dataset.cnpj); buscaNotas(); });
     return;
   }
