@@ -182,7 +182,7 @@
     </div></div>
   <div class="painel" id="bNotasP" style="display:none"><h2>Notas de venda do CNPJ na campanha <span>marque a(s) nota(s) do 1º pedido (mesmo dia)</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th></th><th>Filial</th><th>Nota / série</th><th>Emissão</th><th class="n">Valor sem IPI</th><th class="n">IPI</th><th class="n">Peças</th><th>Situação</th></tr></thead><tbody id="bNotas"></tbody></table></div>
-    <div class="corpo"><button class="btn pri" id="bAvaliar" disabled>Avaliar a nota marcada</button></div></div>
+    <div class="corpo"><div class="status err" id="bAvisoUsada" style="display:none;margin-bottom:8px"></div><button class="btn pri" id="bAvaliar" disabled>Avaliar a nota marcada</button></div></div>
   <div class="painel" id="bPedP" style="display:none"><h2>Pedidos de venda do grupo ainda sem nota <span>situação no TOTVS: aprovação comercial → crédito (FIN) → faturamento · atualizado de hora em hora</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th>Pedido</th><th>Emissão</th><th>Cliente</th><th class="n">Saldo a faturar</th><th>Situação</th></tr></thead><tbody id="bPed"></tbody></table></div>
     <div class="corpo nota">Enquanto o pedido de venda não vira nota, a venda não aparece acima e a bonificação ainda NÃO deve ser aprovada — não é erro do app.</div></div>
@@ -762,44 +762,62 @@ async function pintaFila(){
   const r = await SB.from('cli_pedido_aberto').select('*').eq('tipo', 'BON').neq('status', 'REPROVADO (COMERCIAL)').order('emissao', {ascending:false});
   const l = r.data || []; if(r.error){ $('tFila').innerHTML = `<tr><td colspan="7" class="status err">${esc(r.error.message)}</td></tr>`; return; }
   if(!l.length){ $('tFila').innerHTML = '<tr><td colspan="7" class="status">Nenhum pedido de bonificação aguardando no TOTVS.</td></tr>'; return; }
-  const cad = await SB.from('cli_cadastro').select('cod,loja,nome,cnpj').in('cod', [...new Set(l.map(x => x.cliente))]);
+  const cad = await SB.from('cli_cadastro').select('cod,loja,nome,cnpj,grupo').in('cod', [...new Set(l.map(x => x.cliente))]);
+  // JÁ CONCEDIDA (Silvio 19/10/2026): pedido cujo cliente/grupo já tem bonificação aprovada no app nesta campanha mostra a
+  // aprovação (nº, valor, NF de venda usada e NF de bonificação, se emitida) — e não uma nova pré-avaliação
+  const [bc, bn, bv] = await Promise.all([SB.from('bonif_campanha').select('*').order('id', {ascending:false}),
+    SB.from('bonif_nota').select('bonif_id,doc,serie,emissao,valor'), SB.from('bonif_nf_vinculo').select('*')]);
+  const BC = (bc.data || []).filter(b => !P.CAMP_INICIO || (b.data_nota >= P.CAMP_INICIO && b.data_nota <= P.CAMP_FIM)), BN = bn.data || [], BV = bv.data || [];   // só a campanha vigente
   const nome = new Map((cad.data || []).map(x => [x.cod + '|' + x.loja, x]));
   const fat = await SB.from('cli_pedido_aberto').select('pedido,cliente,loja,emissao,valor_saldo,status').eq('tipo', 'FAT').in('cliente', [...new Set(l.map(x => x.cliente))]);
   const fatDe = k => (fat.data || []).filter(f => f.cliente + '|' + f.loja === k);
   const linhas = await Promise.all(l.map(async p => {
     const c = nome.get(p.cliente + '|' + p.loja) || {}, cnpj = p.cnpj || c.cnpj;
-    let av = null, notas = [];
+    let av = null, notas = [], ja = null;
     if(cnpj){
-      const n = await SB.rpc('bonif_notas', {p_cnpj:cnpj}); const livres = (n.data || []).filter(x => !x.usada_em);
+      const n = await SB.rpc('bonif_notas', {p_cnpj:cnpj});
+      const ids = new Set((n.data || []).filter(x => x.usada_em).map(x => +x.usada_em));
+      const bx = BC.find(b => ids.has(+b.id) || b.cnpj === cnpj || (cnpj.length === 14 && b.raiz && b.raiz === cnpj.slice(0, 8)) || (c.grupo && b.grupo === c.grupo));
+      if(bx) ja = {bx, vendas: BN.filter(v => +v.bonif_id === +bx.id), nfb: BV.filter(v => +v.bonif_id === +bx.id)};
+      const livres = ja ? [] : (n.data || []).filter(x => !x.usada_em);
       if(livres.length){ const d = livres.map(x => x.emissao).sort()[0]; notas = livres.filter(x => x.emissao === d);
         const a = await SB.rpc('bonif_avaliar', {p_cnpj:cnpj, p_notas:notas.map(x => ({filial:x.filial, doc:x.doc, serie:x.serie}))}); av = a.data || null; }
     }
-    return {p, c, cnpj, av, notas, fat:fatDe(p.cliente + '|' + p.loja)};
+    return {p, c, cnpj, av, notas, ja, fat:fatDe(p.cliente + '|' + p.loja)};
   }));
   FILA = linhas; desenhaFila();
 }
 let FILA = [], CARD_FILA = '';
-function classeFila({p, cnpj, av}){
+function classeFila({p, cnpj, av, ja}){
+  if(ja) return 'JA';
   const pedido = +p.valor_saldo, max = av && av.elegivel ? +av.bonificacao : null, maxTol = max === null ? null : max * (1 + (+P.BONIF_TOLERANCIA || 0));
   return !cnpj || !av ? 'SV' : !av.elegivel ? 'NE' : pedido <= maxTol + 0.01 ? 'OK' : 'AC';
 }
 function desenhaFila(){
-  const grupos = [['', 'Aguardando aprovação'], ['OK', 'Elegível — dentro do limite'], ['AC', 'Elegível — acima da tolerância'], ['NE', 'Não elegível'], ['SV', 'Sem venda na campanha']];
+  const grupos = [['', 'Aguardando aprovação'], ['OK', 'Elegível — dentro do limite'], ['AC', 'Elegível — acima da tolerância'], ['NE', 'Não elegível'], ['SV', 'Sem venda na campanha'], ['JA', 'Já concedida no app']];
   const tot = FILA.reduce((a, x) => a + +x.p.valor_saldo, 0) || 1;
   $('cardsFila').innerHTML = grupos.map(([k, t]) => { const l = FILA.filter(x => !k || classeFila(x) === k), v = l.reduce((a, x) => a + +x.p.valor_saldo, 0);
     return `<div class="kpi ${CARD_FILA === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / tot * 100, 1)}%</div></div>`; }).join('');
   $('cardsFila').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_FILA = CARD_FILA === e.dataset.k ? '' : e.dataset.k; desenhaFila(); });
   const lista = FILA.filter(x => !CARD_FILA || classeFila(x) === CARD_FILA);
   if(!lista.length){ $('tFila').innerHTML = '<tr><td colspan="7" class="status">Nenhum pedido nesta situação.</td></tr>'; return; }
-  $('tFila').innerHTML = lista.map(({p, c, cnpj, av, notas, fat}) => {
-    const pedido = +p.valor_saldo, max = av && av.elegivel ? +av.bonificacao : null, tol = +P.BONIF_TOLERANCIA || 0, maxTol = max === null ? null : max * (1 + tol);
-    const avTxt = !cnpj ? chip('sem cadastro', 'c-ne')
+  $('tFila').innerHTML = lista.map(({p, c, cnpj, av, notas, fat, ja}) => {
+    const pedido = +p.valor_saldo, max = ja ? +ja.bx.bonificacao : av && av.elegivel ? +av.bonificacao : null, tol = +P.BONIF_TOLERANCIA || 0, maxTol = max === null ? null : max * (1 + tol);
+    if(ja) notas = ja.vendas;
+    const avTxt = ja ? chip('JÁ CONCEDIDA — bonificação nº ' + ja.bx.id, 'c-in') +
+        `<div class="nota">via NF de venda ${ja.vendas.map(v => esc(String(v.doc).replace(/^0+/, ''))).join(', ') || '—'}` +
+        `${ja.vendas[0] ? ' de ' + fdia(ja.vendas[0].emissao) : ''} · aprovada em ${fdata(ja.bx.aprovado_em)}${ja.bx.aprovado_por ? ' por ' + esc(String(ja.bx.aprovado_por).split('@')[0]) : ''}</div>` +
+        `<div class="nota">${ja.nfb.length ? 'NF de bonificação: ' + ja.nfb.map(v => esc(String(v.doc).replace(/^0+/, ''))).join(', ') : 'NF de bonificação ainda não emitida'}</div>`
+      : !cnpj ? chip('sem cadastro', 'c-ne')
       : !av ? chip('SEM VENDA NA CAMPANHA', 'c-ru') + '<div class="nota">não aprovar: o 1º pedido ainda não virou nota</div>' +
         fat.map(f => `<div style="margin-top:3px"><b>${esc(f.pedido)}</b> <span class="nota">${fdia(f.emissao)} · ${fmoeda(+f.valor_saldo)}</span> ${chip(f.status, COR_PED[f.status] || 'c-in')}</div>`).join('')
       : chip((av.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + av.classificacao, av.elegivel ? 'c-ok' : 'c-ru') +
         `<div class="nota">venda: ${notas.map(n => esc(n.doc.replace(/^0+/, ''))).join(', ')} de ${fdia(notas[0].emissao)} · ${fmoeda(+av.valor_notas)}</div>`;
     /* tolerância (Silvio 13/10/2026): até BONIF_TOLERANCIA (5%) acima dos 10% = OK; acima disso NÃO aprovar o excedente */
-    const maxTxt = max === null ? '—' : fmoeda(max) + (pedido <= max + 0.01 ? '<div class="nota" style="color:var(--ok)">dentro do máximo</div>'
+    const maxTxt = max === null ? '—' : ja ? fmoeda(max) + '<div class="nota">aprovado no app</div>' + (pedido <= maxTol + 0.01
+        ? '<div class="nota" style="color:var(--ok)">pedido dentro do aprovado</div>'
+        : `<div class="nota" style="color:var(--ru)">⛔ pedido ${fmoeda(pedido - max)} acima do aprovado</div>`)
+      : fmoeda(max) + (pedido <= max + 0.01 ? '<div class="nota" style="color:var(--ok)">dentro do máximo</div>'
       : pedido <= maxTol + 0.01 ? `<div class="nota" style="color:var(--ok)">✓ ${fmt((pedido / max - 1) * 100, 1)}% acima — dentro da tolerância de ${fmt(tol * 100, 0)}%</div>`
       : `<div class="nota" style="color:var(--ru)">⛔ ${fmt((pedido / max - 1) * 100, 1)}% acima — NÃO aprovar o excedente de ${fmoeda(pedido - max)} (limite c/ tolerância ${fmoeda(maxTol)})</div>`);
     return `<tr><td><b>${esc(p.pedido)}</b><div class="nota">${fdia(p.emissao)}</div></td>
@@ -846,14 +864,29 @@ async function buscaNotas(){
   $('bSt').textContent = c ? `${c.nome} (${c.cod}/${c.loja}) · ${c.grupo_nome || 'sem grupo'} · ${NOTAS_B.length} nota(s) na campanha` : 'CNPJ não está no cadastro do TOTVS';
   $('bNotasP').style.display = '';
   pedidosGrupo(c);
-  $('bNotas').innerHTML = NOTAS_B.map((n, i) => `<tr><td>${n.usada_em ? '' : `<input type="checkbox" data-i="${i}">`}</td><td>${esc(n.filial)}</td><td>${esc(n.doc)}/${esc(n.serie)}</td><td>${fdia(n.emissao)}</td>
-    <td class="n">${fmoeda(+n.valor)}</td><td class="n">${fmoeda(+n.ipi)}</td><td class="n">${fmt(+n.pecas, 0)}</td><td>${n.usada_em ? chip('usada na bonificação nº ' + n.usada_em, 'c-ne') : ''}</td></tr>`).join('')
+  // nota já usada (Silvio 19/10/2026): pode ser marcada — ao marcar, o app avisa a que bonificação ela já está vinculada
+  const idsUs = [...new Set(NOTAS_B.filter(n => n.usada_em).map(n => +n.usada_em))];
+  BONIF_US = new Map();
+  if(idsUs.length){ const [bu, vu] = await Promise.all([SB.from('bonif_campanha').select('*').in('id', idsUs), SB.from('bonif_nf_vinculo').select('*').in('bonif_id', idsUs)]);
+    (bu.data || []).forEach(b => BONIF_US.set(+b.id, {...b, nfb: (vu.data || []).filter(v => +v.bonif_id === +b.id)})); }
+  $('bNotas').innerHTML = NOTAS_B.map((n, i) => `<tr><td><input type="checkbox" data-i="${i}"></td><td>${esc(n.filial)}</td><td>${esc(n.doc)}/${esc(n.serie)}</td><td>${fdia(n.emissao)}</td>
+    <td class="n">${fmoeda(+n.valor)}</td><td class="n">${fmoeda(+n.ipi)}</td><td class="n">${fmt(+n.pecas, 0)}</td><td>${n.usada_em ? chip('JÁ CONCEDIDA — bonificação nº ' + n.usada_em, 'c-in') + `<div class="nota">${esc(txtUsada(n))}</div>` : ''}</td></tr>`).join('')
     || '<tr><td colspan="8" class="status">Nenhuma nota de venda deste CNPJ no período da campanha. Nota emitida há pouco? Ela entra na próxima rodada de hora em hora.</td></tr>';
   const marca = () => { const sel = [...$('bNotas').querySelectorAll('input:checked')].map(x => NOTAS_B[+x.dataset.i]);
+    const us = sel.filter(n => n.usada_em);
+    $('bAvisoUsada').style.display = us.length ? '' : 'none';
+    $('bAvisoUsada').innerHTML = us.map(n => `⚠️ A NF ${esc(n.doc.replace(/^0+/, ''))}/${esc(n.serie)} já está vinculada à <b>bonificação nº ${esc(n.usada_em)}</b> — ${esc(txtUsada(n))}. ` +
+      'Ela não pode ser usada de novo; "Avaliar" mostra a situação (JÁ CONCEDIDA).').join('<br>');
     $('bAvaliar').disabled = !sel.length || new Set(sel.map(x => x.emissao)).size > 1;
     $('bAvaliar').textContent = !sel.length ? 'Avaliar a nota marcada' : new Set(sel.map(x => x.emissao)).size > 1 ? 'As notas precisam ser do mesmo dia' : `Avaliar ${sel.length} nota(s) — ${fmoeda(sel.reduce((a, x) => a + +x.valor, 0))}`; };
   $('bNotas').querySelectorAll('input').forEach(x => x.onchange = marca); marca();
   await nfBonifGrupo();
+}
+let BONIF_US = new Map();
+function txtUsada(n){
+  const b = BONIF_US.get(+n.usada_em); if(!b) return 'bonificação já registrada no app';
+  return `aprovada em ${fdata(b.aprovado_em)} (${fmoeda(+b.bonificacao)})` +
+    (b.nfb.length ? ` · concedida via NF de bonificação ${b.nfb.map(v => String(v.doc).replace(/^0+/, '')).join(', ')}` : ' · NF de bonificação ainda não emitida');
 }
 async function avaliaBonif(){
   const sel = [...$('bNotas').querySelectorAll('input:checked')].map(x => NOTAS_B[+x.dataset.i]), pn = sel.map(n => ({filial:n.filial, doc:n.doc, serie:n.serie}));
