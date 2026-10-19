@@ -60,6 +60,8 @@
   .tarja.ok{background:var(--ok)}
   .c-ok{background:var(--ok-bg);color:var(--ok)} .c-av{background:var(--av-bg);color:var(--av)} .c-ru{background:var(--ru-bg);color:var(--ru)}
   .c-in{background:var(--in-bg);color:var(--in)} .c-ne{background:var(--ne-bg);color:var(--ne)}
+  .btn-pdf{border:1px solid var(--line);background:var(--panel);border-radius:6px;cursor:pointer;font-size:15px;line-height:1;padding:4px 6px;vertical-align:middle}
+  .btn-pdf:hover{border-color:var(--ru);background:var(--ru-bg)}
   .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 12px var(--sans);padding:8px 13px;border-radius:6px;cursor:pointer}
   .btn:hover{border-color:var(--ink)} .btn:disabled{opacity:.4;cursor:not-allowed}
   .btn.pri{background:var(--ink);color:#fff;border-color:var(--ink)} .btn.ver{background:var(--ok);color:#fff;border-color:var(--ok)}
@@ -191,7 +193,7 @@
   <div id="bRes"></div>
   <div class="cards" id="cardsBo" style="margin-top:14px"></div>
   <div class="painel"><h2>Bonificações aprovadas <span>baixa automática: o app liga a aprovação à nota de bonificação do grupo</span></h2>
-    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>1º pedido</th><th class="n">Bonificação</th><th>Situação</th></tr></thead><tbody id="tBo"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>1º pedido</th><th class="n">Bonificação</th><th>Situação</th><th title="Comprovante em PDF">PDF</th></tr></thead><tbody id="tBo"></tbody></table></div></div>
   <div id="nbBloco" style="display:none">
   <div class="cards" id="cardsNb" style="margin-top:14px"></div>
   <div class="painel"><h2>Notas de bonificação emitidas <span>CFOP 5910/6910 desde o início da campanha · tarja = anomalia</span>
@@ -542,9 +544,176 @@ async function pintaBonif(recarrega = true){   // card = filtro instantâneo
     <td class="n">${fmoeda(+x.bonificacao)}<div class="nota" title="${esc(x.aprovado_por || '')}">aprovada ${fdata(x.aprovado_em)}</div></td>
     <td>${chip(x.situacao || 'AGUARDANDO NOTA', SITB[x.situacao] || 'c-in')}
       ${vs.map(b => `<div class="nota">NF ${esc(b.doc.replace(/^0+/, ''))} · ${fdia(b.emissao)} · ${fmoeda(+b.valor)}${b.cnpj !== x.cnpj ? ' · outro CNPJ do grupo' : ''}</div>`).join('')}
-      ${antes ? `<div style="margin-top:4px">${chip('NF de bonificação emitida antes da aprovação', 'c-av')}</div>` : ''}</td></tr>`; }).join('')
-    || '<tr><td colspan="5" class="status">Nenhuma bonificação nesta situação.</td></tr>';
+      ${antes ? `<div style="margin-top:4px">${chip('NF de bonificação emitida antes da aprovação', 'c-av')}</div>` : ''}</td><td>${iconePdf(x.id)}</td></tr>`; }).join('')
+    || '<tr><td colspan="6" class="status">Nenhuma bonificação nesta situação.</td></tr>';
+  ligaPdf($('tBo'));
 }
+/* ================================================================== COMPROVANTE DE BONIFICAÇÃO (PDF)
+   Silvio 19/10/2026: "modelo de comprovante para toda bonificação aprovada, com um ícone ao lado do quadro; se eu precisar
+   provar para alguém que aprovei corretamente, clico no ícone e envio o PDF. Ou ainda um relatório por cliente."
+   O comprovante confere, regra a regra da política (B01–B09), com os dados do próprio app: cadastro do grupo, histórico de
+   notas de venda do grupo (24 meses), notas usadas, NF de bonificação ligada e o pedido do TOTVS que a gerou. */
+let _libPdf = null;
+const carregaJs = src => new Promise((ok, erro) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => erro(new Error('não carregou ' + src)); document.head.appendChild(s); });
+function libPdf(){
+  return _libPdf || (_libPdf = carregaJs('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js')
+    .then(() => carregaJs('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'))
+    .then(() => fetch('img/timbrado_a4.jpg').then(r => r.ok ? r.blob() : null).catch(() => null))
+    .then(b => b ? new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); }) : null));
+}
+const pdfTxt = s => String(s ?? '').replace(/[✅✓]/g, 'OK').replace(/[⚠⛔⏳]/g, '!').replace(/≤/g, '<=').replace(/≥/g, '>=').replace(/→/g, '->').replace(/[^\x00-\xFF—–‘’“”•…]/g, '');
+const somaDias = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const menosMeses = (iso, m) => { const d = new Date(iso + 'T12:00'); d.setMonth(d.getMonth() - m); return d.toISOString().slice(0, 10); };
+const textoRegra = id => { const r = (RD_DEF.regras || []).find(x => x.id === id); return r ? (typeof r.texto === 'function' ? r.texto(P) : r.texto) : ''; };
+
+async function dadosComprovante(b){
+  const raiz = String(b.cnpj || '').length === 14 ? b.cnpj.slice(0, 8) : null;
+  let qm = SB.from('cli_cadastro').select('cod,loja,cnpj,nome,grupo,grupo_nome');
+  qm = b.grupo ? (raiz ? qm.or(`grupo.eq.${b.grupo},cnpj.like.${raiz}*`) : qm.eq('grupo', b.grupo)) : raiz ? qm.like('cnpj', raiz + '%') : qm.eq('cnpj', b.cnpj);
+  const [m, vn, vb] = await Promise.all([qm.limit(500), SB.from('bonif_nota').select('*').eq('bonif_id', b.id), SB.from('bonif_nf_vinculo').select('*').eq('bonif_id', b.id)]);
+  const membros = (m.data || []).filter(x => x.cnpj);
+  const cnpjs = [...new Set(membros.map(x => x.cnpj).concat(b.cnpj))];
+  const [hist, nfb, outras] = await Promise.all([
+    SB.from('cli_nota').select('filial,doc,serie,cnpj,emissao,valor,ipi').in('cnpj', cnpjs).order('emissao', {ascending:false}).limit(1000),   // as MAIS RECENTES (rede grande passa de 1000)
+    (vb.data || []).length ? SB.from('cli_nota_bonif').select('*').in('doc', vb.data.map(x => x.doc)) : Promise.resolve({data: []}),
+    raiz ? SB.from('bonif_campanha').select('id,data_nota,bonificacao,cnpj,raiz,grupo').or(`raiz.eq.${raiz}${b.grupo ? ',grupo.eq.' + b.grupo : ''}`) : SB.from('bonif_campanha').select('id,data_nota,bonificacao,cnpj').eq('cnpj', b.cnpj)]);
+  return {b, membros, vendas: vn.data || [], nfb: (vb.data || []).map(v => ({...v, ...(((nfb.data || []).find(n => n.doc === v.doc && n.serie === v.serie)) || {})})),
+          hist: (hist.data || []).slice().reverse(), outras: (outras.data || []).filter(o => o.data_nota >= P.CAMP_INICIO && o.data_nota <= P.CAMP_FIM)};
+}
+
+/* regra a regra — cada linha: [regra, o que exige, evidência, resultado] (resultado: OK | RESSALVA | AGUARDANDO) */
+function conferencia(d){
+  const {b, membros, vendas, nfb, hist, outras} = d, av = b.avaliacao || {}, linhas = [];
+  const dn = b.data_nota, meses = +(av.meses || P.CAMP_MESES), corte = av.corte || menosMeses(dn, meses), docsV = new Set(vendas.map(v => v.doc));
+  const nfHist = hist.find(h => docsV.has(h.doc)) || {};
+  linhas.push(['B01 — Grupo inteiro', 'Avaliar todos os CNPJs do grupo de clientes e da mesma raiz',
+    `${membros.length} CNPJ(s) avaliado(s): ${membros.slice(0, 6).map(x => `${x.nome} ${fcnpj(x.cnpj)}`).join('; ')}${membros.length > 6 ? '; …' : ''}. Grupo: ${b.grupo || 'sem grupo econômico'} · raiz ${b.raiz || '—'}.`, 'OK']);
+  const dentro = dn >= P.CAMP_INICIO && dn <= P.CAMP_FIM, mesmoDia = new Set(vendas.map(v => v.emissao)).size <= 1;
+  const prim = hist.filter(h => h.emissao >= P.CAMP_INICIO).map(h => h.emissao).sort()[0];
+  linhas.push(['B02 — Controle por nota', 'Nota(s) do 1º pedido, na campanha; data e valor sem IPI da nota',
+    `${vendas.map(v => `NF ${v.doc.replace(/^0+/, '')} de ${fdia(v.emissao)} · ${fmoeda(+v.valor)} sem IPI`).join('; ')}. Campanha ${fdia(P.CAMP_INICIO)} a ${fdia(P.CAMP_FIM)}. ` +
+    (prim === dn ? 'É a 1ª venda do grupo na campanha.' : prim ? `Atenção: o grupo tem venda anterior na campanha (${fdia(prim)}).` : ''),
+    dentro && mesmoDia && (!prim || prim === dn) ? 'OK' : 'RESSALVA']);
+  const antes = hist.filter(h => h.emissao < dn && !docsV.has(h.doc)), ult = antes[antes.length - 1];
+  const reat = (b.classificacao || '').toUpperCase().includes('REATIV'), novo = (b.classificacao || '').toUpperCase().includes('NOVO');
+  const okClass = ult ? ult.emissao < corte && reat : novo || (!av.antigo);
+  linhas.push([novo ? 'B03 — Cliente novo' : 'B04 — Reativação', novo ? 'Nenhuma compra do grupo antes da nota' : `Última compra do grupo antes da nota há mais de ${meses} meses`,
+    (ult ? `Última compra do grupo antes da nota: NF ${ult.doc.replace(/^0+/, '')} de ${fdia(ult.emissao)} (${fmoeda(+ult.valor)}). Corte de ${meses} meses: ${fdia(corte)} — a última compra é ${ult.emissao < corte ? 'ANTERIOR' : 'POSTERIOR'} ao corte.`
+         : `Nenhuma nota de venda do grupo desde ${fdia(av.nota_desde || hist[0]?.emissao)} antes da nota.`) + ` Classificação registrada: ${b.classificacao}.`,
+    okClass ? 'OK' : 'RESSALVA']);
+  const maxCalc = Math.round(+b.valor_notas * +b.pct * 100) / 100;
+  linhas.push(['B05 — Valor, uma por grupo, nota usada uma vez', `${fmt(+b.pct * 100, 0)}% do valor das notas do 1º pedido; uma bonificação por grupo na campanha`,
+    `${fmoeda(+b.valor_notas)} × ${fmt(+b.pct * 100, 0)}% = ${fmoeda(maxCalc)} (registrado ${fmoeda(+b.bonificacao)}). Aprovações do grupo na campanha: ${outras.length} (${outras.map(o => 'nº ' + o.id).join(', ')}). Cada nota de venda só pode ser usada uma vez (trava do banco).`,
+    Math.abs(maxCalc - +b.bonificacao) < 0.02 && outras.length <= 1 ? 'OK' : 'RESSALVA']);
+  const tol = +P.BONIF_TOLERANCIA || 0, limite = +b.bonificacao * (1 + tol), vnf = nfb.reduce((a, x) => a + +x.valor, 0);
+  linhas.push(['Tolerância', `NF de bonificação até ${fmt(tol * 100, 0)}% acima do máximo (${fmoeda(limite)})`,
+    (nfb.length ? `NF de bonificação ${fmoeda(vnf)} sem IPI = ${fmt(vnf / +b.bonificacao * 100, 1)}% do máximo aprovado (${fmoeda(+b.bonificacao)}).` : 'NF de bonificação ainda não emitida.') +
+    (nfb.length && vnf > limite + 0.01 && b.obs ? ` Exceção registrada na aprovação: ${b.obs}` : ''),
+    !nfb.length ? 'AGUARDANDO' : vnf <= limite + 0.01 ? 'OK' : b.obs ? 'EXCEÇÃO' : 'RESSALVA']);
+  linhas.push(['B09 — Quem registra', 'Controladoria (ADM) ou aprovador autorizado (BONIF_APROVADORES)',
+    `Registrada por ${b.aprovado_por || '—'} em ${fdata(b.aprovado_em)}. O banco só aceita o registro de ADM ou de aprovador autorizado e reavalia a elegibilidade na hora.`, 'OK']);
+  const prazo = +P.BONIF_PRAZO_DIAS || 30;
+  linhas.push(['B06 — Baixa pela nota de bonificação', `NF de bonificação (CFOP 5910/6910) do grupo ligada à aprovação, emitida a partir de ${prazo} dias antes da venda`,
+    nfb.length ? nfb.map(n => `NF ${n.doc.replace(/^0+/, '')} de ${fdia(n.emissao)}${n.pedido ? ` (pedido TOTVS ${n.pedido})` : ''}${n.cfop ? ` · CFOP ${n.cfop}` : ''} · ${fmoeda(+n.valor)}`).join('; ') + `. Situação: ${b.situacao || 'AGUARDANDO NOTA'}.`
+               : `Aguardando a nota de bonificação (prazo: ${prazo} dias).`,
+    nfb.length ? (nfb.every(n => n.emissao >= somaDias(dn, -prazo)) ? 'OK' : 'RESSALVA') : 'AGUARDANDO']);
+  linhas.push(['B07/B08 — Anomalias', 'NF de bonificação com venda do grupo e ligada a aprovação no app',
+    nfb.length ? 'A NF de bonificação tem venda do grupo e está ligada a esta aprovação: sem tarja de anomalia.' : 'Sem NF de bonificação emitida até agora.', nfb.length ? 'OK' : 'AGUARDANDO']);
+  return {linhas, nfHist, vnf, ult, corte};
+}
+
+/* papel timbrado em TODA página — inclusive as que a tabela abre sozinha quando não cabe (willDrawPage, antes do conteúdo) */
+function fundoPdf(doc, img){
+  doc.__fundo = doc.__fundo || new Set();
+  const n = doc.getCurrentPageInfo().pageNumber;
+  if(img && !doc.__fundo.has(n)){ doc.addImage(img, 'JPEG', 0, 0, 210, 297); }
+  doc.__fundo.add(n);
+}
+const opTab = (doc, img, M) => ({margin: {top: 46, left: M, right: M, bottom: 30}, willDrawPage: () => fundoPdf(doc, img)});
+function paginaComprovante(doc, d, img, primeira){
+  const W = 210, M = 18;
+  if(!primeira) doc.addPage();
+  fundoPdf(doc, img);
+  const {b} = d, c = conferencia(d), st = c.linhas.map(l => l[3]);
+  const veredito = st.includes('RESSALVA') ? 'COM RESSALVA — ver linhas marcadas' : st.includes('EXCEÇÃO') ? 'APROVADA COM EXCEÇÃO REGISTRADA — ver linha Tolerância'
+    : st.includes('AGUARDANDO') ? 'APROVAÇÃO CONFORME A POLÍTICA — aguardando a NF de bonificação' : 'APROVAÇÃO CONFORME A POLÍTICA';
+  let y = 46;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(26, 31, 46);
+  doc.text(pdfTxt(`COMPROVANTE DE BONIFICAÇÃO APROVADA — Nº ${b.id}`), W / 2, y, {align: 'center'}); y += 5.5;
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(90);
+  doc.text(pdfTxt(`Política de Redes · bonificação cliente novo / reativação · campanha ${fdia(P.CAMP_INICIO)} a ${fdia(P.CAMP_FIM)}`), W / 2, y, {align: 'center'}); y += 6;
+  const cor = st.includes('RESSALVA') ? [180, 35, 24] : st.includes('EXCEÇÃO') ? [161, 74, 0] : [20, 96, 63];
+  doc.setFillColor(...cor); doc.roundedRect(M, y, W - 2 * M, 9, 1.5, 1.5, 'F');
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(255);
+  doc.text(pdfTxt(veredito), W / 2, y + 6, {align: 'center'}); y += 13;
+  const kv = (rows) => { doc.autoTable({...opTab(doc, img, M), startY: y, theme: 'grid', body: rows.map(r => r.map(pdfTxt)),
+    styles: {fontSize: 8.3, cellPadding: 1.6, textColor: 30, lineColor: 200}, columnStyles: {0: {fontStyle: 'bold', cellWidth: 46, fillColor: [244, 244, 246]}}}); y = doc.lastAutoTable.finalY + 4; };
+  kv([['Cliente', `${b.nome || ''} — código ${b.cod || ''}/${b.loja || ''} — CNPJ ${fcnpj(b.cnpj)}`],
+      ['Classificação', `${b.classificacao}${b.avaliacao && b.avaliacao.motivo ? ' — ' + b.avaliacao.motivo : ''}`],
+      ['Nota(s) do 1º pedido', d.vendas.map(v => `NF ${v.doc.replace(/^0+/, '')}/${v.serie} de ${fdia(v.emissao)} — ${fmoeda(+v.valor)} sem IPI`).join('; ')],
+      ['Bonificação aprovada', `${fmoeda(+b.bonificacao)} (${fmt(+b.pct * 100, 0)}% de ${fmoeda(+b.valor_notas)}) — registrada por ${b.aprovado_por || '—'} em ${fdata(b.aprovado_em)}${b.obs ? ' — obs.: ' + b.obs : ''}`],
+      ['NF de bonificação', d.nfb.length ? d.nfb.map(n => `NF ${n.doc.replace(/^0+/, '')}/${n.serie} de ${fdia(n.emissao)}${n.pedido ? ' — pedido TOTVS ' + n.pedido : ''} — ${fmoeda(+n.valor)} sem IPI`).join('; ') + ` — situação: ${b.situacao || ''}` : 'ainda não emitida']]);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(26, 31, 46); doc.text('Conferência regra a regra', M, y + 1); y += 3;
+  doc.autoTable({...opTab(doc, img, M), startY: y, theme: 'grid',
+    head: [['Regra', 'O que a política exige', 'Evidência (dados do app / TOTVS)', 'Resultado']], body: c.linhas.map(l => l.map(pdfTxt)),
+    headStyles: {fillColor: [30, 30, 34], textColor: 255, fontSize: 8}, styles: {fontSize: 7.6, cellPadding: 1.5, textColor: 30, lineColor: 200, valign: 'top'},
+    columnStyles: {0: {cellWidth: 32, fontStyle: 'bold'}, 1: {cellWidth: 42}, 3: {cellWidth: 21, halign: 'center', fontStyle: 'bold'}},
+    didParseCell: h => { if(h.section === 'body' && h.column.index === 3){ const v = h.cell.raw;
+      h.cell.styles.textColor = v === 'OK' ? [20, 96, 63] : v === 'AGUARDANDO' || v === 'EXCEÇÃO' ? [138, 91, 0] : [180, 35, 24];
+      h.cell.styles.fillColor = v === 'OK' ? [227, 244, 234] : v === 'AGUARDANDO' ? [255, 244, 219] : v === 'EXCEÇÃO' ? [255, 233, 209] : [251, 228, 228]; } }});
+  y = doc.lastAutoTable.finalY + 4;
+  const hist = d.hist.slice(-6);
+  if(hist.length){
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text(pdfTxt(`Notas de venda do grupo (últimas ${hist.length}, carga do TOTVS)`), M, y + 1); y += 3;
+    const vend = new Set(d.vendas.map(v => v.doc));
+    doc.autoTable({...opTab(doc, img, M), startY: y, theme: 'grid', head: [['NF', 'Emissão', 'CNPJ', 'Valor sem IPI', 'Observação']],
+      body: hist.map(h => [h.doc.replace(/^0+/, '') + '/' + h.serie, fdia(h.emissao), fcnpj(h.cnpj), fmoeda(+h.valor),
+        vend.has(h.doc) ? 'nota do 1º pedido (base da bonificação)' : c.ult && h.doc === c.ult.doc ? 'última compra antes da nota' : ''].map(pdfTxt)),
+      headStyles: {fillColor: [30, 30, 34], textColor: 255, fontSize: 7.8}, styles: {fontSize: 7.5, cellPadding: 1.2, textColor: 30, lineColor: 200},
+      columnStyles: {3: {halign: 'right'}}});
+    y = doc.lastAutoTable.finalY + 4;
+  }
+  doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(110);
+  const rod = `Regras conforme a Política de Redes, versão ${RD_DEF.versaoPolitica} (aba Regras do app).`;
+  const gerado = `Gerado pelo app REDES em ${new Date().toLocaleString('pt-BR')} por ${window.USUARIO_EMAIL || ''} · dados do TOTVS pela carga horária · parâmetros vigentes: ${fmt(+P.CAMP_PCT * 100, 0)}%, ${P.CAMP_MESES} meses, tolerância ${fmt((+P.BONIF_TOLERANCIA || 0) * 100, 0)}%, prazo ${P.BONIF_PRAZO_DIAS} dias.`;
+  const linhasRod = doc.splitTextToSize(pdfTxt(rod), W - 2 * M).concat(doc.splitTextToSize(pdfTxt(gerado), W - 2 * M)), alt = linhasRod.length * 3.1;
+  if(y + 2 + alt > 279){ doc.addPage(); fundoPdf(doc, img); y = 46; }   // rodapé sem encostar no timbrado
+  doc.text(linhasRod, M, y + 2, {lineHeightFactor: 1.25});
+}
+
+const nomeArq = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
+async function comprovantePdf(ids, cliente){
+  const aviso = $('bSt'); const antes = aviso ? aviso.textContent : '';
+  try {
+    if(aviso) aviso.textContent = 'Gerando o PDF…';
+    const img = await libPdf();
+    const r = await SB.from('bonif_campanha').select('*').in('id', ids).order('id');
+    if(r.error || !(r.data || []).length) throw new Error(r.error ? r.error.message : 'bonificação não encontrada');
+    const doc = new window.jspdf.jsPDF({unit: 'mm', format: 'a4'});
+    const lista = await Promise.all(r.data.map(dadosComprovante));
+    if(cliente){   // relatório por cliente: capa com o resumo e um comprovante por bonificação
+      fundoPdf(doc, img);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.setTextColor(26, 31, 46);
+      doc.text(pdfTxt('RELATÓRIO DE BONIFICAÇÕES APROVADAS — POR CLIENTE'), 105, 46, {align: 'center'});
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(90);
+      doc.text(pdfTxt(cliente), 105, 52, {align: 'center'});
+      doc.autoTable({...opTab(doc, img, 18), startY: 58, theme: 'grid',
+        head: [['Nº', 'Classificação', 'Nota do 1º pedido', 'Valor da nota', 'Bonificação', 'NF de bonificação', 'Conferência']],
+        body: lista.map(d => { const s = conferencia(d).linhas.map(l => l[3]);
+          return [d.b.id, d.b.classificacao, d.vendas.map(v => v.doc.replace(/^0+/, '') + ' ' + fdia(v.emissao)).join(', '), fmoeda(+d.b.valor_notas), fmoeda(+d.b.bonificacao),
+                  d.nfb.map(n => n.doc.replace(/^0+/, '') + (n.pedido ? ' (' + n.pedido + ')' : '')).join(', ') || 'não emitida',
+                  s.includes('RESSALVA') ? 'COM RESSALVA' : s.includes('EXCEÇÃO') ? 'COM EXCEÇÃO REGISTRADA' : s.includes('AGUARDANDO') ? 'CONFORME (aguarda NF)' : 'CONFORME'].map(pdfTxt); }),
+        headStyles: {fillColor: [30, 30, 34], textColor: 255, fontSize: 8}, styles: {fontSize: 8, cellPadding: 1.6, textColor: 30, lineColor: 200}});
+      lista.forEach(d => paginaComprovante(doc, d, img, false));
+    } else lista.forEach((d, i) => paginaComprovante(doc, d, img, i === 0));
+    const b0 = r.data[0], hoje = new Date().toISOString().slice(0, 10);
+    doc.save(cliente ? `Relatorio_bonificacoes_${nomeArq(b0.nome)}_${hoje}.pdf` : `Comprovante_bonificacao_n${b0.id}_${nomeArq(b0.nome)}_${hoje}.pdf`);
+    if(aviso) aviso.textContent = antes;
+  } catch(e){ if(aviso) aviso.textContent = 'Não foi possível gerar o PDF: ' + (e.message || e); else alert('Não foi possível gerar o PDF: ' + (e.message || e)); }
+}
+const iconePdf = (id, titulo) => `<button class="btn-pdf" data-pdf="${id}" title="${esc(titulo || 'Comprovante em PDF — prova, regra a regra, que a bonificação foi aprovada conforme a política')}" aria-label="Comprovante em PDF">📄</button>`;
+function ligaPdf(alvo){ (alvo || document).querySelectorAll('[data-pdf]').forEach(b => b.onclick = e => { e.stopPropagation(); comprovantePdf([+b.dataset.pdf]); }); }
+
 /* baixa automática (Silvio 10/10/2026): a Controladoria não precisa clicar — confere ao abrir a aba e logo após registrar;
    a rotina de hora em hora também confere */
 async function confereAuto(){ if(APROVA){ const u = await SB.rpc('bonif_conferir'); if(u.error) console.warn(u.error.message); } }
@@ -816,7 +985,7 @@ function desenhaFila(){
   $('tFila').innerHTML = lista.map(({p, c, cnpj, av, notas, fat, ja}) => {
     const pedido = +p.valor_saldo, max = ja ? +ja.bx.bonificacao : av && av.elegivel ? +av.bonificacao : null, tol = +P.BONIF_TOLERANCIA || 0, maxTol = max === null ? null : max * (1 + tol);
     if(ja) notas = ja.vendas;
-    const avTxt = ja ? chip('JÁ CONCEDIDA — bonificação nº ' + ja.bx.id, 'c-in') +
+    const avTxt = ja ? chip('JÁ CONCEDIDA — bonificação nº ' + ja.bx.id, 'c-in') + ' ' + iconePdf(ja.bx.id) +
         `<div class="nota">via NF de venda ${ja.vendas.map(v => esc(String(v.doc).replace(/^0+/, ''))).join(', ') || '—'}` +
         `${ja.vendas[0] ? ' de ' + fdia(ja.vendas[0].emissao) : ''} · aprovada em ${fdata(ja.bx.aprovado_em)}${ja.bx.aprovado_por ? ' por ' + esc(String(ja.bx.aprovado_por).split('@')[0]) : ''}</div>` +
         `<div class="nota">${ja.nfb.length ? 'NF de bonificação: ' + ja.nfb.map(v => esc(String(v.doc).replace(/^0+/, ''))).join(', ') : 'NF de bonificação ainda não emitida'}</div>`
@@ -836,6 +1005,7 @@ function desenhaFila(){
       <td>${esc(c.nome || '')} <span class="nota">${esc(p.cliente)}/${esc(p.loja)}</span><div class="nota">${fcnpj(cnpj || '')}</div></td>
       <td>${chip(p.status, COR_PED[p.status] || 'c-in')}</td><td class="n">${fmoeda(pedido)}</td><td>${avTxt}</td><td class="n">${maxTxt}</td>
       <td>${cnpj ? `<button class="btn" data-fila="${esc(cnpj)}" data-notas="${esc(notas.map(n => n.doc).join(','))}">Abrir na consulta</button>` : ''}</td></tr>`; }).join('');
+  ligaPdf($('tFila'));
   $('tFila').querySelectorAll('[data-fila]').forEach(b => b.onclick = async () => {
     $('bCnpj').value = fcnpj(b.dataset.fila); await buscaNotas();
     const docs = (b.dataset.notas || '').split(',').filter(Boolean);
@@ -875,6 +1045,15 @@ async function buscaNotas(){
   NOTAS_B = r.data || [];
   await carregaCadastro([CNPJ_B]); const c = (CAD.get(CNPJ_B) || [])[0];
   $('bSt').textContent = c ? `${c.nome} (${c.cod}/${c.loja}) · ${c.grupo_nome || 'sem grupo'} · ${NOTAS_B.length} nota(s) na campanha` : 'CNPJ não está no cadastro do TOTVS';
+  // RELATÓRIO POR CLIENTE (Silvio 19/10/2026): todas as bonificações aprovadas do grupo (raiz + grupo de clientes) num PDF
+  { const raizB = CNPJ_B.length === 14 ? CNPJ_B.slice(0, 8) : null;
+    const fb = await SB.from('bonif_campanha').select('id').or([`cnpj.eq.${CNPJ_B}`, raizB ? `raiz.eq.${raizB}` : null, c && c.grupo ? `grupo.eq.${c.grupo}` : null].filter(Boolean).join(','));
+    const ids = (fb.data || []).map(x => x.id);
+    if(ids.length){ const bt = document.createElement('button'); bt.className = 'btn'; bt.style.marginLeft = '8px';
+      bt.title = 'PDF com todas as bonificações aprovadas do grupo deste cliente, cada uma com a conferência regra a regra';
+      bt.textContent = `📄 Relatório do cliente (PDF) — ${ids.length} bonificação(ões)`;
+      bt.onclick = () => comprovantePdf(ids, `${c ? c.nome : ''} — CNPJ ${fcnpj(CNPJ_B)}${c && c.grupo_nome ? ' — grupo ' + c.grupo_nome : ''}`);
+      $('bSt').appendChild(bt); } }
   $('bNotasP').style.display = '';
   pedidosGrupo(c);
   // nota já usada (Silvio 19/10/2026): pode ser marcada — ao marcar, o app avisa a que bonificação ela já está vinculada
@@ -922,7 +1101,7 @@ async function avaliaBonif(){
   $('bRes').innerHTML = `<div class="painel"><h2>Resultado ${chip((a.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + a.classificacao, cls)}</h2><div class="corpo">
     <div style="font-size:14.5px">${esc(a.motivo)}</div>
     ${a.bonificacao_anterior ? (() => { const bx = a.bonificacao_anterior, vs = VINC.filter(v => v.bonif_id === bx.id);
-      return `<div class="nota" style="font-size:13px">Bonificação aprovada nº ${bx.id} em ${fdata(bx.aprovado_em)} (${fmoeda(+bx.bonificacao)}) · situação: <b>${esc(bx.situacao || 'AGUARDANDO NOTA')}</b>${vs.length ? ' · concedida via ' + vs.map(v => `NF ${esc(v.doc)}/${esc(v.serie)} de ${fdia(v.emissao)} (${fmoeda(+v.valor)})`).join(', ') : ''}</div>`; })() : ''}
+      return `<div class="nota" style="font-size:13px">${iconePdf(bx.id)} Bonificação aprovada nº ${bx.id} em ${fdata(bx.aprovado_em)} (${fmoeda(+bx.bonificacao)}) · situação: <b>${esc(bx.situacao || 'AGUARDANDO NOTA')}</b>${vs.length ? ' · concedida via ' + vs.map(v => `NF ${esc(v.doc)}/${esc(v.serie)} de ${fdia(v.emissao)} (${fmoeda(+v.valor)})`).join(', ') : ''}</div>`; })() : ''}
     ${diverge ? `<div class="status err">⚠️ O motor do app (${esc(esp.classificacao)}) divergiu do banco (${esc(a.classificacao)}). Vale o do banco; avise a Controladoria.</div>` : ''}
     ${md ? `<div class="nota">ℹ️ Outras notas do grupo no mesmo dia: ${esc(md)}. Se forem do mesmo pedido e deste CNPJ, marque-as também.</div>` : ''}
     ${a.cod ? `<div class="grade2" style="margin-top:12px"><div><b>Cliente</b>${esc(a.nome)} (${esc(a.cod)}/${esc(a.loja)})</div><div><b>Grupo de clientes</b>${esc(a.grupo_nome || a.grupo || 'sem grupo')}</div>
@@ -935,6 +1114,7 @@ async function avaliaBonif(){
       <div class="nota">O registro reavalia no banco na hora e recusa se o cliente deixar de ser elegível. A nota fica marcada como usada e o grupo não recebe outra nesta campanha.</div>` : ''}
   </div></div>
   ${membros.length ? `<div class="painel"><h2>CNPJs do grupo <span>linhas em destaque = compra a menos de ${a.meses} meses antes da nota</span></h2><div class="tbl-wrap"><table><thead><tr><th>CNPJ</th><th>Cliente</th><th>UF</th><th>Grupo</th><th>1ª compra</th><th>Última compra ANTES da nota</th><th>Última compra até hoje</th><th></th></tr></thead><tbody>${lin}</tbody></table></div></div>` : ''}`;
+  ligaPdf($('bRes'));
   if($('bRegistrar')) $('bRegistrar').onclick = async () => {
     const u = await SB.rpc('bonif_registrar', {p_cnpj:CNPJ_B, p_notas:pn, p_obs:($('bObs').value || '').trim() || null});
     if(u.error) return alert(u.error.message);
