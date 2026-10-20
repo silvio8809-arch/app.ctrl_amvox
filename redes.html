@@ -1428,6 +1428,45 @@ async function inicia(){
   $('st').textContent = statusTxt(); pintaSol();
   const res = rodaTestes(); if(res.some(x => !x.ok)){ $('st').className = 'status err'; $('st').textContent += ' · ⚠️ há teste do motor falhando (aba Regras e testes)'; }
 }
+/* ATUALIZAÇÃO AUTOMÁTICA DA TELA (Silvio 20/10/2026 — "não vejo ele atualizar a tela, como o dash de Faturamento e LOG faz"):
+   mesmo ritmo do dash (10 min), mas SEM recarregar a página — relê o banco e repinta a aba aberta, mantendo aba, detalhe
+   aberto, consulta de notas e rolagem. Não atualiza com a tela ocupada: campo em foco, texto digitado e não salvo (parecer,
+   justificativa), caixa marcada, formulário de nova solicitação/parâmetros, ou aba do navegador escondida — vencidos os
+   10 min, tenta a cada minuto até a tela ficar livre; ao voltar para a aba, atualiza na hora. Falha de conexão = tenta de novo
+   no ciclo seguinte, sem mensagem. */
+const ATU_MIN = 10;
+let _telaEm = Date.now(), _atualizando = false;
+const abaAberta = () => ((document.querySelector('.tela.on') || {}).id || '').replace('tela-', '');
+function telaOcupada(){
+  if(document.hidden || _atualizando || !UID) return true;   // UID = página já iniciada
+  const a = document.activeElement; if(a && a.matches && a.matches('input,textarea,select')) return true;
+  const t = abaAberta(); if(t === 'nova' || t === 'param') return true;
+  const tela = document.querySelector('.tela.on'); if(!tela) return true;
+  if([...tela.querySelectorAll('textarea')].some(x => x.value.trim())) return true;
+  if(tela.querySelector('input[type="checkbox"]:checked')) return true;
+  return false;
+}
+async function atualizaTela(){
+  _atualizando = true; _telaEm = Date.now();
+  const t = abaAberta(), y = window.scrollY;
+  try {
+    marcaAtualizacao();
+    if(t === 'bonif'){ await confereAuto(); await Promise.all([pintaCarga(), pintaFila(), pintaBonif(), pintaNfBonif()]); }
+    else if(t === 'sol' || t === 'acomp' || t === 'ordens'){
+      await carrega(); VENDAS = new Map(); pintaSol();
+      if(t === 'sol' && S.det) await detalhe(S.det);
+      if(t === 'acomp'){ pintaAc(); if(S.detAc) detalheAc(S.detAc); }
+      if(t === 'ordens') pintaOr();
+    }
+    const h = new Date(), p2 = n => String(n).padStart(2, '0');
+    if(!$('st').classList.contains('err')) $('st').textContent = statusTxt() + ` · tela atualizada às ${p2(h.getHours())}h${p2(h.getMinutes())} (a cada ${ATU_MIN} min)`;
+    window.scrollTo(0, y);
+  } catch(e){ console.warn('atualização automática: tento de novo no próximo ciclo —', e.message || e); }
+  finally { _atualizando = false; }
+}
+setInterval(() => { if(Date.now() - _telaEm >= ATU_MIN * 60000 && !telaOcupada()) atualizaTela(); }, 60000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden && Date.now() - _telaEm >= ATU_MIN * 60000 && !telaOcupada()) atualizaTela(); });
+
 if(window.PAPEL) inicia(); else document.addEventListener('papel-pronto', inicia, {once:true});
 </script>
 </body></html>
