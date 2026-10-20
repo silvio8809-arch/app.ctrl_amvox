@@ -719,7 +719,8 @@ function ligaPdf(alvo){ (alvo || document).querySelectorAll('[data-pdf]').forEac
 async function confereAuto(){ if(APROVA){ const u = await SB.rpc('bonif_conferir'); if(u.error) console.warn(u.error.message); } }
 
 /* ---- NOTAS DE BONIFICAÇÃO (CFOP 5910/6910) + ANOMALIAS — Silvio 10/10/2026 (caso NF 000281079 OTAVIO REFIL) ---- */
-const SITNB = {'BONIFICAÇÃO SEM FATURAMENTO':'tarja', 'SEM APROVAÇÃO NO APP':'tarja av', 'JUSTIFICADA':'c-ne', 'APROVADA NO APP':'c-ok', 'ERRO DE EMISSÃO (SEM EXPEDIÇÃO)':'c-ne'};
+const SITNB = {'BONIFICAÇÃO SEM FATURAMENTO':'tarja', 'SEM APROVAÇÃO NO APP':'tarja av', 'JUSTIFICADA':'c-ne', 'APROVADA NO APP':'c-ok', 'ERRO DE EMISSÃO (SEM EXPEDIÇÃO)':'c-ne',
+               'ANULADA (DEVOLVIDA)':'c-ne'};   // 024 (Silvio 20/10/2026): devolução integral por NF de entrada = nota anulada
 const ERRO_EMI = 'ERRO DE EMISSÃO (SEM EXPEDIÇÃO)';
 /* erro de emissão que JÁ foi à LOG em protocolo e ainda não teve o e-mail de retenção (Silvio 13/10/2026) */
 const reterErroNb = x => x.situacao === ERRO_EMI && !!x.protocolo && !x.avisado_em;
@@ -752,10 +753,16 @@ function linhaNb(x, completa){
       `<button class="btn" data-just="${esc(chaveNb(x))}">Justificar</button><button class="btn" data-erro="${esc(chaveNb(x))}" title="Nota emitida por erro: sem expedição — fica fora do protocolo">Erro de emissão</button>` : '') +
     (E_ADM && reterErroNb(x) ? `<button class="btn" data-avisa="${esc(chaveNb(x))}" title="E-mail RETER EXPEDIÇÃO: nota emitida por erro já foi à LOG em protocolo">📧 Reter (erro)</button>` : '') +
     (APROVA && aLiberar ? `<button class="btn ver" data-libera="${esc(chaveNb(x))}" title="E-mail PODE LIBERAR para a Logística (venda vinculada ou justificativa)">📧 Liberar</button>` : '');
+  /* nota ANULADA por devolução (Silvio 20/10/2026): a AMVOX "cancela" fora do prazo com NF de entrada que cita a nota de origem */
+  const nfsDev = (x.nf_devolucao || '').split(',').map(d => d.trim().replace(/^0+/, '')).filter(Boolean).join(', ');
+  const dev = x.situacao === 'ANULADA (DEVOLVIDA)'
+    ? `<div class="nota">↩️ anulada pela NF de entrada ${esc(nfsDev)} de ${fdia(x.devolvida_em)} (${fmoeda(+x.valor_devolvido)}) — nada a expedir` +
+      `${x.avisado_em ? ` · a LOG tinha sido avisada para reter (${diaHoraLog(x.avisado_em)})` : ''}</div>`
+    : +x.valor_devolvido > 0 ? `<div class="nota" style="color:var(--av)">↩️ devolução parcial: ${fmoeda(+x.valor_devolvido)} pela NF de entrada ${esc(nfsDev)} de ${fdia(x.devolvida_em)}</div>` : '';
   return `<tr><td>${fdia(x.emissao)}</td><td style="white-space:nowrap">${esc(x.doc.replace(/^0+/, ''))}/${esc(x.serie)}<div class="nota">CFOP ${esc(x.cfop || '')}</div></td>
     <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>${completa ? `<td>${esc(x.uf || '')}</td>` : ''}
     <td class="n">${fmoeda(+x.valor)}</td><td class="n">${fmt(+x.pecas, 0)}</td><td class="n">${+x.venda_janela ? fmoeda(+x.venda_janela) : '—'}</td>
-    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td style="min-width:150px">${pedidosNb(x)}</td><td>${selNb(x)}${just}${aviso}${erro}${lib}</td><td class="acoes-nb">${acao}</td></tr>`;
+    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td style="min-width:150px">${pedidosNb(x)}</td><td>${selNb(x)}${just}${aviso}${erro}${lib}${dev}</td><td class="acoes-nb">${acao}</td></tr>`;
 }
 /* liberação posterior à retenção (Silvio 12/10/2026): vinculação à venda OU justificativa da Controladoria */
 const regularizadaNb = x => ['APROVADA NO APP', 'JUSTIFICADA'].includes(x.situacao);
@@ -888,7 +895,8 @@ async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: 
     NFB = r.data || [];
   }
   const totV = NFB.reduce((a, x) => a + +x.valor, 0) || 1;
-  const grupos = [['', 'Notas de bonificação'], ['BONIFICAÇÃO SEM FATURAMENTO', 'Sem faturamento'], ['SEM APROVAÇÃO NO APP', 'Sem aprovação no app'], ['LIB', 'A liberar'], ['OK', 'Regularizadas']];
+  const grupos = [['', 'Notas de bonificação'], ['BONIFICAÇÃO SEM FATURAMENTO', 'Sem faturamento'], ['SEM APROVAÇÃO NO APP', 'Sem aprovação no app'], ['LIB', 'A liberar'], ['OK', 'Regularizadas'],
+                  ['ANULADA (DEVOLVIDA)', 'Anuladas (devolvidas)']];
   const casa = (x, k) => !k || (k === 'LIB' ? aLiberarNb(x) : k === 'OK' ? ['JUSTIFICADA', 'APROVADA NO APP', ERRO_EMI].includes(x.situacao) : x.situacao === k);
   $('cardsNb').innerHTML = grupos.map(([k, t]) => { const l = NFB.filter(x => casa(x, k)), v = l.reduce((a, x) => a + +x.valor, 0);
     return `<div class="kpi ${CARD_NB === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / totV * 100, 1)}%</div></div>`; }).join('');
