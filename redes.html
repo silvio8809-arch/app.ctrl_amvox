@@ -1311,7 +1311,7 @@ async function pintaCarga(){
   const ok = r.data.find(x => x.status === 'OK'), pend = r.data.find(x => ['PENDENTE','RODANDO'].includes(x.status)), err = r.data[0] && r.data[0].status === 'ERRO' ? r.data[0] : null;
   $('bCarga').innerHTML = `Última atualização das notas: <b>${ok ? fdata(ok.concluido_em) : '—'}</b>` +
     (pend ? ` · ${chip(pend.status === 'RODANDO' ? 'atualizando agora…' : 'pedido na fila — sai na próxima rodada (até 1h)', 'c-in')} ${pend.mensagem ? esc(pend.mensagem) : ''}` : '') +
-    (err && !pend ? ` · ${chip('última tentativa com erro', 'c-ru')}` : '');
+    (err && !pend ? ` · ${chip(/VPN desligada/i.test(err.mensagem || '') ? (err.mensagem || '').replace(/;.*$/, '') : 'última tentativa com erro', 'c-ru')}` : '');
   $('bAtualiza').disabled = !!pend;
   if(pend){ clearTimeout(window._tc); window._tc = setTimeout(async () => { await pintaCarga(); if(!$('bAtualiza').disabled && CNPJ_B) buscaNotas(); }, 60000); }
 }
@@ -1392,9 +1392,10 @@ function diaUtil(dt){
 }
 async function marcaAtualizacao(){
   // hora da carga concluída: tab_preco é gravada no fim de toda carga (rotina horária, botão do app ou rodada manual)
-  const [t, c] = await Promise.all([
+  const [t, c, u] = await Promise.all([
     SB.from('tab_preco').select('atualizado_em').order('atualizado_em', {ascending:false}).limit(1),
-    SB.from('carga_pedido').select('concluido_em').eq('status', 'OK').order('concluido_em', {ascending:false}).limit(1)]);
+    SB.from('carga_pedido').select('concluido_em').eq('status', 'OK').order('concluido_em', {ascending:false}).limit(1),
+    SB.from('carga_pedido').select('status,mensagem').order('id', {ascending:false}).limit(1)]);
   const ds = [t.data && t.data[0] && t.data[0].atualizado_em, c.data && c.data[0] && c.data[0].concluido_em].filter(Boolean).map(x => new Date(x));
   const d = ds.length ? new Date(Math.max(...ds)) : null;
   // mesmo padrão do cabeçalho do app de preços: "Base: … · dd/mm/aaaa · atualizado às HHhMM"
@@ -1407,7 +1408,18 @@ async function marcaAtualizacao(){
   // não útil, nem no dia útil seguinte antes das 10:30 (ainda vale a carga do último dia útil)
   const ontem = new Date(agora); ontem.setDate(ontem.getDate() - 1);
   const semAlerta = !diaUtil(agora) || (min < 630 && !diaUtil(ontem));
-  if(!semAlerta && ((min >= 630 && min <= 1050 && idadeH > 2) || idadeH > 20)){
+  const atrasada = !semAlerta && ((min >= 630 && min <= 1050 && idadeH > 2) || idadeH > 20);
+  /* AVISO DE VPN (Silvio 20/10/2026): a última tentativa da carga não rodou porque a VPN do Mac estava desligada — diz o
+     motivo e a hora (a rotina grava "VPN desligada às HH:MM" em carga_pedido); laranja = atenção, vermelho = carga já atrasada */
+  const ult = u.data && u.data[0], vpn = ult && ult.status !== 'OK' && /VPN desligada/i.test(ult.mensagem || '') ? ult : null;
+  if(vpn){
+    const hh = ((vpn.mensagem || '').match(/(\d{2}:\d{2})/) || [])[1];
+    const aviso = document.createElement('span');
+    aviso.style.cssText = `color:#fff;background:${atrasada ? '#B42318' : '#C4620A'};padding:1px 7px;border-radius:4px;margin-left:8px;font-weight:700`;
+    aviso.title = 'A carga de clientes e notas roda no Mac da Controladoria e precisa da VPN (FortiClient) ligada. Ligue a VPN: a próxima rodada de hora em hora — ou o botão Atualizar notas — traz os dados.';
+    aviso.textContent = `⚠️ VPN DESLIGADA${hh ? ' às ' + hh : ''} — carga adiada` + (atrasada ? ` · última carga há ${idadeH >= 999 ? '—' : Math.floor(idadeH) + 'h'}` : '');
+    $('atualizado').appendChild(aviso);
+  } else if(atrasada){
     const aviso = document.createElement('span'); aviso.style.cssText = 'color:#fff;background:#B42318;padding:1px 7px;border-radius:4px;margin-left:8px;font-weight:700';
     aviso.title = 'A carga de clientes e notas roda de hora em hora (08:30–15:30, dias úteis; fim de semana e feriado sob demanda) pela tarefa agendada no Mac da Controladoria. Mac desligado, VPN fora ou tarefa travada atrasam a carga.';
     aviso.textContent = `⚠️ CARGA ATRASADA — última há ${idadeH >= 999 ? '—' : Math.floor(idadeH) + 'h'}`;
