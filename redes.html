@@ -182,7 +182,7 @@
       <input id="bCnpj" placeholder="CNPJ, código TOTVS ou parte do nome" title="CNPJ/CPF, código do cliente no TOTVS (com /loja opcional: 000594/0001) ou parte do nome (ex.: Marcos Eletro)" style="width:280px"><button class="btn pri" id="bConsultar">Buscar</button><span class="status" id="bSt" style="margin:0"></span></div>
       <div class="linha-b"><span class="nota" id="bCarga">—</span><button class="btn so-aprova" id="bAtualiza" title="A nota entra na próxima rodada (até 1h); precisa do Mac ligado com VPN">Atualizar notas</button></div>
     </div></div>
-  <div class="painel" id="bNotasP" style="display:none"><h2>Notas de venda do CNPJ na campanha <span>marque a(s) nota(s) do 1º pedido (mesmo dia)</span></h2>
+  <div class="painel" id="bNotasP" style="display:none"><h2><em id="bNotasT" style="font-style:normal">Notas de venda do CNPJ na campanha</em> <span>marque a(s) nota(s) do 1º pedido (mesmo dia e mesmo CNPJ)</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th></th><th>Filial</th><th>Nota / série</th><th>Emissão</th><th class="n">Valor sem IPI</th><th class="n">IPI</th><th class="n">Peças</th><th>Situação</th></tr></thead><tbody id="bNotas"></tbody></table></div>
     <div class="corpo"><div class="status err" id="bAvisoUsada" style="display:none;margin-bottom:8px"></div><button class="btn pri" id="bAvaliar" disabled>Avaliar a nota marcada</button></div></div>
   <div class="painel" id="bPedP" style="display:none"><h2>Pedidos de venda do grupo ainda sem nota <span>situação no TOTVS: aprovação comercial → crédito (FIN) → faturamento · atualizado de hora em hora</span></h2>
@@ -919,6 +919,33 @@ async function nfBonifGrupo(){
   $('bNfGrupoP').style.display = l.length ? '' : 'none';
   NFB_G = l; $('bNfGrupo').innerHTML = l.map(x => linhaNb(x, false)).join(''); ligaBotoesNb($('bNfGrupo'), () => NFB_G);
 }
+/* CONSULTA PELO GRUPO (Silvio 20/10/2026 — MULTICOM, 21 CNPJs: "preciso selecionar o grupo, não cada cliente"). Os CNPJs
+   achados pelo nome que dividem grupo de clientes OU raiz de CNPJ viram um grupo só (a mesma regra do banco); ao escolher
+   o grupo, o app carrega TODOS os CNPJs dele (grupo + raiz, mesmo os de outro nome) e lista as notas juntas. */
+let GRUPO_B = null, GRUPOS_OP = [], MEMBROS_B = new Map();
+const fraiz = r => String(r || '').replace(/^(\d{2})(\d{3})(\d{3})$/, '$1.$2.$3');
+function gruposDe(l){
+  const pai = l.map((_, i) => i), topo = i => pai[i] === i ? i : (pai[i] = topo(pai[i])), visto = new Map();
+  l.forEach((x, i) => [x.grupo ? 'G' + x.grupo : null, x.cnpj.length === 14 ? 'R' + x.cnpj.slice(0, 8) : null].filter(Boolean)
+    .forEach(k => { if(visto.has(k)) pai[topo(i)] = topo(visto.get(k)); else visto.set(k, i); }));
+  const m = new Map(); l.forEach((x, i) => { const t = topo(i); if(!m.has(t)) m.set(t, []); m.get(t).push(x); });
+  return [...m.values()].filter(g => g.length > 1).map(g => ({n:g.length,
+    grupos:[...new Set(g.map(x => x.grupo).filter(Boolean))], raizes:[...new Set(g.filter(x => x.cnpj.length === 14).map(x => x.cnpj.slice(0, 8)))],
+    nome:String((g.find(x => x.grupo_nome) || {}).grupo_nome || g[0].nome || '').trim()})).sort((a, b) => b.n - a.n);
+}
+async function membrosGrupo(g){
+  const grupos = new Set(g.grupos), raizes = new Set(g.raizes), achados = new Map();
+  for(let volta = 0; volta < 2; volta++){   // como no banco: raízes dos CNPJs do grupo de clientes também entram
+    const f = [...[...grupos].map(x => `grupo.eq.${x}`), ...[...raizes].map(r => `cnpj.like.${r}*`)].join(',');
+    const r = await SB.from('cli_cadastro').select('cnpj,cod,loja,nome,grupo,grupo_nome,bloqueado').or(f).order('cod').limit(2000);
+    if(r.error) return {erro:r.error.message};
+    (r.data || []).filter(x => x.cnpj).forEach(x => achados.set(x.cnpj, x));
+    const antes = raizes.size;
+    achados.forEach(x => { if(x.cnpj.length === 14 && x.grupo && grupos.has(x.grupo)) raizes.add(x.cnpj.slice(0, 8)); });
+    if(raizes.size === antes) break;
+  }
+  return {lista:[...achados.values()]};
+}
 /* busca por CNPJ OU pelo código do cliente no TOTVS (Silvio 10/10/2026): "A04390", "594" (= 000594) ou "000594/0001" */
 async function resolveCliente(txt){
   const t = String(txt || '').trim().toUpperCase(), d = RD.dig(t);
@@ -929,12 +956,12 @@ async function resolveCliente(txt){
   if(!/^[A-Z0-9]{1,6}(?:[\/\-\s]+\d{1,4})?$/.test(t) || !/\d/.test(t)){
     const termo = t.replace(/[%_*,()]/g, ' ').trim().split(/\s+/).filter(Boolean).join('%');
     if(termo.replace(/%/g, '').length < 3) return {erro:'Digite pelo menos 3 letras do nome.'};
-    const r = await SB.from('cli_cadastro').select('cnpj,cod,loja,nome,bloqueado').ilike('nome', `%${termo}%`).order('nome').limit(200);
+    const r = await SB.from('cli_cadastro').select('cnpj,cod,loja,nome,bloqueado,grupo,grupo_nome').ilike('nome', `%${termo}%`).order('nome').limit(200);
     if(r.error) return {erro:r.error.message};
     const vistos = new Set(), l = (r.data || []).filter(x => x.cnpj && !vistos.has(x.cnpj) && vistos.add(x.cnpj));
     if(!l.length) return {erro:`Nenhum cliente com "${txt.trim()}" no nome (cadastro do TOTVS).`};
     if(l.length === 1) return {cnpj:l[0].cnpj};
-    return {opcoes:l.slice(0, 30), porNome:true, total:l.length};
+    return {opcoes:l.slice(0, 30), porNome:true, total:l.length, grupos:gruposDe(l)};
   }
   let [cod, loja] = t.split(/[\/\-\s]+/);
   if(/^\d+$/.test(cod) && cod.length < 6) cod = cod.padStart(6, '0');
@@ -1041,21 +1068,46 @@ async function pedidosGrupo(c){
 }
 async function buscaNotas(){
   $('bRes').innerHTML = ''; $('bNotasP').style.display = 'none'; $('bNfGrupoP').style.display = 'none'; $('bPedP').style.display = 'none';
-  const rc = await resolveCliente($('bCnpj').value);
-  if(rc.erro){ $('bSt').textContent = rc.erro; return; }
-  if(rc.opcoes){
-    $('bSt').innerHTML = (rc.porNome ? `${rc.total} cliente(s) com esse nome${rc.total > rc.opcoes.length ? ` — mostrando ${rc.opcoes.length}; detalhe mais o nome` : ''} — escolha: `
-                                     : 'Este código tem mais de uma loja — escolha: ') + rc.opcoes.map(x =>
-      `<button class="btn" data-cnpj="${esc(x.cnpj)}" style="margin:2px">${rc.porNome ? esc(x.nome) + ' · ' + esc(x.cod) + '/' : ''}${esc(x.loja)} · ${fcnpj(x.cnpj)}${x.bloqueado ? ' (bloq.)' : ''}</button>`).join('');
-    $('bSt').querySelectorAll('[data-cnpj]').forEach(b => b.onclick = () => { $('bCnpj').value = fcnpj(b.dataset.cnpj); buscaNotas(); });
-    return;
+  let alvos;
+  if(GRUPO_B && $('bCnpj').value.trim() === GRUPO_B.rotulo){
+    $('bSt').textContent = 'Buscando os CNPJs do grupo…';
+    const mg = await membrosGrupo(GRUPO_B); if(mg.erro){ $('bSt').textContent = mg.erro; return; }
+    MEMBROS_B = new Map(mg.lista.map(x => [x.cnpj, x])); alvos = [...MEMBROS_B.keys()];
+    if(!alvos.includes(CNPJ_B)) CNPJ_B = (mg.lista.find(x => x.cnpj.length === 14) || mg.lista[0]).cnpj;
+  } else {
+    GRUPO_B = null; MEMBROS_B = new Map();
+    const rc = await resolveCliente($('bCnpj').value);
+    if(rc.erro){ $('bSt').textContent = rc.erro; return; }
+    if(rc.opcoes){
+      GRUPOS_OP = rc.grupos || [];
+      const botoes = rc.opcoes.map(x =>
+        `<button class="btn" data-cnpj="${esc(x.cnpj)}" style="margin:2px">${rc.porNome ? esc(x.nome) + ' · ' + esc(x.cod) + '/' : ''}${esc(x.loja)} · ${fcnpj(x.cnpj)}${x.bloqueado ? ' (bloq.)' : ''}</button>`).join('');
+      const mais = rc.total > rc.opcoes.length ? ` — mostrando ${rc.opcoes.length}; detalhe mais o nome` : '';
+      $('bSt').innerHTML = GRUPOS_OP.length
+        ? `${rc.total} cliente(s) com esse nome — ` + GRUPOS_OP.map((g, i) =>
+            `<button class="btn pri" data-grupo="${i}" style="margin:2px" title="Lista as notas de todos os CNPJs do grupo (grupo de clientes + mesma raiz de CNPJ)">👥 Consultar o grupo inteiro: ${esc(g.nome)}${g.raizes.length === 1 ? ' · raiz ' + fraiz(g.raizes[0]) : ''} · ${g.n} CNPJs com esse nome</button>`).join('') +
+          `<details style="margin-top:4px"><summary class="nota" style="cursor:pointer">ou escolher um CNPJ (${rc.opcoes.length}${mais})</summary>${botoes}</details>`
+        : (rc.porNome ? `${rc.total} cliente(s) com esse nome${mais} — escolha: ` : 'Este código tem mais de uma loja — escolha: ') + botoes;
+      $('bSt').querySelectorAll('[data-cnpj]').forEach(b => b.onclick = () => { $('bCnpj').value = fcnpj(b.dataset.cnpj); buscaNotas(); });
+      $('bSt').querySelectorAll('[data-grupo]').forEach(b => b.onclick = () => {
+        GRUPO_B = {...GRUPOS_OP[+b.dataset.grupo]}; GRUPO_B.rotulo = /^GRUPO\b/i.test(GRUPO_B.nome) ? GRUPO_B.nome : 'GRUPO ' + GRUPO_B.nome; $('bCnpj').value = GRUPO_B.rotulo; buscaNotas(); });
+      return;
+    }
+    CNPJ_B = rc.cnpj; alvos = [CNPJ_B];
   }
-  CNPJ_B = rc.cnpj;
   $('bSt').textContent = 'Buscando…';
-  const r = await SB.rpc('bonif_notas', {p_cnpj:CNPJ_B}); if(r.error){ $('bSt').textContent = r.error.message; return; }
-  NOTAS_B = r.data || [];
+  const rs = [];
+  for(let i = 0; i < alvos.length; i += 20){   // uma consulta por CNPJ (a função do banco é por CNPJ), 20 de cada vez
+    const lote = await Promise.all(alvos.slice(i, i + 20).map(cn => SB.rpc('bonif_notas', {p_cnpj:cn}).then(r => ({cn, r}))));
+    const er = lote.find(x => x.r.error); if(er){ $('bSt').textContent = er.r.error.message; return; }
+    rs.push(...lote);
+  }
+  NOTAS_B = rs.flatMap(({cn, r}) => (r.data || []).map(n => ({...n, cnpj:cn})))
+    .sort((a, b) => String(a.emissao).localeCompare(String(b.emissao)) || (a.filial + a.doc).localeCompare(b.filial + b.doc));
   await carregaCadastro([CNPJ_B]); const c = (CAD.get(CNPJ_B) || [])[0];
-  $('bSt').textContent = c ? `${c.nome} (${c.cod}/${c.loja}) · ${c.grupo_nome || 'sem grupo'} · ${NOTAS_B.length} nota(s) na campanha` : 'CNPJ não está no cadastro do TOTVS';
+  $('bNotasT').textContent = GRUPO_B ? 'Notas de venda do GRUPO na campanha' : 'Notas de venda do CNPJ na campanha';
+  $('bSt').textContent = GRUPO_B ? `${GRUPO_B.rotulo} · ${alvos.length} CNPJ(s) no grupo · ${NOTAS_B.length} nota(s) na campanha — marque a(s) nota(s) do 1º pedido`
+    : c ? `${c.nome} (${c.cod}/${c.loja}) · ${c.grupo_nome || 'sem grupo'} · ${NOTAS_B.length} nota(s) na campanha` : 'CNPJ não está no cadastro do TOTVS';
   // RELATÓRIO POR CLIENTE (Silvio 19/10/2026): todas as bonificações aprovadas do grupo (raiz + grupo de clientes) num PDF
   { const raizB = CNPJ_B.length === 14 ? CNPJ_B.slice(0, 8) : null;
     const fb = await SB.from('bonif_campanha').select('id').or([`cnpj.eq.${CNPJ_B}`, raizB ? `raiz.eq.${raizB}` : null, c && c.grupo ? `grupo.eq.${c.grupo}` : null].filter(Boolean).join(','));
@@ -1072,7 +1124,7 @@ async function buscaNotas(){
   BONIF_US = new Map();
   if(idsUs.length){ const [bu, vu] = await Promise.all([SB.from('bonif_campanha').select('*').in('id', idsUs), SB.from('bonif_nf_vinculo').select('*').in('bonif_id', idsUs)]);
     (bu.data || []).forEach(b => BONIF_US.set(+b.id, {...b, nfb: (vu.data || []).filter(v => +v.bonif_id === +b.id)})); }
-  $('bNotas').innerHTML = NOTAS_B.map((n, i) => `<tr><td><input type="checkbox" data-i="${i}"></td><td>${esc(n.filial)}</td><td>${esc(n.doc)}/${esc(n.serie)}</td><td>${fdia(n.emissao)}</td>
+  $('bNotas').innerHTML = NOTAS_B.map((n, i) => `<tr><td><input type="checkbox" data-i="${i}"></td><td>${esc(n.filial)}</td><td>${esc(n.doc)}/${esc(n.serie)}${GRUPO_B ? (m => `<div class="nota" style="white-space:nowrap" title="${esc(m.nome || '')}">${esc(m.cod || n.cliente)}/${esc(m.loja || n.loja)} · ${fcnpj(n.cnpj)}</div>`)(MEMBROS_B.get(n.cnpj) || {}) : ''}</td><td>${fdia(n.emissao)}</td>
     <td class="n">${fmoeda(+n.valor)}</td><td class="n">${fmoeda(+n.ipi)}</td><td class="n">${fmt(+n.pecas, 0)}</td><td>${n.usada_em ? chip('JÁ CONCEDIDA — bonificação nº ' + n.usada_em, 'c-in') + `<div class="nota">${esc(txtUsada(n))}</div>` : ''}</td></tr>`).join('')
     || '<tr><td colspan="8" class="status">Nenhuma nota de venda deste CNPJ no período da campanha. Nota emitida há pouco? Ela entra na próxima rodada de hora em hora.</td></tr>';
   const marca = () => { const sel = [...$('bNotas').querySelectorAll('input:checked')].map(x => NOTAS_B[+x.dataset.i]);
@@ -1080,8 +1132,9 @@ async function buscaNotas(){
     $('bAvisoUsada').style.display = us.length ? '' : 'none';
     $('bAvisoUsada').innerHTML = us.map(n => `⚠️ A NF ${esc(n.doc.replace(/^0+/, ''))}/${esc(n.serie)} já está vinculada à <b>bonificação nº ${esc(n.usada_em)}</b> — ${esc(txtUsada(n))}. ` +
       'Ela não pode ser usada de novo; "Avaliar" mostra a situação (JÁ CONCEDIDA).').join('<br>');
-    $('bAvaliar').disabled = !sel.length || new Set(sel.map(x => x.emissao)).size > 1;
-    $('bAvaliar').textContent = !sel.length ? 'Avaliar a nota marcada' : new Set(sel.map(x => x.emissao)).size > 1 ? 'As notas precisam ser do mesmo dia' : `Avaliar ${sel.length} nota(s) — ${fmoeda(sel.reduce((a, x) => a + +x.valor, 0))}`; };
+    const dias = new Set(sel.map(x => x.emissao)).size, cnpjs = new Set(sel.map(x => x.cnpj)).size;   // a avaliação do banco é por CNPJ
+    $('bAvaliar').disabled = !sel.length || dias > 1 || cnpjs > 1;
+    $('bAvaliar').textContent = !sel.length ? 'Avaliar a nota marcada' : dias > 1 ? 'As notas precisam ser do mesmo dia' : cnpjs > 1 ? 'As notas precisam ser do mesmo CNPJ' : `Avaliar ${sel.length} nota(s) — ${fmoeda(sel.reduce((a, x) => a + +x.valor, 0))}`; };
   $('bNotas').querySelectorAll('input').forEach(x => x.onchange = marca); marca();
   await nfBonifGrupo();
 }
@@ -1093,6 +1146,7 @@ function txtUsada(n){
 }
 async function avaliaBonif(){
   const sel = [...$('bNotas').querySelectorAll('input:checked')].map(x => NOTAS_B[+x.dataset.i]), pn = sel.map(n => ({filial:n.filial, doc:n.doc, serie:n.serie}));
+  if(sel.length && sel[0].cnpj) CNPJ_B = sel[0].cnpj;   // consulta pelo grupo: avalia o CNPJ das notas marcadas
   const r = await SB.rpc('bonif_avaliar', {p_cnpj:CNPJ_B, p_notas:pn}); if(r.error){ $('bSt').textContent = r.error.message; return; }
   if(!VINC.length){ const v = await SB.from('bonif_nf_vinculo').select('*'); VINC = v.data || []; }
   const a = r.data, membros = a.membros || [];
