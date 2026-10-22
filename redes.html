@@ -902,7 +902,7 @@ function emailLiberar(lista, lote){
 async function liberaLogistica(lista){
   if(!lista.length) return;
   if(!P.LOG_AVISO_PARA) return alert('Cadastre os destinatários em Parâmetros (LOG_AVISO_PARA).');
-  if(!confirm(`Abrir no Outlook o e-mail "PODE LIBERAR EXPEDIÇÃO" com ${lista.length} nota(s) de bonificação regularizada(s) (venda vinculada ou justificativa)?\nPara: ${destLogistica()}\nVocê revisa e clica em Enviar no Outlook. A nota só passa a "liberação enviada" quando o e-mail aparecer como enviado (conferência de hora em hora).`)) return;
+  if(!confirm(`Abrir no Outlook o e-mail "PODE LIBERAR EXPEDIÇÃO" com ${lista.length} nota(s) de bonificação regularizada(s) (venda vinculada ou justificativa)?\nPara: ${destLogistica()}\nVocê revisa, marca Opções › Mais opções › “Solicitar uma confirmação de leitura” (regra universal de notificação, 22/10/2026) e clica em Enviar no Outlook. A nota só passa a "liberação enviada" quando o e-mail aparecer como enviado (conferência de hora em hora).`)) return;
   const w = window.open('', '_blank');
   const u = await SB.rpc('bonif_nf_liberar', {p_notas:lista.map(x => ({filial:x.filial, doc:x.doc, serie:x.serie, cliente:x.cliente, loja:x.loja})), p_para:P.LOG_AVISO_PARA, p_cc:P.LOG_AVISO_CC || ''});
   if(u.error){ if(w) w.close(); return alert(u.error.message); }
@@ -961,7 +961,7 @@ function emailReterErro(lista, lote, dc){
 async function avisaLogistica(lista){
   if(!lista.length) return;
   if(!P.LOG_AVISO_PARA) return alert('Cadastre os destinatários em Parâmetros (LOG_AVISO_PARA).');
-  if(!confirm(`Abrir no Outlook o e-mail "RETER EXPEDIÇÃO" com ${lista.length} nota(s)?\nPara: ${P.LOG_AVISO_PARA}${P.LOG_AVISO_CC ? ';' + P.LOG_AVISO_CC : ''}\nVocê revisa e clica em Enviar no Outlook. A nota só passa a "avisada" quando o e-mail aparecer em Itens Enviados (conferência de hora em hora).`)) return;
+  if(!confirm(`Abrir no Outlook o e-mail "RETER EXPEDIÇÃO" com ${lista.length} nota(s)?\nPara: ${P.LOG_AVISO_PARA}${P.LOG_AVISO_CC ? ';' + P.LOG_AVISO_CC : ''}\nVocê revisa, marca Opções › Mais opções › “Solicitar uma confirmação de leitura” (regra universal de notificação, 22/10/2026) e clica em Enviar no Outlook. A nota só passa a "avisada" quando o e-mail aparecer em Itens Enviados (conferência de hora em hora).`)) return;
   const w = window.open('', '_blank');   // abre já no clique (bloqueador de pop-up) e recebe o endereço depois do nº do lote
   const u = await SB.rpc('bonif_nf_avisar', {p_notas:lista.map(x => ({filial:x.filial, doc:x.doc, serie:x.serie, cliente:x.cliente, loja:x.loja})), p_para:P.LOG_AVISO_PARA, p_cc:P.LOG_AVISO_CC || ''});
   if(u.error){ if(w) w.close(); return alert(u.error.message); }
