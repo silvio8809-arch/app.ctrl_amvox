@@ -518,7 +518,8 @@ function pintaOr(){
 /* ================================================================== BONIFICAÇÃO */
 let BONIF = [], NOTAS_B = [], CNPJ_B = '';
 const fdia = d => d ? new Date(d + 'T12:00').toLocaleDateString('pt-BR') : '—';
-const SITB = {'AGUARDANDO NOTA':'c-in', 'CONCEDIDA (NF EMITIDA)':'c-ok', 'NF ACIMA DO APROVADO':'c-ru', 'NOTA NÃO EMITIDA NO PRAZO':'c-av'};
+const SITB = {'AGUARDANDO NOTA':'c-in', 'CONCEDIDA (NF EMITIDA)':'c-ok', 'NF ACIMA DO APROVADO':'c-ru', 'NOTA NÃO EMITIDA NO PRAZO':'c-av',
+              'VENDA CANCELADA':'c-ru'};   // 026 (Silvio 22/10/2026): venda do 1º pedido cancelada no TOTVS
 let VINC = [], CARD_BO = '';
 let BONOTA = [];
 async function pintaBonif(recarrega = true){   // card = filtro instantâneo
@@ -530,7 +531,7 @@ async function pintaBonif(recarrega = true){   // card = filtro instantâneo
   const nb = BONOTA;
   const GRUPOS_BO = [['', 'Aprovadas', () => true], ['OK', 'Concedidas', x => x.situacao === 'CONCEDIDA (NF EMITIDA)'],
                      ['AG', 'Aguardando nota', x => !x.situacao || x.situacao === 'AGUARDANDO NOTA'],
-                     ['PB', 'Com problema', x => ['NF ACIMA DO APROVADO', 'NOTA NÃO EMITIDA NO PRAZO'].includes(x.situacao)]];
+                     ['PB', 'Com problema', x => ['NF ACIMA DO APROVADO', 'NOTA NÃO EMITIDA NO PRAZO', 'VENDA CANCELADA'].includes(x.situacao)]];
   const totB = BONIF.reduce((a, x) => a + +x.bonificacao, 0) || 1, filtro = (GRUPOS_BO.find(g => g[0] === CARD_BO) || GRUPOS_BO[0])[2];
   $('cardsBo').innerHTML = GRUPOS_BO.map(([k, t, f]) => { const l = BONIF.filter(f), val = l.reduce((a, x) => a + +x.bonificacao, 0);
     return `<div class="kpi ${CARD_BO === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(val)} · ${fmt(val / totB * 100, 1)}%</div></div>`; }).join('');
@@ -810,20 +811,24 @@ async function confereAuto(){ if(APROVA){ const u = await SB.rpc('bonif_conferir
 
 /* ---- NOTAS DE BONIFICAÇÃO (CFOP 5910/6910) + ANOMALIAS — Silvio 10/10/2026 (caso NF 000281079 OTAVIO REFIL) ---- */
 const SITNB = {'BONIFICAÇÃO SEM FATURAMENTO':'tarja', 'SEM APROVAÇÃO NO APP':'tarja av', 'JUSTIFICADA':'c-ne', 'APROVADA NO APP':'c-ok', 'ERRO DE EMISSÃO (SEM EXPEDIÇÃO)':'c-ne',
-               'ANULADA (DEVOLVIDA)':'c-ne'};   // 024 (Silvio 20/10/2026): devolução integral por NF de entrada = nota anulada
+               'ANULADA (DEVOLVIDA)':'c-ne',    // 024 (Silvio 20/10/2026): devolução integral por NF de entrada = nota anulada
+               'VENDA DO 1º PEDIDO CANCELADA':'tarja'};   // 026 (Silvio 22/10/2026): aprovação cuja venda base foi cancelada
+const VCANC = 'VENDA DO 1º PEDIDO CANCELADA';
 const ERRO_EMI = 'ERRO DE EMISSÃO (SEM EXPEDIÇÃO)';
 /* erro de emissão que JÁ foi à LOG em protocolo e ainda não teve o e-mail de retenção (Silvio 13/10/2026) */
 const reterErroNb = x => x.situacao === ERRO_EMI && !!x.protocolo && !x.avisado_em;
 let NFB = [], NFB_G = [], CARD_NB = '';
-const selNb = x => x.situacao.startsWith('BONIFICAÇÃO') || x.situacao.startsWith('SEM') ? `<span class="${SITNB[x.situacao]}">${esc(x.situacao)}</span>` : chip(x.situacao, SITNB[x.situacao] || 'c-in');
+const selNb = x => x.situacao.startsWith('BONIFICAÇÃO') || x.situacao.startsWith('SEM') || x.situacao === VCANC ? `<span class="${SITNB[x.situacao]}">${esc(x.situacao)}</span>` : chip(x.situacao, SITNB[x.situacao] || 'c-in');
 const chaveNb = x => [x.filial, x.doc, x.serie, x.cliente, x.loja].join('|');
 /* "e-mail enviado à LOG dia 19/10/2026, às 10:33" (Silvio 19/10/2026) */
 const diaHoraLog = s => { if(!s) return '—'; const d = new Date(s);
   return `dia ${d.toLocaleDateString('pt-BR')}, às ${d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})}`; };
 function linhaNb(x, completa){
-  const semFat = x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO';
+  // venda do 1º pedido cancelada (026) = mesmo tratamento da sem faturamento: tarja, RETER, Justificar, Erro de emissão
+  const semFat = x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO' || x.situacao === VCANC;
   const aLiberar = aLiberarNb(x);
-  const just = x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(x.motivo || '')}</div>` : x.situacao === 'APROVADA NO APP'
+  const just = x.situacao === VCANC ? `<div class="nota" style="color:var(--ru)">bonificação nº ${x.bonif_id} · ${esc(x.motivo || 'venda do 1º pedido cancelada no TOTVS')}</div>`
+    : x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(x.motivo || '')}</div>` : x.situacao === 'APROVADA NO APP'
     ? `<div class="nota">bonificação nº ${x.bonif_id}${x.vendas ? ' · venda: ' + esc(x.vendas) : ''}</div>` : '';
   /* PODE LIBERAR (Silvio 12/10/2026): nota que foi RETIDA (e-mail enviado) e depois ligada à venda pela Controladoria */
   const erro = x.situacao !== ERRO_EMI ? '' : !x.protocolo
@@ -914,13 +919,20 @@ function emailReter(lista, lote){
   const um = lista.length === 1;
   const blocos = lista.map(x => [`• NF: ${x.doc}/${x.serie}`, `• Data de emissão: ${dc(x.emissao)}`, `• CFOP: ${x.cfop || ''}`, `• Filial: ${x.filial}`,
     `• Cliente: ${x.nome || ''} (${x.cliente}/${x.loja})`, `• ${tdoc(x.cnpj)}: ${fcnpj(x.cnpj || '')}`, `• UF: ${x.uf || ''}`,
-    `• Valor: ${fmoeda(+x.valor)}`, `• Quantidade: ${fmt(+x.pecas, 0)} peça${+x.pecas === 1 ? '' : 's'}`].join('\n')).join('\n\n');
+    `• Valor: ${fmoeda(+x.valor)}`, `• Quantidade: ${fmt(+x.pecas, 0)} peça${+x.pecas === 1 ? '' : 's'}`]
+    .concat(x.situacao === VCANC ? [`• Situação: venda do 1º pedido cancelada (bonificação nº ${x.bonif_id})`] : []).join('\n')).join('\n\n');
   // [AV-n] no assunto = chave que a conferência procura em Itens Enviados para dar o aviso como feito
-  const assunto = (um ? `RETER EXPEDIÇÃO — NF ${lista[0].doc} (bonificação sem faturamento)` : `RETER EXPEDIÇÃO — ${lista.length} notas de bonificação sem faturamento`) + ` [AV-${lote}]`;
+  // 026 (Silvio 22/10/2026): bonificação cuja venda do 1º pedido foi CANCELADA no TOTVS também é retida — motivo próprio
+  const nVc = lista.filter(x => x.situacao === VCANC).length, soVc = nVc === lista.length, misto = nVc > 0 && !soVc;
+  const tipoTxt = soVc ? 'venda do 1º pedido cancelada' : misto ? 'sem faturamento / venda cancelada' : 'bonificação sem faturamento';
+  const assunto = (um ? `RETER EXPEDIÇÃO — NF ${lista[0].doc} (${tipoTxt})` : `RETER EXPEDIÇÃO — ${lista.length} notas de bonificação ${soVc ? 'com venda do 1º pedido cancelada' : misto ? 'sem faturamento / venda cancelada' : 'sem faturamento'}`) + ` [AV-${lote}]`;
+  const motVc = `A nota fiscal de venda que embasou a aprovação da bonificação foi CANCELADA no TOTVS; a bonificação fica suspensa até justificativa ou liberação formal da Controladoria.`;
   const corpo = `Prezados,\n\n` +
-    `Favor RETER A EXPEDIÇÃO ${um ? 'da nota de bonificação abaixo' : 'das notas de bonificação abaixo'} até que haja faturamento (nota fiscal de venda) para o cliente ou grupo econômico correspondente.\n\n` +
+    `Favor RETER A EXPEDIÇÃO ${um ? 'da nota de bonificação abaixo' : 'das notas de bonificação abaixo'} ${soVc ? 'até nova autorização formal da Controladoria' : 'até que haja faturamento (nota fiscal de venda) para o cliente ou grupo econômico correspondente'}.\n\n` +
     `${um ? 'Dados da nota:' : 'Dados das notas:'}\n\n${blocos}\n\n` +
-    `Motivo da retenção: Bonificação emitida sem faturamento prévio do cliente/grupo econômico. Não foi identificada nota fiscal de venda nos ${P.BONIF_PRAZO_DIAS} dias anteriores nem nos ${P.BONIF_PRAZO_DIAS} dias posteriores à emissão da bonificação.\n\n` +
+    (soVc ? `Motivo da retenção: ${motVc}\n\n`
+      : `Motivo da retenção: Bonificação emitida sem faturamento prévio do cliente/grupo econômico. Não foi identificada nota fiscal de venda nos ${P.BONIF_PRAZO_DIAS} dias anteriores nem nos ${P.BONIF_PRAZO_DIAS} dias posteriores à emissão da bonificação.`
+        + (misto ? ` Nas notas marcadas "venda cancelada": ${motVc}` : '') + `\n\n`) +
     `Diretriz: Não devem ser expedidas bonificações para clientes ou redes que não apresentem faturamento no período estabelecido. ` +
     `Caso ${um ? 'a nota já conste' : 'as notas já constem'} em algum Protocolo de Liberação para Expedição, a liberação deverá ser desconsiderada, mantendo-se a retenção até nova autorização.\n\n` +
     `A liberação será comunicada formalmente pela Controladoria, por meio de protocolo de notas encaminhado por e-mail ou via TOTVS Assinatura.\n\n` +
@@ -985,18 +997,19 @@ async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: 
     NFB = r.data || [];
   }
   const totV = NFB.reduce((a, x) => a + +x.valor, 0) || 1;
-  const grupos = [['', 'Notas de bonificação'], ['BONIFICAÇÃO SEM FATURAMENTO', 'Sem faturamento'], ['SEM APROVAÇÃO NO APP', 'Sem aprovação no app'], ['LIB', 'A liberar'], ['OK', 'Regularizadas'],
+  const grupos = [['', 'Notas de bonificação'], ['BONIFICAÇÃO SEM FATURAMENTO', 'Sem faturamento / venda cancelada'], ['SEM APROVAÇÃO NO APP', 'Sem aprovação no app'], ['LIB', 'A liberar'], ['OK', 'Regularizadas'],
                   ['ANULADA (DEVOLVIDA)', 'Anuladas (devolvidas)']];
-  const casa = (x, k) => !k || (k === 'LIB' ? aLiberarNb(x) : k === 'OK' ? ['JUSTIFICADA', 'APROVADA NO APP', ERRO_EMI].includes(x.situacao) : x.situacao === k);
+  const casa = (x, k) => !k || (k === 'LIB' ? aLiberarNb(x) : k === 'OK' ? ['JUSTIFICADA', 'APROVADA NO APP', ERRO_EMI].includes(x.situacao)
+    : k === 'BONIFICAÇÃO SEM FATURAMENTO' ? [k, VCANC].includes(x.situacao) : x.situacao === k);
   $('cardsNb').innerHTML = grupos.map(([k, t]) => { const l = NFB.filter(x => casa(x, k)), v = l.reduce((a, x) => a + +x.valor, 0);
     return `<div class="kpi ${CARD_NB === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / totV * 100, 1)}%</div></div>`; }).join('');
   $('cardsNb').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_NB = CARD_NB === e.dataset.k ? '' : e.dataset.k; pintaNfBonif(false); });
   $('tNb').innerHTML = NFB.filter(x => casa(x, CARD_NB)).map(x => linhaNb(x, true)).join('')
     || '<tr><td colspan="10" class="status">Nenhuma nota de bonificação nesta situação.</td></tr>';
   ligaBotoesNb($('tNb'), () => NFB);
-  const pend = NFB.filter(x => x.situacao === 'BONIFICAÇÃO SEM FATURAMENTO' && !x.avisado_em);   // avisada = e-mail em Itens Enviados
+  const pend = NFB.filter(x => ['BONIFICAÇÃO SEM FATURAMENTO', VCANC].includes(x.situacao) && !x.avisado_em);   // avisada = e-mail em Itens Enviados
   $('nbAvisaTodas').style.display = E_ADM && pend.length ? '' : 'none';
-  $('nbAvisaTodas').textContent = `📧 Avisar Logística — ${pend.length} nota(s) sem faturamento sem e-mail enviado`;
+  $('nbAvisaTodas').textContent = `📧 Avisar Logística — ${pend.length} nota(s) sem faturamento / venda cancelada sem e-mail enviado`;
   $('nbAvisaTodas').onclick = () => avisaLogistica(pend);
   const lib = NFB.filter(x => aLiberarNb(x) && !x.liberar_preparado_em);
   $('nbLiberaTodas').style.display = APROVA && lib.length ? '' : 'none';
