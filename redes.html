@@ -225,9 +225,9 @@
   <div class="painel" id="vpcP"><h2>VPC em produtos aprovados <span>bonificação em produto que paga o VPC previsto em outro pedido de venda — fora da campanha · aprove pelo botão "VPC em produtos" nos pendentes, na fila ou na nota de bonificação</span></h2>
     <div class="cards" id="cardsVpc" style="margin:10px 14px 0"></div>
     <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Pedido / NF de bonificação</th><th class="n">Aprovado</th><th>VPC pago de (pedido de venda)</th><th>Situação</th><th></th></tr></thead><tbody id="tVpc"></tbody></table></div></div>
-  <div class="painel"><h2>Saldo de VPC por pedido de venda <span>últimos 365 dias · previsto (% do item no pedido; sem %, o VPC do cadastro) − pago no banco VPC − pago em produtos · NDs 2168 fora do saldo · atualizado de hora em hora</span></h2>
+  <div class="painel"><h2>Saldo de VPC <span class="nota" style="margin:0 8px 0 0"><label style="cursor:pointer"><input type="radio" name="vVisao" value="P" checked> por pedido de venda</label> <label style="cursor:pointer"><input type="radio" name="vVisao" value="C"> por cliente (raiz do CNPJ)</label></span><span>últimos 365 dias · previsto (% do item no pedido; sem %, o VPC do cadastro) − pago no banco VPC − pago em produtos · NDs 2168 fora do saldo · atualizado de hora em hora</span></h2>
     <div class="cards" id="cardsVpcS" style="margin:10px 14px 0"></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Pedido de venda</th><th>Emissão</th><th>Cliente</th><th>Situação</th><th class="n">Valor venda</th><th>NF de venda</th><th class="n">% VPC</th><th class="n">VPC previsto</th><th class="n">Pago no banco VPC</th><th class="n">Pago em produtos</th><th class="n">Saldo</th></tr></thead><tbody id="tVpcSaldo"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead id="hVpcSaldo"></thead><tbody id="tVpcSaldo"></tbody></table></div></div>
 </section>
 <!-- ================= REGRAS ================= -->
 <section class="tela" id="tela-regras">
@@ -911,7 +911,8 @@ async function abreVpc(a){
       <div class="status" id="vpcSt" style="margin:0"></div></div></div></div>`;
   const tot = () => {
     const saldo = sel.reduce((s, i) => s + +l[i].saldo, 0), teto = saldo * (1 + tol), ok = sel.length && +a.valor <= teto + 0.01;
-    $('vpcTot').innerHTML = `<span>Pedidos marcados: <b>${sel.map(i => esc(l[i].pedido)).join(', ') || '—'}</b></span><span>Saldo de VPC: <b>${fmoeda(saldo)}</b></span>
+    const prevT = l.filter(x => x.situacao === 'ATIVO').reduce((s2, x) => s2 + +x.vpc_previsto, 0), pagoT = l.reduce((s2, x) => s2 + +x.vpc_pago_banco + +x.vpc_pago_produtos, 0);
+    $('vpcTot').innerHTML = `<span class="nota" style="margin:0;flex-basis:100%">Total do cliente/grupo (365 dias): previsto ${fmoeda(prevT)} − pago ${fmoeda(pagoT)} = saldo <b>${fmoeda(Math.max(0, prevT - pagoT))}</b>${pagoT > prevT + 0.01 ? ' (pago acima do previsto)' : ''}</span><span>Pedidos marcados: <b>${sel.map(i => esc(l[i].pedido)).join(', ') || '—'}</b></span><span>Saldo de VPC: <b>${fmoeda(saldo)}</b></span>
       <span>Teto c/ tolerância de ${fmt(tol * 100, 0)}%: <b>${fmoeda(teto)}</b></span>` + (!sel.length ? ''
       : ok ? `<span style="color:var(--ok)"><b>✓ dentro do saldo</b>${+a.valor > saldo + 0.01 ? ` (${fmoeda(+a.valor - saldo)} na tolerância)` : ''}</span>`
       : `<span style="color:var(--ru)"><b>⛔ ${fmoeda(+a.valor - teto)} acima do teto — não aprovar (marque outro pedido ou reduza a bonificação no TOTVS)</b></span>`);
@@ -991,11 +992,34 @@ async function pintaAbaVpc(recarrega = true){
              (it.x.situacao === 'JUSTIFICADA' ? ' · hoje JUSTIFICADA (a justificativa vai para a observação)' : '')}); });
   // saldo por pedido de venda — cards = filtro (valor com %)
   const base = VPC_SALDO.filter(passaFiltroVpc), tot = base.reduce((a, x) => a + +x.vpc_previsto, 0) || 1;
+  const porCli = (document.querySelector('input[name=vVisao]:checked') || {}).value === 'C';
+  const g = new Map();
+  base.forEach(x => { const k = String(x.cnpj || '').length === 14 ? x.cnpj.slice(0, 8) : (x.cnpj || x.cliente);
+    const o = g.get(k) || {k, nome:x.nome, cnpj:x.cnpj, n:0, valor:0, prev:0, banco:0, prod:0};
+    o.n++; o.valor += +x.valor; o.prev += x.situacao === 'ATIVO' ? +x.vpc_previsto : 0; o.banco += +x.vpc_pago_banco; o.prod += x.pp; o.nome = o.nome || x.nome; g.set(k, o); });
+  const clientes = [...g.values()].map(o => ({...o, saldo:Math.max(0, Math.round((o.prev - o.banco - o.prod) * 100) / 100)}));
   const grupos = [['', 'VPC previsto', x => +x.vpc_previsto], ['BANCO', 'Pago no banco VPC', x => +x.vpc_pago_banco], ['PROD', 'Pago em produtos', x => x.pp], ['SALDO', 'Saldo a pagar', x => x.saldo]];
   const casa = (x, k) => !k || (k === 'BANCO' ? +x.vpc_pago_banco > 0 : k === 'PROD' ? x.pp > 0 : x.saldo > 0.009);
-  $('cardsVpcS').innerHTML = grupos.map(([k, t, f]) => { const l = base.filter(x => casa(x, k)), v = base.reduce((a, x) => a + f(x), 0);
-    return `<div class="kpi ${CARD_VPCS === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${fmoeda(v)}</div><div class="nota">${l.length} pedido(s) · ${fmt(v / tot * 100, 1)}% do previsto</div></div>`; }).join('');
+  $('cardsVpcS').innerHTML = grupos.map(([k, t, f]) => {
+    const cs = porCli && k === 'SALDO', l = cs ? clientes.filter(o => o.saldo > 0.009) : base.filter(x => casa(x, k)),
+          v = cs ? clientes.reduce((a, o) => a + o.saldo, 0) : base.reduce((a, x) => a + f(x), 0);
+    return `<div class="kpi ${CARD_VPCS === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}${cs ? ' (por cliente)' : ''}</div><div class="v">${fmoeda(v)}</div><div class="nota">${l.length} ${cs ? 'cliente(s)' : 'pedido(s)'} · ${fmt(v / tot * 100, 1)}% do previsto</div></div>`; }).join('');
   $('cardsVpcS').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_VPCS = CARD_VPCS === e.dataset.k ? '' : e.dataset.k; pintaAbaVpc(false); });
+  /* POR CLIENTE (Silvio 27/10/2026): o banco VPC costuma baixar a verba em poucas NFs, acima do VPC delas — por pedido o excesso
+     não abate os outros pedidos e o saldo fica superestimado; no total do cliente (raiz do CNPJ) o excesso compensa */
+  if(porCli){
+    const cli = clientes
+      .filter(o => casa({vpc_pago_banco:o.banco, pp:o.prod, saldo:o.saldo}, CARD_VPCS) && (!$('vFSaldo').checked || o.saldo > 0.009))
+      .sort((a, b) => b.saldo - a.saldo || b.prev - a.prev);
+    $('hVpcSaldo').innerHTML = '<tr><th>Cliente</th><th>CNPJ / raiz</th><th class="n">Pedidos</th><th class="n">Valor venda</th><th class="n" title="Só pedidos ativos">VPC previsto</th><th class="n">Pago no banco VPC</th><th class="n">Pago em produtos</th><th class="n" title="Previsto − pago no banco − pago em produtos, no total do cliente">Saldo do cliente</th></tr>';
+    $('tVpcSaldo').innerHTML = cli.slice(0, 300).map(o => `<tr><td>${esc(o.nome || '')}</td><td>${o.k.length === 8 ? 'raiz ' + fraiz(o.k) : fcnpj(o.cnpj || '')}</td>
+        <td class="n">${o.n}</td><td class="n">${fmoeda(o.valor)}</td><td class="n">${fmoeda(o.prev)}</td><td class="n">${o.banco ? fmoeda(o.banco) : '—'}</td>
+        <td class="n">${o.prod ? fmoeda(o.prod) : '—'}</td><td class="n"><b>${fmoeda(o.saldo)}</b>${o.banco + o.prod > o.prev + 0.01 ? `<div class="nota">pago ${fmoeda(o.banco + o.prod - o.prev)} acima do previsto</div>` : ''}</td></tr>`).join('')
+      + (cli.length > 300 ? `<tr><td colspan="8" class="status">Mostrando 300 de ${cli.length} — refine os filtros.</td></tr>` : '')
+      || '<tr><td colspan="8" class="status">Nenhum cliente com VPC nestes filtros.</td></tr>';
+    return;
+  }
+  $('hVpcSaldo').innerHTML = '<tr><th>Pedido de venda</th><th>Emissão</th><th>Cliente</th><th>Situação</th><th class="n">Valor venda</th><th>NF de venda</th><th class="n">% VPC</th><th class="n">VPC previsto</th><th class="n">Pago no banco VPC</th><th class="n">Pago em produtos</th><th class="n">Saldo</th></tr>';
   const sal = base.filter(x => casa(x, CARD_VPCS) && (!$('vFSaldo').checked || x.saldo > 0.009));
   $('tVpcSaldo').innerHTML = sal.slice(0, 300).map(x => `<tr><td><b>${esc(x.pedido)}</b><div class="nota">filial ${esc(x.filial)}</div></td><td>${fdia(x.emissao)}</td>
       <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>
@@ -1007,6 +1031,7 @@ async function pintaAbaVpc(recarrega = true){
 }
 let _vpcFiltroT = null;
 ['vFPed', 'vFCli', 'vFCnpj', 'vFDe', 'vFAte', 'vFSaldo'].forEach(id => { const e = $(id); if(e) e.addEventListener('input', () => { clearTimeout(_vpcFiltroT); _vpcFiltroT = setTimeout(() => pintaAbaVpc(false), 250); }); });
+document.querySelectorAll('input[name=vVisao]').forEach(r => r.onchange = () => pintaAbaVpc(false));
 if($('vFLimpa')) $('vFLimpa').onclick = () => { ['vFPed', 'vFCli', 'vFCnpj', 'vFDe', 'vFAte'].forEach(id => $(id).value = ''); pintaAbaVpc(false); };
 
 /* ---- NOTAS DE BONIFICAÇÃO (CFOP 5910/6910) + ANOMALIAS — Silvio 10/10/2026 (caso NF 000281079 OTAVIO REFIL) ---- */
