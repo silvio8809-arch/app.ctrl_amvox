@@ -865,7 +865,18 @@ const regularizadaNb = x => ['APROVADA NO APP', 'JUSTIFICADA'].includes(x.situac
 const COR_PED = {'EM APROVAÇÃO DE CRÉDITO (FIN)':'c-av', 'BLOQUEADO NO CRÉDITO (FIN)':'c-ru', 'CRÉDITO REJEITADO (FIN)':'c-ru',
                  'EM APROVAÇÃO COMERCIAL':'c-av', 'REPROVADO (COMERCIAL)':'c-ne', 'CRÉDITO APROVADO — AGUARDANDO FATURAMENTO':'c-in',
                  'REPROVADO (DESCONTO)':'c-ne', 'CANCELADO':'c-ne'};   // 27/10/2026: status FIN pelo C5_XFINSTA + estado do pedido no CRM
-const pedLinha = p => `<div style="margin-bottom:4px"><b>${esc(p.pedido)}</b> <span class="nota">${fdia(p.emissao)} · ${fmoeda(+p.valor || +p.valor_saldo || 0)}</span><br>${chip(p.status, COR_PED[p.status] || 'c-in')}</div>`;
+/* MOTIVO DO FINANCEIRO (Silvio 27/10/2026, migração 027): SC5.C5_XFINOBS embaixo do status do pedido. O painel de notas vem de
+   bonif_nf_painel (sem a coluna) → FINOBS = pedido → motivo, lido de cli_pedido_aberto. */
+let FINOBS = new Map();
+async function carregaFinObs(){
+  const r = await SB.from('cli_pedido_aberto').select('pedido,fin_obs').not('fin_obs', 'is', null);
+  if(!r.error) FINOBS = new Map((r.data || []).map(x => [x.pedido, x.fin_obs]));
+}
+const chipPed = p => {
+  const obs = p.fin_obs || FINOBS.get(p.pedido), neg = /REJEITADO|REPROVADO|BLOQUEADO/.test(p.status || '');
+  return chip(p.status, COR_PED[p.status] || 'c-in') + (obs ? `<div class="nota" style="${neg ? 'color:var(--ru)' : ''}">${neg ? 'Motivo FIN' : 'Obs. FIN'}: ${esc(obs)}</div>` : '');
+};
+const pedLinha = p => `<div style="margin-bottom:4px"><b>${esc(p.pedido)}</b> <span class="nota">${fdia(p.emissao)} · ${fmoeda(+p.valor || +p.valor_saldo || 0)}</span><br>${chipPed(p)}</div>`;
 const pedidosNb = x => (x.pedidos_fat || []).length ? x.pedidos_fat.map(pedLinha).join('') : '<span class="nota">—</span>';
 const aLiberarNb = x => regularizadaNb(x) && !!x.avisado_em && !x.liberado_em;
 /* destinatários dos comunicados à Logística; o link do Outlook IGNORA cc → todos no "Para". Se quem envia não é a
@@ -994,6 +1005,7 @@ async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: 
   if(!(E_ADM || window.PAPEL === 'GERENTE')){ $('nbBloco').style.display = 'none'; return; }
   $('nbBloco').style.display = '';
   if(recarrega || !NFB.length){
+    await carregaFinObs();
     const r = await SB.rpc('bonif_nf_painel', {p_cnpj:null}); if(r.error){ $('tNb').innerHTML = `<tr><td colspan="10" class="status err">${esc(r.error.message)}</td></tr>`; return; }
     NFB = r.data || [];
   }
@@ -1019,6 +1031,7 @@ async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: 
 }
 async function nfBonifGrupo(){
   if(!(E_ADM || window.PAPEL === 'GERENTE')) return;
+  if(!FINOBS.size) await carregaFinObs();
   const r = await SB.rpc('bonif_nf_painel', {p_cnpj:CNPJ_B}); const l = r.error ? [] : (r.data || []);
   $('bNfGrupoP').style.display = l.length ? '' : 'none';
   NFB_G = l; $('bNfGrupo').innerHTML = l.map(x => linhaNb(x, false)).join(''); ligaBotoesNb($('bNfGrupo'), () => NFB_G);
@@ -1104,7 +1117,7 @@ async function pintaFila(){
     SB.from('bonif_nota').select('bonif_id,doc,serie,emissao,valor'), SB.from('bonif_nf_vinculo').select('*')]);
   const BC = (bc.data || []).filter(b => !P.CAMP_INICIO || (b.data_nota >= P.CAMP_INICIO && b.data_nota <= P.CAMP_FIM)), BN = bn.data || [], BV = bv.data || [];   // só a campanha vigente
   const nome = new Map((cad.data || []).map(x => [x.cod + '|' + x.loja, x]));
-  const fat = await SB.from('cli_pedido_aberto').select('pedido,cliente,loja,emissao,valor_saldo,status').eq('tipo', 'FAT').in('cliente', [...new Set(l.map(x => x.cliente))]);
+  const fat = await SB.from('cli_pedido_aberto').select('pedido,cliente,loja,emissao,valor_saldo,status,fin_obs').eq('tipo', 'FAT').in('cliente', [...new Set(l.map(x => x.cliente))]);
   const fatDe = k => (fat.data || []).filter(f => f.cliente + '|' + f.loja === k);
   const linhas = await Promise.all(l.map(async p => {
     const c = nome.get(p.cliente + '|' + p.loja) || {}, cnpj = p.cnpj || c.cnpj;
@@ -1145,7 +1158,7 @@ function desenhaFila(){
         `<div class="nota">${ja.nfb.length ? 'NF de bonificação: ' + ja.nfb.map(v => esc(String(v.doc).replace(/^0+/, ''))).join(', ') : 'NF de bonificação ainda não emitida'}</div>`
       : !cnpj ? chip('sem cadastro', 'c-ne')
       : !av ? chip('SEM VENDA NA CAMPANHA', 'c-ru') + '<div class="nota">não aprovar: o 1º pedido ainda não virou nota</div>' +
-        fat.map(f => `<div style="margin-top:3px"><b>${esc(f.pedido)}</b> <span class="nota">${fdia(f.emissao)} · ${fmoeda(+f.valor_saldo)}</span> ${chip(f.status, COR_PED[f.status] || 'c-in')}</div>`).join('')
+        fat.map(f => `<div style="margin-top:3px"><b>${esc(f.pedido)}</b> <span class="nota">${fdia(f.emissao)} · ${fmoeda(+f.valor_saldo)}</span> ${chipPed(f)}</div>`).join('')
       : chip((av.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + av.classificacao, av.elegivel ? 'c-ok' : 'c-ru') +
         `<div class="nota">venda: ${notas.map(n => esc(n.doc.replace(/^0+/, ''))).join(', ')} de ${fdia(notas[0].emissao)} · ${fmoeda(+av.valor_notas)}</div>`;
     /* tolerância (Silvio 13/10/2026): até BONIF_TOLERANCIA (5%) acima dos 10% = OK; acima disso NÃO aprovar o excedente */
@@ -1157,7 +1170,7 @@ function desenhaFila(){
       : `<div class="nota" style="color:var(--ru)">⛔ ${fmt((pedido / max - 1) * 100, 1)}% acima — NÃO aprovar o excedente de ${fmoeda(pedido - max)} (limite c/ tolerância ${fmoeda(maxTol)})</div>`);
     return `<tr><td><b>${esc(p.pedido)}</b><div class="nota">${fdia(p.emissao)}</div></td>
       <td>${esc(c.nome || '')} <span class="nota">${esc(p.cliente)}/${esc(p.loja)}</span><div class="nota">${fcnpj(cnpj || '')}</div></td>
-      <td>${chip(p.status, COR_PED[p.status] || 'c-in')}</td><td class="n">${fmoeda(pedido)}</td><td>${avTxt}</td><td class="n">${maxTxt}</td>
+      <td>${chipPed(p)}</td><td class="n">${fmoeda(pedido)}</td><td>${avTxt}</td><td class="n">${maxTxt}</td>
       <td>${cnpj ? `<button class="btn" data-fila="${esc(cnpj)}" data-notas="${esc(notas.map(n => n.doc).join(','))}">Abrir na consulta</button>` : ''}</td></tr>`; }).join('');
   ligaPdf($('tFila'));
   $('tFila').querySelectorAll('[data-fila]').forEach(b => b.onclick = async () => {
@@ -1180,7 +1193,7 @@ async function pedidosGrupo(c){
   $('bPedP').style.display = '';
   $('bPed').innerHTML = l.map(p => `<tr><td><b>${esc(p.pedido)}</b><div class="nota">filial ${esc(p.filial)}</div></td><td>${fdia(p.emissao)}</td>
     <td>${esc(nome.get(p.cliente + '|' + p.loja) || '')} <span class="nota">${esc(p.cliente)}/${esc(p.loja)}</span></td><td class="n">${fmoeda(+p.valor_saldo)}</td>
-    <td>${chip(p.status, COR_PED[p.status] || 'c-in')}</td></tr>`).join('');
+    <td>${chipPed(p)}</td></tr>`).join('');
 }
 async function buscaNotas(){
   $('bRes').innerHTML = ''; $('bNotasP').style.display = 'none'; $('bNfGrupoP').style.display = 'none'; $('bPedP').style.display = 'none';
