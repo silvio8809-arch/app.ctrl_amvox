@@ -863,7 +863,8 @@ function linhaNb(x, completa){
 const regularizadaNb = x => ['APROVADA NO APP', 'JUSTIFICADA'].includes(x.situacao);
 /* pedido de VENDA ainda sem nota e a situação do crédito no FIN (Silvio 13/10/2026 — caso OTAVIO REFIL, pedido A7340G) */
 const COR_PED = {'EM APROVAÇÃO DE CRÉDITO (FIN)':'c-av', 'BLOQUEADO NO CRÉDITO (FIN)':'c-ru', 'CRÉDITO REJEITADO (FIN)':'c-ru',
-                 'EM APROVAÇÃO COMERCIAL':'c-av', 'REPROVADO (COMERCIAL)':'c-ne', 'CRÉDITO APROVADO — AGUARDANDO FATURAMENTO':'c-in'};
+                 'EM APROVAÇÃO COMERCIAL':'c-av', 'REPROVADO (COMERCIAL)':'c-ne', 'CRÉDITO APROVADO — AGUARDANDO FATURAMENTO':'c-in',
+                 'REPROVADO (DESCONTO)':'c-ne', 'CANCELADO':'c-ne'};   // 27/10/2026: status FIN pelo C5_XFINSTA + estado do pedido no CRM
 const pedLinha = p => `<div style="margin-bottom:4px"><b>${esc(p.pedido)}</b> <span class="nota">${fdia(p.emissao)} · ${fmoeda(+p.valor || +p.valor_saldo || 0)}</span><br>${chip(p.status, COR_PED[p.status] || 'c-in')}</div>`;
 const pedidosNb = x => (x.pedidos_fat || []).length ? x.pedidos_fat.map(pedLinha).join('') : '<span class="nota">—</span>';
 const aLiberarNb = x => regularizadaNb(x) && !!x.avisado_em && !x.liberado_em;
@@ -1093,7 +1094,7 @@ async function resolveCliente(txt){
 /* FILA: pedidos de bonificação aguardando aprovação no TOTVS (Silvio 13/10/2026 — caso ROQUE EDSON, pedido A7315H)
    Para cada pedido: pega a 1ª data de venda do CNPJ na campanha (notas ainda não usadas) e roda a mesma avaliação do banco. */
 async function pintaFila(){
-  const r = await SB.from('cli_pedido_aberto').select('*').eq('tipo', 'BON').neq('status', 'REPROVADO (COMERCIAL)').order('emissao', {ascending:false});
+  const r = await SB.from('cli_pedido_aberto').select('*').eq('tipo', 'BON').not('status', 'in', '("REPROVADO (COMERCIAL)","REPROVADO (DESCONTO)","CANCELADO")').order('emissao', {ascending:false});
   const l = r.data || []; if(r.error){ $('tFila').innerHTML = `<tr><td colspan="7" class="status err">${esc(r.error.message)}</td></tr>`; return; }
   if(!l.length){ $('tFila').innerHTML = '<tr><td colspan="7" class="status">Nenhum pedido de bonificação aguardando no TOTVS.</td></tr>'; return; }
   const cad = await SB.from('cli_cadastro').select('cod,loja,nome,cnpj,grupo').in('cod', [...new Set(l.map(x => x.cliente))]);
