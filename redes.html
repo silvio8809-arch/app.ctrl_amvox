@@ -225,7 +225,7 @@
   <div class="painel" id="vpcP"><h2>VPC em produtos aprovados <span>bonificação em produto que paga o VPC previsto em outro pedido de venda — fora da campanha · aprove pelo botão "VPC em produtos" nos pendentes, na fila ou na nota de bonificação</span></h2>
     <div class="cards" id="cardsVpc" style="margin:10px 14px 0"></div>
     <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Pedido / NF de bonificação</th><th class="n">Aprovado</th><th>VPC pago de (pedido de venda)</th><th>Situação</th><th></th></tr></thead><tbody id="tVpc"></tbody></table></div></div>
-  <div class="painel"><h2>Saldo de VPC <span class="nota" style="margin:0 8px 0 0"><label style="cursor:pointer"><input type="radio" name="vVisao" value="P" checked> por pedido de venda</label> <label style="cursor:pointer"><input type="radio" name="vVisao" value="C"> por cliente (raiz do CNPJ)</label></span><span>últimos 365 dias · previsto (% do item no pedido; sem %, o VPC do cadastro) − pago no banco VPC − pago em produtos · NDs 2168 fora do saldo · atualizado de hora em hora</span></h2>
+  <div class="painel"><h2>Saldo de VPC <span class="nota" style="margin:0 8px 0 0"><label style="cursor:pointer"><input type="radio" name="vVisao" value="P" checked> por pedido de venda</label> <label style="cursor:pointer"><input type="radio" name="vVisao" value="C"> por cliente (raiz do CNPJ)</label></span><span>últimos 365 dias · previsto (% do item no pedido; sem %, o VPC do cadastro) − pago no banco VPC − pago em produtos − pago por ND 2168 (a ND não tem pedido: entra só no saldo por cliente) · atualizado de hora em hora</span></h2>
     <div class="cards" id="cardsVpcS" style="margin:10px 14px 0"></div>
     <div class="tbl-wrap"><table><thead id="hVpcSaldo"></thead><tbody id="tVpcSaldo"></tbody></table></div></div>
 </section>
@@ -862,7 +862,7 @@ function pintaVpc(){
         <div class="nota">${v.notas_bonif ? 'NF de bonificação: ' + esc(v.notas_bonif) + ' · ' + fmoeda(+v.valor_nf) : 'NF de bonificação ainda não emitida'}</div></td>
       <td class="n">${fmoeda(+v.valor)}</td><td style="min-width:200px">${origemVpc(v) || '—'}</td>
       <td>${chip(s, COR_VPC[s])}<div class="nota">aprovado ${fdata(v.aprovado_em)}${v.aprovado_por ? ' por ' + esc(String(v.aprovado_por).split('@')[0]) : ''}</div>
-        ${v.obs ? `<div class="nota">${esc(v.obs)}</div>` : ''}${v.situacao === 'CANCELADA' ? `<div class="nota" style="color:var(--ru)">cancelado ${fdata(v.cancelado_em)}: ${esc(v.motivo_cancel || '')}</div>` : ''}</td>
+        ${v.obs ? `<div class="nota">${esc(v.obs)}</div>` : ''}${v.alerta ? `<div class="nota" style="color:var(--ru)">⚠️ aprovado com alerta: ${esc(v.alerta)}</div>` : ''}${v.situacao === 'CANCELADA' ? `<div class="nota" style="color:var(--ru)">cancelado ${fdata(v.cancelado_em)}: ${esc(v.motivo_cancel || '')}</div>` : ''}</td>
       <td>${APROVA && v.situacao === 'ATIVA' ? `<button class="btn" data-vpc-canc="${v.id}">Cancelar</button>` : ''}</td></tr>`; }).join('')
     || '<tr><td colspan="7" class="status">Nenhuma aprovação de VPC em produtos nesta situação.</td></tr>';
   $('tVpc').querySelectorAll('[data-vpc-canc]').forEach(b => b.onclick = async () => {
@@ -878,7 +878,29 @@ async function atualizaVpc(msg){
   await pintaNfBonif(); if(CNPJ_B) await nfBonifGrupo();
   if(msg) $('bSt').textContent = msg;
 }
-/* quadro de aprovação: a = {cliente, loja, nome, cnpj, valor, rotulo, filial_bon/pedido_bon (pedido BON) OU nf {filial, doc, serie}} */
+/* OBSERVAÇÃO DO PEDIDO BON (SC5.C5_OBS — Silvio 27/10/2026, caso A7436H): o vendedor cita os pedidos de venda que geraram o VPC e
+   o %. Mesma leitura da carga (refresh_cadastro_clientes.obs_vpc): pedidos "A" + 5 caracteres; % só quando fala em VPC (somam). */
+function obsVpc(obs, proprio){
+  const t = String(obs || '').toUpperCase(), refs = [...new Set(t.match(/\bA\d[0-9A-Z]{4}\b/g) || [])].filter(x => x !== proprio);
+  const ps = t.includes('VPC') ? (t.match(/(\d+(?:[.,]\d+)?)\s*%/g) || []).map(x => parseFloat(x.replace(',', '.'))) : [];
+  return {refs, pct: ps.length ? ps.reduce((a, b) => a + b, 0) : null};
+}
+/* conferência: valor da bonificação × (pedidos citados × % citado); lista = pedidos de venda com VPC (cli_pedido_vpc / saldos) */
+function confereObs(obs, proprio, valor, lista){
+  const {refs, pct} = obsVpc(obs, proprio), tol = +P.BONIF_TOLERANCIA || 0, alertas = [];
+  if(!refs.length) return {refs, pct, alertas, txt:''};
+  const ach = refs.map(r => lista.find(x => x.pedido === r)).filter(Boolean), faltam = refs.filter(r => !lista.some(x => x.pedido === r));
+  if(faltam.length) alertas.push(`observação cita ${faltam.join(', ')} — não encontrado(s) entre os pedidos de venda do cliente/grupo com VPC`);
+  let txt = `Observação cita ${refs.join(', ')}` + (pct ? ` · VPC ${fmt(pct, 2)}%` : ' · sem % de VPC');
+  if(pct && ach.length){
+    const base = ach.reduce((a, x) => a + +x.valor, 0), esp = base * pct / 100, dif = esp ? valor / esp - 1 : null;
+    txt += ` de ${fmoeda(base)} = esperado ${fmoeda(esp)} × bonificação ${fmoeda(valor)}` + (dif === null ? '' : ` (${dif >= 0 ? '+' : ''}${fmt(dif * 100, 1)}%)`);
+    if(dif !== null && Math.abs(dif) > tol) alertas.push(`bonificação ${fmt(Math.abs(dif) * 100, 1)}% ${dif > 0 ? 'acima' : 'abaixo'} do esperado pela observação (${fmt(pct, 2)}% de ${fmoeda(base)} = ${fmoeda(esp)})`);
+    ach.filter(x => x.base === 'PEDIDO' && Math.abs(+x.vpc_pct - pct) > 0.005).forEach(x => alertas.push(`observação diz ${fmt(pct, 2)}%, o pedido ${x.pedido} tem ${fmt(+x.vpc_pct, 2)}% de VPC no item`));
+  }
+  return {refs, pct, alertas, txt};
+}
+/* quadro de aprovação: a = {cliente, loja, nome, cnpj, valor, rotulo, obs, filial_bon/pedido_bon (pedido BON) OU nf {filial, doc, serie}} */
 async function abreVpc(a){
   const m = $('vpcModal'), fecha = () => { m.style.display = 'none'; m.innerHTML = ''; document.removeEventListener('keydown', esc_); };
   const esc_ = e => { if(e.key === 'Escape') fecha(); };
@@ -888,45 +910,67 @@ async function abreVpc(a){
   const r = await SB.rpc('bonif_vpc_saldos', {p_cliente:a.cliente, p_loja:a.loja, p_exceto:null});
   if(r.error){ m.querySelector('.corpo').innerHTML = `<span class="status err">${esc(r.error.message)}</span> <button class="btn" id="vpcFecha">Fechar</button>`; $('vpcFecha').onclick = fecha; return; }
   const l = r.data || [], tol = +P.BONIF_TOLERANCIA || 0, sel = [];
-  const linha = (x, i) => { const ok = +x.saldo > 0.009;
+  const raiz = String(a.cnpj || '').length === 14 ? a.cnpj.slice(0, 8) : (a.cnpj || '');
+  const ndq = raiz ? await SB.from('cli_vpc_nd').select('valor').eq('raiz', raiz).gte('emissao', l.reduce((m, x) => x.emissao && x.emissao < m ? x.emissao : m, '9999')) : {data:[]};
+  const ndCli = (ndq.error ? [] : (ndq.data || [])).reduce((s2, n) => s2 + +n.valor, 0);
+  if(a.obs === undefined && a.nf){ const q = await SB.from('cli_nota_bonif').select('obs_pedido').eq('filial', a.nf.filial).eq('doc', a.nf.doc).eq('serie', a.nf.serie).limit(1);
+    a.obs = q.error ? '' : ((q.data || [])[0] || {}).obs_pedido || ''; }
+  const proprio = a.pedido_bon || a.pedido || null, ob = obsVpc(a.obs, proprio);
+  ob.refs.forEach(r => { const i = l.findIndex(x => x.pedido === r && x.situacao === 'ATIVO'); if(i >= 0 && !sel.includes(i)) sel.push(i); });   // citados já marcados
+  const linha = (x, i) => { const ok = x.situacao === 'ATIVO';   // 030: acima do saldo vira alerta — qualquer pedido ativo pode ser marcado
     return `<tr class="${ok ? '' : 'off'}" data-i="${i}" data-busca="${esc((x.pedido + ' ' + (x.notas || '')).toUpperCase())}">
-      <td>${ok ? `<input type="checkbox" data-i="${i}">` : ''}</td><td><b>${esc(x.pedido)}</b><div class="nota">filial ${esc(x.filial)}</div></td><td>${fdia(x.emissao)}</td>
+      <td>${ok ? `<input type="checkbox" data-i="${i}"${sel.includes(i) ? ' checked' : ''}>` : ''}</td><td><b>${esc(x.pedido)}</b>${ob.refs.includes(x.pedido) ? ' ' + chip('citado na obs.', 'c-in') : ''}<div class="nota">filial ${esc(x.filial)}</div></td><td>${fdia(x.emissao)}</td>
       <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span></td>
       <td>${x.situacao === 'ATIVO' ? chip('ativo', 'c-ok') : chip(x.situacao, 'c-ne') + '<div class="nota">sem saldo</div>'}</td>
       <td class="n">${fmoeda(+x.valor)}</td><td>${x.notas ? 'NF ' + esc(x.notas) : '<span class="nota">sem nota</span>'}<div class="nota">faturado ${fmoeda(+x.faturado)}</div></td>
-      <td class="n">${fmt(+x.vpc_pct, 2)}%<div class="nota">${x.base === 'PEDIDO' ? '% do pedido' : '% do cadastro'}</div></td>
+      <td class="n">${fmt(+x.vpc_pct, 2)}%<div class="nota">${x.base === 'PEDIDO' ? '% do pedido' : x.base === 'OBSERVAÇÃO' ? '% da observação' : '% do cadastro'}</div></td>
       <td class="n">${fmoeda(+x.vpc_previsto)}</td><td class="n">${+x.vpc_pago_banco ? fmoeda(+x.vpc_pago_banco) : '—'}</td>
       <td class="n">${+x.vpc_pago_produtos ? fmoeda(+x.vpc_pago_produtos) : '—'}</td><td class="n"><b>${fmoeda(+x.saldo)}</b></td></tr>`; };
   m.innerHTML = `<div class="modal"><div class="painel" style="margin:0;border:0">
     <h2>Aprovar como VPC EM PRODUTOS <span>${esc(a.rotulo)}</span></h2>
     <div class="corpo" style="padding-bottom:0"><div class="tot"><span>Bonificação a aprovar: <b>${fmoeda(+a.valor)}</b> (sem IPI)</span>
       <input id="vpcBusca" placeholder="filtrar por pedido ou NF de venda" style="width:230px">
-      <span class="nota" style="margin:0">Marque o(s) pedido(s) de venda cujo VPC está sendo pago — o valor é consumido na ordem em que você marca.</span></div></div>
+      <span class="nota" style="margin:0">Marque o(s) pedido(s) de venda cujo VPC está sendo pago — o valor é consumido na ordem em que você marca.</span></div>
+      ${a.obs ? `<div class="nota" style="margin-top:6px;padding:6px 8px;border:1px solid var(--line);border-radius:6px"><b>Observação do pedido no TOTVS:</b> ${esc(a.obs)}</div>` : '<div class="nota">Pedido sem observação no TOTVS.</div>'}</div>
     <div class="tbl-wrap"><table><thead><tr><th></th><th>Pedido de venda</th><th>Emissão</th><th>Cliente</th><th>Situação</th><th class="n">Valor venda</th><th>NF de venda</th>
       <th class="n">% VPC</th><th class="n">VPC previsto</th><th class="n" title="Baixas no banco gerencial VPC nas notas do pedido">Pago no banco VPC</th><th class="n" title="Outras aprovações de VPC em produtos ativas">Pago em produtos</th><th class="n">Saldo</th></tr></thead>
       <tbody id="vpcT">${l.map(linha).join('') || '<tr><td colspan="12" class="status">Nenhum pedido de venda com VPC (365 dias) para o cliente/grupo — não há VPC a pagar em produtos.</td></tr>'}</tbody></table></div>
     <div class="corpo"><div class="tot" id="vpcTot"></div>
       <div class="linha-b"><input id="vpcObs" placeholder="observação (opcional): ex. combinado com o vendedor, contrato, e-mail…" style="flex:1;min-width:280px">
         <button class="btn ver" id="vpcOk" disabled>Aprovar como VPC em produtos</button><button class="btn" id="vpcFecha">Fechar</button></div>
+      <div id="vpcAl" style="margin-top:8px"></div>
       <div class="status" id="vpcSt" style="margin:0"></div></div></div></div>`;
   const tot = () => {
     const saldo = sel.reduce((s, i) => s + +l[i].saldo, 0), teto = saldo * (1 + tol), ok = sel.length && +a.valor <= teto + 0.01;
-    const prevT = l.filter(x => x.situacao === 'ATIVO').reduce((s2, x) => s2 + +x.vpc_previsto, 0), pagoT = l.reduce((s2, x) => s2 + +x.vpc_pago_banco + +x.vpc_pago_produtos, 0);
-    $('vpcTot').innerHTML = `<span class="nota" style="margin:0;flex-basis:100%">Total do cliente/grupo (365 dias): previsto ${fmoeda(prevT)} − pago ${fmoeda(pagoT)} = saldo <b>${fmoeda(Math.max(0, prevT - pagoT))}</b>${pagoT > prevT + 0.01 ? ' (pago acima do previsto)' : ''}</span><span>Pedidos marcados: <b>${sel.map(i => esc(l[i].pedido)).join(', ') || '—'}</b></span><span>Saldo de VPC: <b>${fmoeda(saldo)}</b></span>
+    const prevT = l.filter(x => x.situacao === 'ATIVO').reduce((s2, x) => s2 + +x.vpc_previsto, 0), pagoT = l.reduce((s2, x) => s2 + +x.vpc_pago_banco + +x.vpc_pago_produtos, 0) + ndCli;
+    const saldoCli = Math.max(0, prevT - pagoT), co = confereObs(a.obs, proprio, +a.valor, l), al = [...co.alertas];
+    if(sel.length && !ok) al.unshift(`${fmoeda(+a.valor - teto)} acima do saldo dos pedidos marcados (saldo ${fmoeda(saldo)}, teto c/ tolerância ${fmoeda(teto)})`);
+    if(+a.valor > saldoCli * (1 + tol) + 0.01) al.push(`acima do saldo do cliente/grupo (saldo ${fmoeda(saldoCli)}, já com banco VPC, produtos${ndCli ? ' e ND 2168' : ''})`);
+    const marc = sel.map(i => l[i].pedido), fora = co.refs.length ? marc.filter(x => !co.refs.includes(x)) : [];
+    if(fora.length) al.push(`pedido(s) marcado(s) que a observação não cita: ${fora.join(', ')}`);
+    ALERTAS_VPC = al;
+    $('vpcAl').innerHTML = (co.txt ? `<div class="nota" style="margin:0 0 4px;color:${co.alertas.length ? 'var(--ru)' : 'var(--ok)'}">${co.alertas.length ? '⚠️' : '✓'} ${esc(co.txt)}</div>` : '') +
+      al.map(t => `<div class="nota" style="margin:2px 0;color:var(--ru)">⚠️ ${esc(t)}</div>`).join('') +
+      (al.length ? '<div class="nota" style="margin-top:4px">Pode aprovar mesmo assim: o alerta fica gravado na aprovação (rastreabilidade).</div>' : '');
+    $('vpcTot').innerHTML = `<span class="nota" style="margin:0;flex-basis:100%">Total do cliente/grupo (365 dias): previsto ${fmoeda(prevT)} − pago ${fmoeda(pagoT)} = saldo <b>${fmoeda(Math.max(0, prevT - pagoT))}</b>${ndCli ? ` (pago inclui ${fmoeda(ndCli)} de ND 2168)` : ''}${pagoT > prevT + 0.01 ? ' (pago acima do previsto)' : ''}</span><span>Pedidos marcados: <b>${sel.map(i => esc(l[i].pedido)).join(', ') || '—'}</b></span><span>Saldo de VPC: <b>${fmoeda(saldo)}</b></span>
       <span>Teto c/ tolerância de ${fmt(tol * 100, 0)}%: <b>${fmoeda(teto)}</b></span>` + (!sel.length ? ''
       : ok ? `<span style="color:var(--ok)"><b>✓ dentro do saldo</b>${+a.valor > saldo + 0.01 ? ` (${fmoeda(+a.valor - saldo)} na tolerância)` : ''}</span>`
-      : `<span style="color:var(--ru)"><b>⛔ ${fmoeda(+a.valor - teto)} acima do teto — não aprovar (marque outro pedido ou reduza a bonificação no TOTVS)</b></span>`);
-    $('vpcOk').disabled = !ok;
+      : `<span style="color:var(--ru)"><b>⚠️ ${fmoeda(+a.valor - teto)} acima do teto</b></span>`);
+    $('vpcOk').disabled = !sel.length;
+    $('vpcOk').textContent = al.length ? `Aprovar com alerta (${al.length})` : 'Aprovar como VPC em produtos';
+    $('vpcOk').className = al.length ? 'btn ver-2' : 'btn ver';
   };
+  let ALERTAS_VPC = [];
   m.querySelectorAll('#vpcT input[type=checkbox]').forEach(cb => cb.onchange = () => { const i = +cb.dataset.i, k = sel.indexOf(i);
     if(cb.checked && k < 0) sel.push(i); if(!cb.checked && k >= 0) sel.splice(k, 1); tot(); });
   $('vpcBusca').oninput = () => { const t = $('vpcBusca').value.trim().toUpperCase().replace(/^0+/, '');
     m.querySelectorAll('#vpcT tr[data-busca]').forEach(tr => tr.style.display = !t || tr.dataset.busca.includes(t) ? '' : 'none'); };
   $('vpcFecha').onclick = fecha; tot();
   $('vpcOk').onclick = async () => {
+    if(ALERTAS_VPC.length && !confirm('Aprovar COM ALERTA? Fica gravado na aprovação:\n\n• ' + ALERTAS_VPC.join('\n• '))) return;
     $('vpcOk').disabled = true; $('vpcSt').className = 'status'; $('vpcSt').textContent = 'Gravando…';
     const u = await SB.rpc('bonif_vpc_aprovar', {p_cliente:a.cliente, p_loja:a.loja, p_filial_bon:a.pedido_bon ? a.filial_bon : null, p_pedido_bon:a.pedido_bon || null,
-      p_nf:a.nf || null, p_origens:sel.map(i => ({filial:l[i].filial, pedido:l[i].pedido})), p_obs:$('vpcObs').value.trim() || null});
+      p_nf:a.nf || null, p_origens:sel.map(i => ({filial:l[i].filial, pedido:l[i].pedido})), p_obs:$('vpcObs').value.trim() || null, p_alerta:ALERTAS_VPC.length ? ALERTAS_VPC.join(' · ') : null});
     if(u.error){ $('vpcSt').className = 'status err'; $('vpcSt').textContent = 'Não aprovou: ' + u.error.message; $('vpcOk').disabled = false; return; }
     fecha(); await atualizaVpc(`✅ VPC em produtos nº ${u.data} aprovado — ${a.rotulo}.`);
   };
@@ -934,7 +978,7 @@ async function abreVpc(a){
 
 /* ---- ABA "VPC EM PRODUTOS" (Silvio 27/10/2026): tudo de VPC em produtos num lugar só, com filtro múltiplo (pedido/NF,
    parte do nome ou código do cliente, CNPJ ou raiz, período) valendo junto para pendentes, aprovados e saldo por pedido ---- */
-let VPC_PEND = [], VPC_SALDO = [], CARD_VPCS = '';
+let VPC_PEND = [], VPC_SALDO = [], VPC_ND = [], CARD_VPCS = '';
 const semZero = x => String(x || '').trim().toUpperCase().replace(/^0+(?=\d)/, '');
 function passaFiltroVpc(it){
   const fp = semZero($('vFPed') ? $('vFPed').value : ''), fc = ($('vFCli') ? $('vFCli').value : '').trim().toUpperCase(),
@@ -956,6 +1000,8 @@ async function pintaAbaVpc(recarrega = true){
       SB.rpc('bonif_nf_painel', {p_cnpj:null}),
       todas(() => SB.from('cli_pedido_vpc').select('*').order('emissao', {ascending:false}).order('pedido')),
       SB.from('bonif_vpc_origem').select('*')]);
+    const nd = await SB.from('cli_vpc_nd').select('*').order('emissao', {ascending:false});   // 029: ND/título 2168 (sem a migração = vazio)
+    VPC_ND = nd.error ? [] : (nd.data || []);
     if(nb.error || bon.error){ $('vSt').className = 'status err'; $('vSt').textContent = (nb.error || bon.error).message; return; }
     const ativos = new Set(VPCS.filter(v => v.situacao === 'ATIVA').map(v => v.id)), pago = new Map();
     (cad0.data || []).filter(o => ativos.has(o.vpc_id)).forEach(o => pago.set(o.filial + '|' + o.pedido, (pago.get(o.filial + '|' + o.pedido) || 0) + +o.valor));
@@ -969,6 +1015,11 @@ async function pintaAbaVpc(recarrega = true){
       .concat((nb.data || []).filter(x => ['BONIFICAÇÃO SEM FATURAMENTO', 'SEM APROVAÇÃO NO APP', 'JUSTIFICADA', VCANC].includes(x.situacao))
       .map(x => ({tipo:'NF', x, nome:x.nome, cod:x.cliente, cnpj:x.cnpj, data:x.emissao, valor:+x.valor - (+x.valor_devolvido || 0), peds:[x.pedido], nfs:[x.doc]})))
       .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+    const docs = VPC_PEND.filter(it => it.tipo === 'NF').map(it => it.x.doc);   // observação do pedido que gerou a NF (030)
+    if(docs.length){ const q = await SB.from('cli_nota_bonif').select('filial,doc,serie,obs_pedido').in('doc', docs);
+      const m = new Map((q.error ? [] : q.data || []).map(n => [n.filial + '|' + n.doc + '|' + n.serie, n.obs_pedido]));
+      VPC_PEND.forEach(it => { if(it.tipo === 'NF') it.obs = m.get(it.x.filial + '|' + it.x.doc + '|' + it.x.serie) || ''; }); }
+    VPC_PEND.forEach(it => { if(it.tipo === 'PED') it.obs = it.p.obs || ''; });
     VPC_SALDO = pv.map(x => { const c = nomes.get(x.cliente + '|' + x.loja) || {}, pp = pago.get(x.filial + '|' + x.pedido) || 0;
       const saldo = x.situacao !== 'ATIVO' ? 0 : Math.max(0, Math.round((+x.vpc_previsto - +x.vpc_pago_banco - pp) * 100) / 100);
       return {...x, nome:c.nome, pp, saldo, cod:x.cliente, data:x.emissao, peds:[x.pedido], nfs:String(x.notas || '').split(',')}; });
@@ -977,46 +1028,62 @@ async function pintaAbaVpc(recarrega = true){
   pintaVpc();
   // pendentes
   const pend = VPC_PEND.filter(passaFiltroVpc);
+  /* conferência pela observação NA LINHA do item (Silvio 27/10/2026): pedidos citados × % citado × valor da bonificação */
+  const obsLinha = it => { if(!it.obs) return '<div class="nota">sem observação no pedido</div>';
+    const co = confereObs(it.obs, it.tipo === 'PED' ? it.p.pedido : it.x.pedido, it.valor, VPC_SALDO);
+    return `<div class="nota" title="${esc(it.obs)}">Obs.: ${esc(it.obs.length > 140 ? it.obs.slice(0, 140) + '…' : it.obs)}</div>` +
+      (co.txt ? `<div class="nota" style="color:${co.alertas.length ? 'var(--ru)' : 'var(--ok)'}">${co.alertas.length ? '⚠️' : '✓'} ${esc(co.txt)}</div>` : '') +
+      co.alertas.map(t => `<div class="nota" style="color:var(--ru)">⚠️ ${esc(t)}</div>`).join(''); };
   $('tVpcPend').innerHTML = pend.slice(0, 300).map((it, i) => it.tipo === 'PED'
     ? `<tr><td>pedido BON <b>${esc(it.p.pedido)}</b></td><td>${fdia(it.data)}</td><td>${esc(it.nome || '')} <span class="nota">${esc(it.p.cliente)}/${esc(it.p.loja)}</span><div class="nota">${fcnpj(it.cnpj || '')}</div></td>
-        <td class="n">${fmoeda(it.valor)}</td><td>${chipPed(it.p)}</td><td>${APROVA ? `<button class="btn" data-vpend="${VPC_PEND.indexOf(it)}">VPC em produtos</button>` : ''}</td></tr>`
+        <td class="n">${fmoeda(it.valor)}</td><td>${chipPed(it.p)}${obsLinha(it)}</td><td>${APROVA ? `<button class="btn" data-vpend="${VPC_PEND.indexOf(it)}">VPC em produtos</button>` : ''}</td></tr>`
     : `<tr><td>NF <b>${esc(it.x.doc.replace(/^0+/, ''))}/${esc(it.x.serie)}</b><div class="nota">pedido ${esc(it.x.pedido || '—')}</div></td><td>${fdia(it.data)}</td>
         <td>${esc(it.nome || '')} <span class="nota">${esc(it.x.cliente)}/${esc(it.x.loja)}</span><div class="nota">${fcnpj(it.cnpj || '')}</div></td><td class="n">${fmoeda(it.valor)}</td>
-        <td>${selNb(it.x)}${it.x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(it.x.motivo || '')}</div>` : ''}</td><td>${APROVA ? `<button class="btn" data-vpend="${VPC_PEND.indexOf(it)}">VPC em produtos</button>` : ''}</td></tr>`).join('')
+        <td>${selNb(it.x)}${it.x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(it.x.motivo || '')}</div>` : ''}${obsLinha(it)}</td><td>${APROVA ? `<button class="btn" data-vpend="${VPC_PEND.indexOf(it)}">VPC em produtos</button>` : ''}</td></tr>`).join('')
     || '<tr><td colspan="6" class="status">Nenhum pendente com estes filtros.</td></tr>';
   $('tVpcPend').querySelectorAll('[data-vpend]').forEach(b => b.onclick = () => { const it = VPC_PEND[+b.dataset.vpend];
-    if(it.tipo === 'PED') abreVpc({cliente:it.p.cliente, loja:it.p.loja, nome:it.nome, cnpj:it.cnpj, valor:it.valor, filial_bon:it.p.filial, pedido_bon:it.p.pedido,
+    if(it.tipo === 'PED') abreVpc({cliente:it.p.cliente, loja:it.p.loja, nome:it.nome, cnpj:it.cnpj, valor:it.valor, filial_bon:it.p.filial, pedido_bon:it.p.pedido, obs:it.obs,
       rotulo:`pedido de bonificação ${it.p.pedido} · ${it.nome || it.p.cliente} · ${fmoeda(it.valor)}`});
-    else abreVpc({cliente:it.x.cliente, loja:it.x.loja, nome:it.nome, cnpj:it.cnpj, valor:it.valor, nf:{filial:it.x.filial, doc:it.x.doc, serie:it.x.serie},
+    else abreVpc({cliente:it.x.cliente, loja:it.x.loja, nome:it.nome, cnpj:it.cnpj, valor:it.valor, nf:{filial:it.x.filial, doc:it.x.doc, serie:it.x.serie}, obs:it.obs, pedido:it.x.pedido,
       rotulo:`NF de bonificação ${it.x.doc.replace(/^0+/, '')}/${it.x.serie} · ${it.nome || it.x.cliente} · ${fmoeda(it.valor)}` +
              (it.x.situacao === 'JUSTIFICADA' ? ' · hoje JUSTIFICADA (a justificativa vai para a observação)' : '')}); });
   // saldo por pedido de venda — cards = filtro (valor com %)
   const base = VPC_SALDO.filter(passaFiltroVpc), tot = base.reduce((a, x) => a + +x.vpc_previsto, 0) || 1;
   const porCli = (document.querySelector('input[name=vVisao]:checked') || {}).value === 'C';
+  /* ND/título natureza 2168 = a outra forma de pagar o VPC (Silvio 27/10/2026): liga ao cliente pela raiz do CNPJ do fornecedor */
+  const nds = VPC_ND.filter(n => passaFiltroVpc({peds:[], nfs:[n.num], nome:n.nome, cod:n.fornece, cnpj:n.cnpj, data:n.emissao}));
+  const ndRaiz = new Map(); nds.forEach(n => ndRaiz.set(n.raiz, (ndRaiz.get(n.raiz) || 0) + +n.valor));
   const g = new Map();
   base.forEach(x => { const k = String(x.cnpj || '').length === 14 ? x.cnpj.slice(0, 8) : (x.cnpj || x.cliente);
     const o = g.get(k) || {k, nome:x.nome, cnpj:x.cnpj, n:0, valor:0, prev:0, banco:0, prod:0};
     o.n++; o.valor += +x.valor; o.prev += x.situacao === 'ATIVO' ? +x.vpc_previsto : 0; o.banco += +x.vpc_pago_banco; o.prod += x.pp; o.nome = o.nome || x.nome; g.set(k, o); });
-  const clientes = [...g.values()].map(o => ({...o, saldo:Math.max(0, Math.round((o.prev - o.banco - o.prod) * 100) / 100)}));
-  const grupos = [['', 'VPC previsto', x => +x.vpc_previsto], ['BANCO', 'Pago no banco VPC', x => +x.vpc_pago_banco], ['PROD', 'Pago em produtos', x => x.pp], ['SALDO', 'Saldo a pagar', x => x.saldo]];
-  const casa = (x, k) => !k || (k === 'BANCO' ? +x.vpc_pago_banco > 0 : k === 'PROD' ? x.pp > 0 : x.saldo > 0.009);
+  const clientes = [...g.values()].map(o => { const ndv = ndRaiz.get(o.k) || 0;
+    return {...o, nd:ndv, saldo:Math.max(0, Math.round((o.prev - o.banco - o.prod - ndv) * 100) / 100)}; });
+  const ndLig = clientes.reduce((a, o) => a + o.nd, 0), ndTot = nds.reduce((a, n) => a + +n.valor, 0);
+  const grupos = [['', 'VPC previsto', x => +x.vpc_previsto], ['BANCO', 'Pago no banco VPC', x => +x.vpc_pago_banco], ['PROD', 'Pago em produtos', x => x.pp],
+                  ['ND', 'Pago por ND (2168)', () => 0], ['SALDO', 'Saldo a pagar', x => x.saldo]];
+  const casa = (x, k) => !k || (k === 'BANCO' ? +x.vpc_pago_banco > 0 : k === 'PROD' ? x.pp > 0 : k === 'ND' ? (x.nd || 0) > 0 : x.saldo > 0.009);
   $('cardsVpcS').innerHTML = grupos.map(([k, t, f]) => {
+    if(k === 'ND') return `<div class="kpi ${CARD_VPCS === k ? 'sel' : ''}" data-k="ND" title="ND/título no Contas a Pagar, natureza 2168, ligado ao cliente pela raiz do CNPJ — entra só no saldo POR CLIENTE (não tem pedido)"><div class="t">${esc(t)}</div><div class="v">${fmoeda(ndTot)}</div>` +
+      `<div class="nota">${nds.length} título(s) · ${fmt(ndTot / tot * 100, 1)}% do previsto${ndTot - ndLig > 0.01 ? ` · ${fmoeda(ndTot - ndLig)} sem cliente com VPC no período` : ''}</div></div>`;
     const cs = porCli && k === 'SALDO', l = cs ? clientes.filter(o => o.saldo > 0.009) : base.filter(x => casa(x, k)),
           v = cs ? clientes.reduce((a, o) => a + o.saldo, 0) : base.reduce((a, x) => a + f(x), 0);
-    return `<div class="kpi ${CARD_VPCS === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}${cs ? ' (por cliente)' : ''}</div><div class="v">${fmoeda(v)}</div><div class="nota">${l.length} ${cs ? 'cliente(s)' : 'pedido(s)'} · ${fmt(v / tot * 100, 1)}% do previsto</div></div>`; }).join('');
-  $('cardsVpcS').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_VPCS = CARD_VPCS === e.dataset.k ? '' : e.dataset.k; pintaAbaVpc(false); });
+    return `<div class="kpi ${CARD_VPCS === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}${cs ? ' (por cliente, com ND)' : k === 'SALDO' ? ' (por pedido, sem ND)' : ''}</div><div class="v">${fmoeda(v)}</div><div class="nota">${l.length} ${cs ? 'cliente(s)' : 'pedido(s)'} · ${fmt(v / tot * 100, 1)}% do previsto</div></div>`; }).join('');
+  $('cardsVpcS').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_VPCS = CARD_VPCS === e.dataset.k ? '' : e.dataset.k;
+    if(CARD_VPCS === 'ND') document.querySelector('input[name=vVisao][value=C]').checked = true;   // ND só existe no saldo por cliente
+    pintaAbaVpc(false); });
   /* POR CLIENTE (Silvio 27/10/2026): o banco VPC costuma baixar a verba em poucas NFs, acima do VPC delas — por pedido o excesso
      não abate os outros pedidos e o saldo fica superestimado; no total do cliente (raiz do CNPJ) o excesso compensa */
   if(porCli){
     const cli = clientes
-      .filter(o => casa({vpc_pago_banco:o.banco, pp:o.prod, saldo:o.saldo}, CARD_VPCS) && (!$('vFSaldo').checked || o.saldo > 0.009))
+      .filter(o => casa({vpc_pago_banco:o.banco, pp:o.prod, nd:o.nd, saldo:o.saldo}, CARD_VPCS) && (!$('vFSaldo').checked || o.saldo > 0.009))
       .sort((a, b) => b.saldo - a.saldo || b.prev - a.prev);
-    $('hVpcSaldo').innerHTML = '<tr><th>Cliente</th><th>CNPJ / raiz</th><th class="n">Pedidos</th><th class="n">Valor venda</th><th class="n" title="Só pedidos ativos">VPC previsto</th><th class="n">Pago no banco VPC</th><th class="n">Pago em produtos</th><th class="n" title="Previsto − pago no banco − pago em produtos, no total do cliente">Saldo do cliente</th></tr>';
+    $('hVpcSaldo').innerHTML = '<tr><th>Cliente</th><th>CNPJ / raiz</th><th class="n">Pedidos</th><th class="n">Valor venda</th><th class="n" title="Só pedidos ativos">VPC previsto</th><th class="n">Pago no banco VPC</th><th class="n">Pago em produtos</th><th class="n" title="ND/título natureza 2168 do fornecedor com a mesma raiz de CNPJ">Pago por ND</th><th class="n" title="Previsto − pago no banco − pago em produtos − pago por ND, no total do cliente">Saldo do cliente</th></tr>';
     $('tVpcSaldo').innerHTML = cli.slice(0, 300).map(o => `<tr><td>${esc(o.nome || '')}</td><td>${o.k.length === 8 ? 'raiz ' + fraiz(o.k) : fcnpj(o.cnpj || '')}</td>
         <td class="n">${o.n}</td><td class="n">${fmoeda(o.valor)}</td><td class="n">${fmoeda(o.prev)}</td><td class="n">${o.banco ? fmoeda(o.banco) : '—'}</td>
-        <td class="n">${o.prod ? fmoeda(o.prod) : '—'}</td><td class="n"><b>${fmoeda(o.saldo)}</b>${o.banco + o.prod > o.prev + 0.01 ? `<div class="nota">pago ${fmoeda(o.banco + o.prod - o.prev)} acima do previsto</div>` : ''}</td></tr>`).join('')
-      + (cli.length > 300 ? `<tr><td colspan="8" class="status">Mostrando 300 de ${cli.length} — refine os filtros.</td></tr>` : '')
-      || '<tr><td colspan="8" class="status">Nenhum cliente com VPC nestes filtros.</td></tr>';
+        <td class="n">${o.prod ? fmoeda(o.prod) : '—'}</td><td class="n">${o.nd ? fmoeda(o.nd) : '—'}</td><td class="n"><b>${fmoeda(o.saldo)}</b>${o.banco + o.prod + o.nd > o.prev + 0.01 ? `<div class="nota">pago ${fmoeda(o.banco + o.prod + o.nd - o.prev)} acima do previsto</div>` : ''}</td></tr>`).join('')
+      + (cli.length > 300 ? `<tr><td colspan="9" class="status">Mostrando 300 de ${cli.length} — refine os filtros.</td></tr>` : '')
+      || '<tr><td colspan="9" class="status">Nenhum cliente com VPC nestes filtros.</td></tr>';
     return;
   }
   $('hVpcSaldo').innerHTML = '<tr><th>Pedido de venda</th><th>Emissão</th><th>Cliente</th><th>Situação</th><th class="n">Valor venda</th><th>NF de venda</th><th class="n">% VPC</th><th class="n">VPC previsto</th><th class="n">Pago no banco VPC</th><th class="n">Pago em produtos</th><th class="n">Saldo</th></tr>';
@@ -1408,7 +1475,7 @@ function desenhaFila(){
       : fmoeda(max) + (pedido <= max + 0.01 ? '<div class="nota" style="color:var(--ok)">dentro do máximo</div>'
       : pedido <= maxTol + 0.01 ? `<div class="nota" style="color:var(--ok)">✓ ${fmt((pedido / max - 1) * 100, 1)}% acima — dentro da tolerância de ${fmt(tol * 100, 0)}%</div>`
       : `<div class="nota" style="color:var(--ru)">⛔ ${fmt((pedido / max - 1) * 100, 1)}% acima — NÃO aprovar o excedente de ${fmoeda(pedido - max)} (limite c/ tolerância ${fmoeda(maxTol)})</div>`);
-    return `<tr><td><b>${esc(p.pedido)}</b><div class="nota">${fdia(p.emissao)}</div></td>
+    return `<tr><td><b>${esc(p.pedido)}</b><div class="nota">${fdia(p.emissao)}</div>${p.obs ? `<div class="nota" title="${esc(p.obs)}" style="max-width:220px">Obs.: ${esc(p.obs.length > 90 ? p.obs.slice(0, 90) + '…' : p.obs)}</div>` : ''}</td>
       <td>${esc(c.nome || '')} <span class="nota">${esc(p.cliente)}/${esc(p.loja)}</span><div class="nota">${fcnpj(cnpj || '')}</div></td>
       <td>${chipPed(p)}</td><td class="n">${fmoeda(pedido)}</td><td>${avTxt}</td><td class="n">${maxTxt}</td>
       <td>${cnpj && !vpc ? `<button class="btn" data-fila="${esc(cnpj)}" data-notas="${esc(notas.map(n => n.doc).join(','))}">Abrir na consulta</button>` : ''}
@@ -1416,7 +1483,7 @@ function desenhaFila(){
   ligaPdf($('tFila'));
   $('tFila').querySelectorAll('[data-vpc-ped]').forEach(b => b.onclick = () => {
     const f = FILA.find(x => x.p.filial + '|' + x.p.pedido === b.dataset.vpcPed); if(!f) return;
-    abreVpc({cliente:f.p.cliente, loja:f.p.loja, nome:f.c.nome, cnpj:f.cnpj, valor:+f.p.valor_saldo, filial_bon:f.p.filial, pedido_bon:f.p.pedido,
+    abreVpc({cliente:f.p.cliente, loja:f.p.loja, nome:f.c.nome, cnpj:f.cnpj, valor:+f.p.valor_saldo, filial_bon:f.p.filial, pedido_bon:f.p.pedido, obs:f.p.obs || '',
              rotulo:`pedido de bonificação ${f.p.pedido} · ${f.c.nome || f.p.cliente} · ${fmoeda(+f.p.valor_saldo)}`});
   });
   $('tFila').querySelectorAll('[data-fila]').forEach(b => b.onclick = async () => {
