@@ -107,6 +107,7 @@
   <button data-tela="acomp" data-grupo="rede">Acompanhamento</button>
   <button data-tela="ordens" data-grupo="rede">Ordens ao Faturamento</button>
   <button data-tela="bonif" data-grupo="bonif">Cliente novo / reativação</button>
+  <button data-tela="vpc" data-grupo="bonif">VPC em produtos</button>
   <button data-tela="regras" data-grupo="regras">Regras e testes</button>
   <button data-tela="param" data-grupo="regras">Parâmetros</button>
 </div>
@@ -199,18 +200,35 @@
   <div class="painel"><h2>Bonificações aprovadas <span>baixa automática: o app liga a aprovação à nota de bonificação do grupo</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>1º pedido</th><th class="n">Bonificação</th><th>Situação</th><th title="Comprovante em PDF">PDF</th></tr></thead><tbody id="tBo"></tbody></table></div></div>
   <div id="nbBloco" style="display:none">
-  <div class="painel" id="vpcP"><h2>VPC em produtos aprovados <span>bonificação em produto que paga o VPC previsto em outro pedido de venda — fora da campanha · aprove pelo botão "VPC em produtos" na fila ou na nota de bonificação</span></h2>
-    <div class="cards" id="cardsVpc" style="margin:10px 14px 0"></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Pedido / NF de bonificação</th><th class="n">Aprovado</th><th>VPC pago de (pedido de venda)</th><th>Situação</th><th></th></tr></thead><tbody id="tVpc"></tbody></table></div></div>
   <div class="cards" id="cardsNb" style="margin-top:14px"></div>
   <div class="painel"><h2>Notas de bonificação emitidas <span>CFOP 5910/6910 desde o início da campanha · tarja = anomalia</span>
     <button class="btn acao so-adm" id="nbAvisaTodas" style="display:none"></button>
     <button class="btn acao so-aprova" id="nbLiberaTodas" style="display:none"></button></h2>
     <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th>UF</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo de 30 dias ANTES a 30 dias DEPOIS da bonificação (prazo em Parâmetros)">Venda ±30d</th><th title="Última nota de venda do grupo até 30 dias depois da bonificação">Últ. venda</th><th title="Pedidos de VENDA do grupo ainda sem nota e a situação no crédito (FIN)">Pedido de venda</th><th>Situação</th><th></th></tr></thead><tbody id="tNb"></tbody></table></div></div>
   </div>
-  <div id="vpcModal" class="modal-bg" style="display:none"></div>
 </section>
 
+
+<!-- ================= VPC EM PRODUTOS (Silvio 27/10/2026) ================= -->
+<section class="tela" id="tela-vpc">
+  <div class="painel"><h2>VPC em produtos <span>bonificação em produto que paga o VPC de contrato (A1_VPC → % no pedido de venda) — fora da campanha · ou é bonificação, ou é VPC em produtos</span></h2>
+    <div class="corpo"><div class="linha-b" style="margin-top:0">
+      <input id="vFPed" placeholder="pedido (BON ou venda) ou NF" title="Pedido de bonificação, pedido de venda ou nota (com ou sem zeros à esquerda)" style="width:200px">
+      <input id="vFCli" placeholder="cliente: parte do nome ou código" title="Parte do nome (cada palavra precisa aparecer) ou código TOTVS (000594 ou 594)" style="width:240px">
+      <input id="vFCnpj" placeholder="CNPJ / CPF ou raiz (8 díg.)" style="width:190px">
+      <span class="nota" style="margin:0">emissão de</span><input type="date" id="vFDe"><span class="nota" style="margin:0">até</span><input type="date" id="vFAte">
+      <label class="nota" style="margin:0;cursor:pointer" title="No quadro de saldo, mostrar só pedidos de venda com saldo de VPC a pagar"><input type="checkbox" id="vFSaldo" checked> só com saldo</label>
+      <button class="btn" id="vFLimpa">Limpar</button><span class="status" id="vSt" style="margin:0"></span></div>
+      <div class="nota">Os filtros valem juntos para os três quadros abaixo.</div></div></div>
+  <div class="painel"><h2>Pendentes de decisão <span>pedidos de bonificação em aberto e notas de bonificação sem aprovação, sem faturamento ou justificadas — aprove como VPC em produtos quando pagarem o VPC de outro pedido</span></h2>
+    <div class="tbl-wrap"><table><thead><tr><th>Pedido / NF</th><th>Emissão</th><th>Cliente</th><th class="n">Valor</th><th>Situação</th><th></th></tr></thead><tbody id="tVpcPend"></tbody></table></div></div>
+  <div class="painel" id="vpcP"><h2>VPC em produtos aprovados <span>bonificação em produto que paga o VPC previsto em outro pedido de venda — fora da campanha · aprove pelo botão "VPC em produtos" nos pendentes, na fila ou na nota de bonificação</span></h2>
+    <div class="cards" id="cardsVpc" style="margin:10px 14px 0"></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Nº</th><th>Cliente</th><th>Pedido / NF de bonificação</th><th class="n">Aprovado</th><th>VPC pago de (pedido de venda)</th><th>Situação</th><th></th></tr></thead><tbody id="tVpc"></tbody></table></div></div>
+  <div class="painel"><h2>Saldo de VPC por pedido de venda <span>últimos 365 dias · previsto (% do item no pedido; sem %, o VPC do cadastro) − pago no banco VPC − pago em produtos · NDs 2168 fora do saldo · atualizado de hora em hora</span></h2>
+    <div class="cards" id="cardsVpcS" style="margin:10px 14px 0"></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Pedido de venda</th><th>Emissão</th><th>Cliente</th><th>Situação</th><th class="n">Valor venda</th><th>NF de venda</th><th class="n">% VPC</th><th class="n">VPC previsto</th><th class="n">Pago no banco VPC</th><th class="n">Pago em produtos</th><th class="n">Saldo</th></tr></thead><tbody id="tVpcSaldo"></tbody></table></div></div>
+</section>
 <!-- ================= REGRAS ================= -->
 <section class="tela" id="tela-regras">
   <div class="painel"><h2>Testes automáticos do motor <span id="subTest"></span><button class="btn acao" id="bTestes">Rodar de novo</button></h2>
@@ -223,6 +241,7 @@
   <div class="painel"><h2>Parâmetros da política <span>valores em vigor — só a Controladoria (ADM) altera; cada alteração fica registrada</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th>Parâmetro</th><th>Descrição</th><th class="n">Valor</th><th>Alterado</th><th class="so-adm"></th></tr></thead><tbody id="tPar"></tbody></table></div></div>
 </section>
+<div id="vpcModal" class="modal-bg" style="display:none"></div>
 </main>
 <div class="fixos"><button onclick="location.href='index.html'">⇄ Mudar de módulo</button><button onclick="sair()">Sair ↻</button></div>
 
@@ -834,7 +853,9 @@ function pintaVpc(){
   $('cardsVpc').innerHTML = grupos.map(([k, t]) => { const l = VPCS.filter(v => casa(v, k)), s = l.reduce((a, v) => a + +v.valor, 0);
     return `<div class="kpi ${CARD_VPC === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(s)}${k === 'CANCELADA' ? '' : ' · ' + fmt(s / tot * 100, 1) + '%'}</div></div>`; }).join('');
   $('cardsVpc').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_VPC = CARD_VPC === e.dataset.k ? '' : e.dataset.k; pintaVpc(); });
-  const l = VPCS.filter(v => casa(v, CARD_VPC));
+  const l = VPCS.filter(v => casa(v, CARD_VPC) && passaFiltroVpc({peds:[v.pedido_bon, ...(v.origens || []).map(o => o.pedido)],
+    nfs:[v.nf_doc, ...String(v.notas_bonif || '').split(','), ...(v.origens || []).flatMap(o => String(o.notas || '').split(','))],
+    nome:v.nome, cod:v.cliente, cnpj:v.cnpj, data:String(v.aprovado_em || '').slice(0, 10)}));
   $('tVpc').innerHTML = l.map(v => { const s = situVpc(v);
     return `<tr><td>${v.id}</td><td>${esc(v.nome || '')} <span class="nota">${esc(v.cliente)}/${esc(v.loja)}</span><div class="nota">${fcnpj(v.cnpj || '')}</div></td>
       <td>${v.pedido_bon ? 'pedido <b>' + esc(v.pedido_bon) + '</b>' : 'NF <b>' + esc(String(v.nf_doc || '').replace(/^0+/, '')) + '/' + esc(v.nf_serie || '') + '</b>'}
@@ -853,6 +874,7 @@ function pintaVpc(){
 }
 async function atualizaVpc(msg){
   await carregaVpcs(); pintaVpc(); if(FILA.length) desenhaFila();
+  if(abaAberta() === 'vpc') await pintaAbaVpc();
   await pintaNfBonif(); if(CNPJ_B) await nfBonifGrupo();
   if(msg) $('bSt').textContent = msg;
 }
@@ -908,6 +930,84 @@ async function abreVpc(a){
     fecha(); await atualizaVpc(`✅ VPC em produtos nº ${u.data} aprovado — ${a.rotulo}.`);
   };
 }
+
+/* ---- ABA "VPC EM PRODUTOS" (Silvio 27/10/2026): tudo de VPC em produtos num lugar só, com filtro múltiplo (pedido/NF,
+   parte do nome ou código do cliente, CNPJ ou raiz, período) valendo junto para pendentes, aprovados e saldo por pedido ---- */
+let VPC_PEND = [], VPC_SALDO = [], CARD_VPCS = '';
+const semZero = x => String(x || '').trim().toUpperCase().replace(/^0+(?=\d)/, '');
+function passaFiltroVpc(it){
+  const fp = semZero($('vFPed') ? $('vFPed').value : ''), fc = ($('vFCli') ? $('vFCli').value : '').trim().toUpperCase(),
+        fd = RD.dig($('vFCnpj') ? $('vFCnpj').value : ''), de = $('vFDe') ? $('vFDe').value : '', ate = $('vFAte') ? $('vFAte').value : '';
+  if(fp && ![...(it.peds || []), ...(it.nfs || [])].filter(Boolean).some(x => semZero(String(x).split('/')[0]).includes(fp))) return false;
+  if(fc){ const nome = String(it.nome || '').toUpperCase(), cod = String(it.cod || '').toUpperCase();
+    const pal = fc.split(/\s+/).filter(Boolean), codBusca = /^\d+$/.test(fc) ? fc.padStart(6, '0') : fc;
+    if(!(pal.every(w => nome.includes(w)) || cod === codBusca || cod.startsWith(fc))) return false; }
+  if(fd && !String(it.cnpj || '').startsWith(fd)) return false;
+  if(de && (!it.data || it.data < de)) return false;
+  if(ate && (!it.data || it.data > ate)) return false;
+  return true;
+}
+async function pintaAbaVpc(recarrega = true){
+  if(recarrega){
+    $('vSt').textContent = 'Carregando…';
+    const [, bon, nb, pv, cad0] = await Promise.all([carregaVpcs(),
+      SB.from('cli_pedido_aberto').select('*').eq('tipo', 'BON').not('status', 'in', '("REPROVADO (COMERCIAL)","REPROVADO (DESCONTO)","CANCELADO")'),
+      SB.rpc('bonif_nf_painel', {p_cnpj:null}),
+      todas(() => SB.from('cli_pedido_vpc').select('*').order('emissao', {ascending:false}).order('pedido')),
+      SB.from('bonif_vpc_origem').select('*')]);
+    if(nb.error || bon.error){ $('vSt').className = 'status err'; $('vSt').textContent = (nb.error || bon.error).message; return; }
+    const ativos = new Set(VPCS.filter(v => v.situacao === 'ATIVA').map(v => v.id)), pago = new Map();
+    (cad0.data || []).filter(o => ativos.has(o.vpc_id)).forEach(o => pago.set(o.filial + '|' + o.pedido, (pago.get(o.filial + '|' + o.pedido) || 0) + +o.valor));
+    const cods = [...new Set([...(bon.data || []).map(x => x.cliente), ...pv.map(x => x.cliente)])], nomes = new Map();
+    for(let i = 0; i < cods.length; i += 150){
+      const r = await SB.from('cli_cadastro').select('cod,loja,nome,cnpj').in('cod', cods.slice(i, i + 150));
+      (r.data || []).forEach(c => nomes.set(c.cod + '|' + c.loja, c));
+    }
+    VPC_PEND = (bon.data || []).filter(p => !vpcDoPedido(p.filial, p.pedido)).map(p => { const c = nomes.get(p.cliente + '|' + p.loja) || {};
+      return {tipo:'PED', p, nome:c.nome, cod:p.cliente, cnpj:p.cnpj || c.cnpj, data:p.emissao, valor:+p.valor_saldo, peds:[p.pedido], nfs:[]}; })
+      .concat((nb.data || []).filter(x => ['BONIFICAÇÃO SEM FATURAMENTO', 'SEM APROVAÇÃO NO APP', 'JUSTIFICADA', VCANC].includes(x.situacao))
+      .map(x => ({tipo:'NF', x, nome:x.nome, cod:x.cliente, cnpj:x.cnpj, data:x.emissao, valor:+x.valor - (+x.valor_devolvido || 0), peds:[x.pedido], nfs:[x.doc]})))
+      .sort((a, b) => String(b.data).localeCompare(String(a.data)));
+    VPC_SALDO = pv.map(x => { const c = nomes.get(x.cliente + '|' + x.loja) || {}, pp = pago.get(x.filial + '|' + x.pedido) || 0;
+      const saldo = x.situacao !== 'ATIVO' ? 0 : Math.max(0, Math.round((+x.vpc_previsto - +x.vpc_pago_banco - pp) * 100) / 100);
+      return {...x, nome:c.nome, pp, saldo, cod:x.cliente, data:x.emissao, peds:[x.pedido], nfs:String(x.notas || '').split(',')}; });
+    $('vSt').className = 'status'; $('vSt').textContent = '';
+  }
+  pintaVpc();
+  // pendentes
+  const pend = VPC_PEND.filter(passaFiltroVpc);
+  $('tVpcPend').innerHTML = pend.slice(0, 300).map((it, i) => it.tipo === 'PED'
+    ? `<tr><td>pedido BON <b>${esc(it.p.pedido)}</b></td><td>${fdia(it.data)}</td><td>${esc(it.nome || '')} <span class="nota">${esc(it.p.cliente)}/${esc(it.p.loja)}</span><div class="nota">${fcnpj(it.cnpj || '')}</div></td>
+        <td class="n">${fmoeda(it.valor)}</td><td>${chipPed(it.p)}</td><td>${APROVA ? `<button class="btn" data-vpend="${VPC_PEND.indexOf(it)}">VPC em produtos</button>` : ''}</td></tr>`
+    : `<tr><td>NF <b>${esc(it.x.doc.replace(/^0+/, ''))}/${esc(it.x.serie)}</b><div class="nota">pedido ${esc(it.x.pedido || '—')}</div></td><td>${fdia(it.data)}</td>
+        <td>${esc(it.nome || '')} <span class="nota">${esc(it.x.cliente)}/${esc(it.x.loja)}</span><div class="nota">${fcnpj(it.cnpj || '')}</div></td><td class="n">${fmoeda(it.valor)}</td>
+        <td>${selNb(it.x)}${it.x.situacao === 'JUSTIFICADA' ? `<div class="nota">${esc(it.x.motivo || '')}</div>` : ''}</td><td>${APROVA ? `<button class="btn" data-vpend="${VPC_PEND.indexOf(it)}">VPC em produtos</button>` : ''}</td></tr>`).join('')
+    || '<tr><td colspan="6" class="status">Nenhum pendente com estes filtros.</td></tr>';
+  $('tVpcPend').querySelectorAll('[data-vpend]').forEach(b => b.onclick = () => { const it = VPC_PEND[+b.dataset.vpend];
+    if(it.tipo === 'PED') abreVpc({cliente:it.p.cliente, loja:it.p.loja, nome:it.nome, cnpj:it.cnpj, valor:it.valor, filial_bon:it.p.filial, pedido_bon:it.p.pedido,
+      rotulo:`pedido de bonificação ${it.p.pedido} · ${it.nome || it.p.cliente} · ${fmoeda(it.valor)}`});
+    else abreVpc({cliente:it.x.cliente, loja:it.x.loja, nome:it.nome, cnpj:it.cnpj, valor:it.valor, nf:{filial:it.x.filial, doc:it.x.doc, serie:it.x.serie},
+      rotulo:`NF de bonificação ${it.x.doc.replace(/^0+/, '')}/${it.x.serie} · ${it.nome || it.x.cliente} · ${fmoeda(it.valor)}` +
+             (it.x.situacao === 'JUSTIFICADA' ? ' · hoje JUSTIFICADA (a justificativa vai para a observação)' : '')}); });
+  // saldo por pedido de venda — cards = filtro (valor com %)
+  const base = VPC_SALDO.filter(passaFiltroVpc), tot = base.reduce((a, x) => a + +x.vpc_previsto, 0) || 1;
+  const grupos = [['', 'VPC previsto', x => +x.vpc_previsto], ['BANCO', 'Pago no banco VPC', x => +x.vpc_pago_banco], ['PROD', 'Pago em produtos', x => x.pp], ['SALDO', 'Saldo a pagar', x => x.saldo]];
+  const casa = (x, k) => !k || (k === 'BANCO' ? +x.vpc_pago_banco > 0 : k === 'PROD' ? x.pp > 0 : x.saldo > 0.009);
+  $('cardsVpcS').innerHTML = grupos.map(([k, t, f]) => { const l = base.filter(x => casa(x, k)), v = base.reduce((a, x) => a + f(x), 0);
+    return `<div class="kpi ${CARD_VPCS === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${fmoeda(v)}</div><div class="nota">${l.length} pedido(s) · ${fmt(v / tot * 100, 1)}% do previsto</div></div>`; }).join('');
+  $('cardsVpcS').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_VPCS = CARD_VPCS === e.dataset.k ? '' : e.dataset.k; pintaAbaVpc(false); });
+  const sal = base.filter(x => casa(x, CARD_VPCS) && (!$('vFSaldo').checked || x.saldo > 0.009));
+  $('tVpcSaldo').innerHTML = sal.slice(0, 300).map(x => `<tr><td><b>${esc(x.pedido)}</b><div class="nota">filial ${esc(x.filial)}</div></td><td>${fdia(x.emissao)}</td>
+      <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>
+      <td>${x.situacao === 'ATIVO' ? chip('ativo', 'c-ok') : chip(x.situacao, 'c-ne')}</td><td class="n">${fmoeda(+x.valor)}</td>
+      <td>${x.notas ? 'NF ' + esc(x.notas) : '<span class="nota">sem nota</span>'}</td><td class="n">${fmt(+x.vpc_pct, 2)}%<div class="nota">${x.base === 'PEDIDO' ? 'do pedido' : 'do cadastro'}</div></td>
+      <td class="n">${fmoeda(+x.vpc_previsto)}</td><td class="n">${+x.vpc_pago_banco ? fmoeda(+x.vpc_pago_banco) : '—'}</td><td class="n">${x.pp ? fmoeda(x.pp) : '—'}</td><td class="n"><b>${fmoeda(x.saldo)}</b></td></tr>`).join('')
+    + (sal.length > 300 ? `<tr><td colspan="11" class="status">Mostrando 300 de ${sal.length} — refine os filtros.</td></tr>` : '')
+    || '<tr><td colspan="11" class="status">Nenhum pedido de venda com VPC nestes filtros.</td></tr>';
+}
+let _vpcFiltroT = null;
+['vFPed', 'vFCli', 'vFCnpj', 'vFDe', 'vFAte', 'vFSaldo'].forEach(id => { const e = $(id); if(e) e.addEventListener('input', () => { clearTimeout(_vpcFiltroT); _vpcFiltroT = setTimeout(() => pintaAbaVpc(false), 250); }); });
+if($('vFLimpa')) $('vFLimpa').onclick = () => { ['vFPed', 'vFCli', 'vFCnpj', 'vFDe', 'vFAte'].forEach(id => $(id).value = ''); pintaAbaVpc(false); };
 
 /* ---- NOTAS DE BONIFICAÇÃO (CFOP 5910/6910) + ANOMALIAS — Silvio 10/10/2026 (caso NF 000281079 OTAVIO REFIL) ---- */
 const SITNB = {'BONIFICAÇÃO SEM FATURAMENTO':'tarja', 'SEM APROVAÇÃO NO APP':'tarja av', 'JUSTIFICADA':'c-ne', 'APROVADA NO APP':'c-ok', 'ERRO DE EMISSÃO (SEM EXPEDIÇÃO)':'c-ne',
@@ -1510,7 +1610,7 @@ function vaiPara(t){
   document.querySelectorAll('#grupos button').forEach(b => b.classList.toggle('on', b.dataset.grupo === g));
   document.querySelectorAll('#subnav button').forEach(b => { b.classList.toggle('on', b.dataset.tela === t); b.classList.toggle('fora', b.dataset.grupo !== g); });
   document.querySelectorAll('.tela').forEach(s => s.classList.toggle('on', s.id === 'tela-' + t));
-  if(t === 'acomp') pintaAc(); if(t === 'ordens') pintaOr(); if(t === 'regras') pintaRegras(); if(t === 'param') pintaPar(); if(t === 'nova') valida(); if(t === 'bonif'){ pintaCarga(); pintaFila(); confereAuto().then(() => { pintaBonif(); pintaNfBonif(); }); } }
+  if(t === 'acomp') pintaAc(); if(t === 'ordens') pintaOr(); if(t === 'regras') pintaRegras(); if(t === 'param') pintaPar(); if(t === 'nova') valida(); if(t === 'vpc') pintaAbaVpc(); if(t === 'bonif'){ pintaCarga(); pintaFila(); confereAuto().then(() => { pintaBonif(); pintaNfBonif(); }); } }
 document.querySelectorAll('#subnav button').forEach(b => b.onclick = () => vaiPara(b.dataset.tela));
 document.querySelectorAll('#grupos button').forEach(b => b.onclick = () =>
   vaiPara(ULT_ABA[b.dataset.grupo] || document.querySelector(`#subnav button[data-grupo="${b.dataset.grupo}"]`).dataset.tela));
@@ -1603,7 +1703,8 @@ function telaOcupada(){
   const t = abaAberta(); if(t === 'nova' || t === 'param') return true;
   const tela = document.querySelector('.tela.on'); if(!tela) return true;
   if([...tela.querySelectorAll('textarea')].some(x => x.value.trim())) return true;
-  if(tela.querySelector('input[type="checkbox"]:checked')) return true;
+  if(tela.querySelector('input[type="checkbox"]:checked:not(#vFSaldo)')) return true;   // "só com saldo" é filtro, não seleção
+  if($('vpcModal').style.display === 'flex') return true;                                 // quadro de aprovação VPC aberto
   return false;
 }
 async function atualizaTela(){
@@ -1612,6 +1713,7 @@ async function atualizaTela(){
   try {
     marcaAtualizacao();
     if(t === 'bonif'){ await confereAuto(); await Promise.all([pintaCarga(), pintaFila(), pintaBonif(), pintaNfBonif()]); }
+    if(t === 'vpc') await pintaAbaVpc();
     else if(t === 'sol' || t === 'acomp' || t === 'ordens'){
       await carrega(); VENDAS = new Map(); pintaSol();
       if(t === 'sol' && S.det) await detalhe(S.det);
