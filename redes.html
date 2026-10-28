@@ -86,7 +86,7 @@
   /* quadro de aprovação "VPC em produtos" (Silvio 27/10/2026) */
   .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 12px}
   .modal{background:var(--panel);border-radius:10px;max-width:1180px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)}
-  #tFila .chip{white-space:normal;line-height:1.35} #tFila td.nat{min-width:140px;max-width:190px}   /* fila cabe na tela (Silvio 28/10/2026) */
+  #tFila .chip, #tNb .chip, #bNfGrupo .chip, #tVpcSaldo .chip{white-space:normal;line-height:1.35} td.ped-nb{min-width:140px;max-width:220px} #tFila td.nat{min-width:140px;max-width:190px}   /* fila cabe na tela (Silvio 28/10/2026) */
   .chip.sug{background:transparent;border:1px dashed currentColor}   /* natureza SUGERIDA (sem decisão de usuário) */
   .modal tr.off td{opacity:.45} .modal .tot{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:13px}
   .fixos button{cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3);margin-left:8px}
@@ -204,7 +204,7 @@
     <div class="tbl-wrap"><table><thead><tr><th>Pedido</th><th>Emissão</th><th>Cliente</th><th class="n">Saldo a faturar</th><th>Situação</th></tr></thead><tbody id="bPed"></tbody></table></div>
     <div class="corpo nota">Enquanto o pedido de venda não vira nota, a venda não aparece acima e a bonificação ainda NÃO deve ser aprovada — não é erro do app.</div></div>
   <div class="painel" id="bNfGrupoP" style="display:none"><h2>Notas de bonificação do grupo na campanha <span>CFOP 5910/6910 emitidas para qualquer CNPJ do grupo</span></h2>
-    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo de 30 dias ANTES a 30 dias DEPOIS da bonificação (prazo em Parâmetros)">Venda ±30d</th><th title="Pedidos de VENDA do grupo ainda sem nota e a situação no crédito (FIN)">Pedido de venda</th><th>Situação</th><th></th></tr></thead><tbody id="bNfGrupo"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>NF · emissão</th><th>Cliente</th><th class="n">Valor · pçs</th><th class="n" title="Vendas do grupo de 30 dias ANTES a 30 dias DEPOIS da bonificação (prazo em Parâmetros)">Venda ±30d</th><th title="Pedidos de VENDA do grupo ainda sem nota e a situação no crédito (FIN)">Pedido de venda</th><th>Situação</th><th></th></tr></thead><tbody id="bNfGrupo"></tbody></table></div></div>
   <div id="bRes"></div>
   <div class="cards" id="cardsBo" style="margin-top:14px"></div>
   <div class="painel"><h2>Bonificações aprovadas <span>baixa automática: o app liga a aprovação à nota de bonificação do grupo</span></h2>
@@ -214,7 +214,7 @@
   <div class="painel"><h2>Notas de bonificação emitidas <span>CFOP 5910/6910 desde o início da campanha · tarja = anomalia</span>
     <button class="btn acao so-adm" id="nbAvisaTodas" style="display:none"></button>
     <button class="btn acao so-aprova" id="nbLiberaTodas" style="display:none"></button></h2>
-    <div class="tbl-wrap"><table><thead><tr><th>Emissão</th><th>NF</th><th>Cliente</th><th>UF</th><th class="n">Valor</th><th class="n">Pçs</th><th class="n" title="Vendas do grupo de 30 dias ANTES a 30 dias DEPOIS da bonificação (prazo em Parâmetros)">Venda ±30d</th><th title="Última nota de venda do grupo até 30 dias depois da bonificação">Últ. venda</th><th title="Pedidos de VENDA do grupo ainda sem nota e a situação no crédito (FIN)">Pedido de venda</th><th>Situação</th><th></th></tr></thead><tbody id="tNb"></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>NF · emissão</th><th>Cliente · UF</th><th class="n">Valor · pçs</th><th class="n" title="Vendas do grupo de 30 dias ANTES a 30 dias DEPOIS da bonificação (prazo em Parâmetros); abaixo, a última nota de venda do grupo até 30 dias depois">Venda ±30d</th><th title="Pedidos de VENDA do grupo ainda sem nota e a situação no crédito (FIN)">Pedido de venda</th><th>Situação</th><th></th></tr></thead><tbody id="tNb"></tbody></table></div></div>
   </div>
 </section>
 
@@ -1134,23 +1134,23 @@ async function pintaAbaVpc(recarrega = true){
     const cli = clientes
       .filter(o => casa({vpc_pago_banco:o.banco, pp:o.prod, nd:o.nd, saldo:o.saldo}, CARD_VPCS) && (!$('vFSaldo').checked || o.saldo > 0.009))
       .sort((a, b) => b.saldo - a.saldo || b.prev - a.prev);
-    $('hVpcSaldo').innerHTML = '<tr><th>Cliente</th><th>CNPJ / raiz</th><th class="n">Pedidos</th><th class="n">Valor venda</th><th class="n" title="Só pedidos ativos">VPC previsto</th><th class="n">Pago no banco VPC</th><th class="n">Pago em produtos</th><th class="n" title="ND/título natureza 2168 do fornecedor com a mesma raiz de CNPJ">Pago por ND</th><th class="n" title="Previsto − pago no banco − pago em produtos − pago por ND, no total do cliente">Saldo do cliente</th></tr>';
+    $('hVpcSaldo').innerHTML = '<tr><th>Cliente</th><th>CNPJ / raiz</th><th class="n">Pedidos</th><th class="n">Valor venda</th><th class="n" title="Só pedidos ativos">VPC previsto</th><th class="n" title="Pago no banco gerencial VPC · pago em produtos · pago por ND/título natureza 2168 do fornecedor com a mesma raiz de CNPJ">Pago banco<br>· produtos · ND</th><th class="n" title="Previsto − pago no banco − pago em produtos − pago por ND, no total do cliente">Saldo do cliente</th></tr>';
     $('tVpcSaldo').innerHTML = cli.slice(0, 300).map(o => `<tr><td>${esc(o.nome || '')}</td><td>${o.k.length === 8 ? 'raiz ' + fraiz(o.k) : fcnpj(o.cnpj || '')}</td>
-        <td class="n">${o.n}</td><td class="n">${fmoeda(o.valor)}</td><td class="n">${fmoeda(o.prev)}</td><td class="n">${o.banco ? fmoeda(o.banco) : '—'}</td>
-        <td class="n">${o.prod ? fmoeda(o.prod) : '—'}</td><td class="n">${o.nd ? fmoeda(o.nd) : '—'}</td><td class="n"><b>${fmoeda(o.saldo)}</b>${o.banco + o.prod + o.nd > o.prev + 0.01 ? `<div class="nota">pago ${fmoeda(o.banco + o.prod + o.nd - o.prev)} acima do previsto</div>` : ''}</td></tr>`).join('')
-      + (cli.length > 300 ? `<tr><td colspan="9" class="status">Mostrando 300 de ${cli.length} — refine os filtros.</td></tr>` : '')
-      || '<tr><td colspan="9" class="status">Nenhum cliente com VPC nestes filtros.</td></tr>';
+        <td class="n">${o.n}</td><td class="n">${fmoeda(o.valor)}</td><td class="n">${fmoeda(o.prev)}</td><td class="n">${o.banco ? fmoeda(o.banco) : '—'}<div class="nota" style="margin-top:2px">produtos ${o.prod ? fmoeda(o.prod) : '—'}</div><div class="nota" style="margin-top:2px">ND ${o.nd ? fmoeda(o.nd) : '—'}</div></td>
+        <td class="n"><b>${fmoeda(o.saldo)}</b>${o.banco + o.prod + o.nd > o.prev + 0.01 ? `<div class="nota">pago ${fmoeda(o.banco + o.prod + o.nd - o.prev)} acima do previsto</div>` : ''}</td></tr>`).join('')
+      + (cli.length > 300 ? `<tr><td colspan="7" class="status">Mostrando 300 de ${cli.length} — refine os filtros.</td></tr>` : '')
+      || '<tr><td colspan="7" class="status">Nenhum cliente com VPC nestes filtros.</td></tr>';
     return;
   }
-  $('hVpcSaldo').innerHTML = '<tr><th>Pedido de venda</th><th>Emissão</th><th>Cliente</th><th>Situação</th><th class="n">Valor venda</th><th>NF de venda</th><th class="n">% VPC</th><th class="n">VPC previsto</th><th class="n">Pago no banco VPC</th><th class="n">Pago em produtos</th><th class="n">Saldo</th></tr>';
+  $('hVpcSaldo').innerHTML = '<tr><th>Pedido<br>· emissão</th><th>Cliente</th><th>Situação</th><th class="n">Valor venda<br>· NF</th><th class="n">% VPC</th><th class="n">VPC previsto</th><th class="n" title="Pago no banco gerencial VPC (dinheiro) e pago em produtos (aprovações VPC em produtos)">Pago banco<br>· produtos</th><th class="n">Saldo</th></tr>';
   const sal = base.filter(x => casa(x, CARD_VPCS) && (!$('vFSaldo').checked || x.saldo > 0.009));
-  $('tVpcSaldo').innerHTML = sal.slice(0, 300).map(x => `<tr><td><b>${esc(x.pedido)}</b><div class="nota">filial ${esc(x.filial)}</div></td><td>${fdia(x.emissao)}</td>
+  $('tVpcSaldo').innerHTML = sal.slice(0, 300).map(x => `<tr><td><b>${esc(x.pedido)}</b><div class="nota" style="margin-top:2px">${fdia(x.emissao)}</div><div class="nota" style="margin-top:0">filial ${esc(x.filial)}</div></td>
       <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>
-      <td>${x.situacao === 'ATIVO' ? chip('ativo', 'c-ok') : chip(x.situacao, 'c-ne')}</td><td class="n">${fmoeda(+x.valor)}</td>
-      <td>${x.notas ? 'NF ' + esc(x.notas) : '<span class="nota">sem nota</span>'}</td><td class="n">${fmt(+x.vpc_pct, 2)}%<div class="nota">${x.base === 'PEDIDO' ? 'do pedido' : 'do cadastro'}</div></td>
-      <td class="n">${fmoeda(+x.vpc_previsto)}</td><td class="n">${+x.vpc_pago_banco ? fmoeda(+x.vpc_pago_banco) : '—'}</td><td class="n">${x.pp ? fmoeda(x.pp) : '—'}</td><td class="n"><b>${fmoeda(x.saldo)}</b></td></tr>`).join('')
-    + (sal.length > 300 ? `<tr><td colspan="11" class="status">Mostrando 300 de ${sal.length} — refine os filtros.</td></tr>` : '')
-    || '<tr><td colspan="11" class="status">Nenhum pedido de venda com VPC nestes filtros.</td></tr>';
+      <td>${x.situacao === 'ATIVO' ? chip('ativo', 'c-ok') : chip(x.situacao, 'c-ne')}</td><td class="n">${fmoeda(+x.valor)}<div class="nota" style="margin-top:2px;white-space:normal;max-width:170px;margin-left:auto">${x.notas ? 'NF ' + esc(x.notas) : 'sem nota'}</div></td>
+      <td class="n">${fmt(+x.vpc_pct, 2)}%<div class="nota">${x.base === 'PEDIDO' ? 'do pedido' : 'do cadastro'}</div></td>
+      <td class="n">${fmoeda(+x.vpc_previsto)}</td><td class="n">${+x.vpc_pago_banco ? fmoeda(+x.vpc_pago_banco) : '—'}<div class="nota" style="margin-top:2px">produtos ${x.pp ? fmoeda(x.pp) : '—'}</div></td><td class="n"><b>${fmoeda(x.saldo)}</b></td></tr>`).join('')
+    + (sal.length > 300 ? `<tr><td colspan="8" class="status">Mostrando 300 de ${sal.length} — refine os filtros.</td></tr>` : '')
+    || '<tr><td colspan="8" class="status">Nenhum pedido de venda com VPC nestes filtros.</td></tr>';
 }
 let _vpcFiltroT = null;
 ['vFPed', 'vFCli', 'vFCnpj', 'vFDe', 'vFAte', 'vFSaldo'].forEach(id => { const e = $(id); if(e) e.addEventListener('input', () => { clearTimeout(_vpcFiltroT); _vpcFiltroT = setTimeout(() => pintaAbaVpc(false), 250); }); });
@@ -1217,10 +1217,12 @@ function linhaNb(x, completa){
   /* natureza automática (28/10/2026): nota ainda sem decisão no app → sugerida pela observação do pedido */
   const nat = ['SEM APROVAÇÃO NO APP', 'BONIFICAÇÃO SEM FATURAMENTO'].includes(x.situacao)
     ? `<div style="margin-top:4px">${chipNat(naturezaBon({obs:OBSNF.get(x.filial + '|' + x.doc + '|' + x.serie)}))}</div>` : '';
-  return `<tr><td>${fdia(x.emissao)}</td><td style="white-space:nowrap">${esc(x.doc.replace(/^0+/, ''))}/${esc(x.serie)}<div class="nota">CFOP ${esc(x.cfop || '')}</div></td>
-    <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}</div></td>${completa ? `<td>${esc(x.uf || '')}</td>` : ''}
-    <td class="n">${fmoeda(+x.valor)}</td><td class="n">${fmt(+x.pecas, 0)}</td><td class="n">${+x.venda_janela ? fmoeda(+x.venda_janela) : '—'}</td>
-    ${completa ? `<td>${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</td>` : ''}<td style="min-width:150px">${pedidosNb(x)}</td><td>${selNb(x)}${nat}${just}${aviso}${erro}${lib}${dev}</td><td class="acoes-nb">${acao}</td></tr>`;
+  /* colunas agrupadas para caber na tela sem perder informação (Silvio 28/10/2026) */
+  return `<tr><td style="white-space:nowrap"><b>${esc(x.doc.replace(/^0+/, ''))}/${esc(x.serie)}</b><div class="nota" style="margin-top:2px">${fdia(x.emissao)} · CFOP ${esc(x.cfop || '')}</div></td>
+    <td>${esc(x.nome || '')} <span class="nota">${esc(x.cliente)}/${esc(x.loja)}</span><div class="nota">${fcnpj(x.cnpj || '')}${completa && x.uf ? ' · ' + esc(x.uf) : ''}</div></td>
+    <td class="n">${fmoeda(+x.valor)}<div class="nota" style="margin-top:2px">${fmt(+x.pecas, 0)} pçs</div></td>
+    <td class="n">${+x.venda_janela ? fmoeda(+x.venda_janela) : '—'}${completa ? `<div class="nota" style="margin-top:2px">últ. venda ${x.ult_venda_grupo ? fdia(x.ult_venda_grupo) : 'nunca comprou'}</div>` : ''}</td>
+    <td class="ped-nb">${pedidosNb(x)}</td><td>${selNb(x)}${nat}${just}${aviso}${erro}${lib}${dev}</td><td class="acoes-nb">${acao}</td></tr>`;
 }
 /* liberação posterior à retenção (Silvio 12/10/2026): vinculação à venda OU justificativa da Controladoria */
 const regularizadaNb = x => ['APROVADA NO APP', 'JUSTIFICADA', 'VPC EM PRODUTOS'].includes(x.situacao);
@@ -1376,7 +1378,7 @@ async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: 
   $('nbBloco').style.display = '';
   if(recarrega || !NFB.length){
     await Promise.all([carregaFinObs(), carregaVpcs(), carregaObsNf()]); pintaVpc();
-    const r = await SB.rpc('bonif_nf_painel', {p_cnpj:null}); if(r.error){ $('tNb').innerHTML = `<tr><td colspan="10" class="status err">${esc(r.error.message)}</td></tr>`; return; }
+    const r = await SB.rpc('bonif_nf_painel', {p_cnpj:null}); if(r.error){ $('tNb').innerHTML = `<tr><td colspan="7" class="status err">${esc(r.error.message)}</td></tr>`; return; }
     NFB = r.data || [];
   }
   const NFBF = NFB.filter(x => passaFiltro({peds:[x.pedido, ...(x.pedidos_fat || []).map(p => p.pedido)],
@@ -1392,7 +1394,7 @@ async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: 
     return `<div class="kpi ${CARD_NB === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / totV * 100, 1)}%</div></div>`; }).join('');
   $('cardsNb').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_NB = CARD_NB === e.dataset.k ? '' : e.dataset.k; pintaNfBonif(false); });
   $('tNb').innerHTML = NFBF.filter(x => casa(x, CARD_NB)).map(x => linhaNb(x, true)).join('')
-    || '<tr><td colspan="10" class="status">Nenhuma nota de bonificação nesta situação.</td></tr>';
+    || '<tr><td colspan="7" class="status">Nenhuma nota de bonificação nesta situação.</td></tr>';
   ligaBotoesNb($('tNb'), () => NFB);
   const pend = NFBF.filter(x => ['BONIFICAÇÃO SEM FATURAMENTO', VCANC].includes(x.situacao) && !x.avisado_em);   // avisada = e-mail em Itens Enviados
   $('nbAvisaTodas').style.display = E_ADM && pend.length ? '' : 'none';
@@ -1437,7 +1439,7 @@ function gruposDe(l){
     grupos:[...new Set(g.map(x => x.grupo).filter(Boolean))], raizes:[...new Set(g.filter(x => x.cnpj.length === 14).map(x => x.cnpj.slice(0, 8)))],
     nome:String((g.find(x => x.grupo_nome) || {}).grupo_nome || g[0].nome || '').trim()})).sort((a, b) => b.n - a.n);
 }
-async function membrosGrupo(g){
+async function membrosGrupoBonif(g){   // nome próprio (28/10/2026): o mesmo nome sobrescrevia o membrosGrupo da Nova solicitação
   const grupos = new Set(g.grupos), raizes = new Set(g.raizes), achados = new Map();
   for(let volta = 0; volta < 2; volta++){   // como no banco: raízes dos CNPJs do grupo de clientes também entram
     const f = [...[...grupos].map(x => `grupo.eq.${x}`), ...[...raizes].map(r => `cnpj.like.${r}*`)].join(',');
@@ -1598,7 +1600,7 @@ async function buscaNotas(){
   let alvos;
   if(GRUPO_B && $('bCnpj').value.trim() === GRUPO_B.rotulo){
     $('bSt').textContent = 'Buscando os CNPJs do grupo…';
-    const mg = await membrosGrupo(GRUPO_B); if(mg.erro){ $('bSt').textContent = mg.erro; return; }
+    const mg = await membrosGrupoBonif(GRUPO_B); if(mg.erro){ $('bSt').textContent = mg.erro; return; }
     MEMBROS_B = new Map(mg.lista.map(x => [x.cnpj, x])); alvos = [...MEMBROS_B.keys()];
     if(!alvos.includes(CNPJ_B)) CNPJ_B = (mg.lista.find(x => x.cnpj.length === 14) || mg.lista[0]).cnpj;
   } else {
@@ -1626,7 +1628,7 @@ async function buscaNotas(){
     if(porGrupo){   // SIM: o CNPJ achado leva ao grupo dele (se tiver mais de um CNPJ)
       await carregaCadastro([CNPJ_B]); const c0 = (CAD.get(CNPJ_B) || [])[0];
       if(c0 && (c0.grupo || CNPJ_B.length === 14)){
-        const mg = await membrosGrupo({grupos: c0.grupo ? [c0.grupo] : [], raizes: CNPJ_B.length === 14 ? [CNPJ_B.slice(0, 8)] : []});
+        const mg = await membrosGrupoBonif({grupos: c0.grupo ? [c0.grupo] : [], raizes: CNPJ_B.length === 14 ? [CNPJ_B.slice(0, 8)] : []});
         if(!mg.erro && mg.lista.length > 1) return abreGrupo({grupos: c0.grupo ? [c0.grupo] : [], raizes: CNPJ_B.length === 14 ? [CNPJ_B.slice(0, 8)] : [],
           nome: String((c0.grupo && c0.grupo_nome) || c0.nome || '').trim(), n: mg.lista.length});
       }
@@ -1775,7 +1777,7 @@ function pintaRegras(){
 function pintaPar(){
   $('tPar').innerHTML = PARROWS.map(x => { const txt = x.valor == null;
     const vis = txt ? esc(x.texto || '—') : (+x.valor < 1 && +x.valor > 0 ? fpct(+x.valor, 1) : fmt(+x.valor, +x.valor % 1 ? 2 : 0));
-    return `<tr><td><b>${esc(x.chave)}</b></td><td>${esc(x.descricao || '')}</td><td class="n">${vis}</td><td>${esc(x.atualizado_por || '')} ${fdata(x.atualizado_em)}</td>
+    return `<tr><td><b>${esc(x.chave)}</b></td><td>${esc(x.descricao || '')}</td><td class="n" style="white-space:normal;max-width:260px;overflow-wrap:anywhere">${vis}</td><td style="white-space:nowrap">${fdata(x.atualizado_em)}<div class="nota" style="margin-top:2px" title="${esc(x.atualizado_por || '')}">${esc(String(x.atualizado_por || '').split('@')[0])}</div></td>
       <td class="so-adm">${E_ADM && !/^TABELA_F/.test(x.chave) && x.chave !== 'NOTA_DESDE' ? `<input data-par="${esc(x.chave)}" data-txt="${txt ? 1 : 0}" value="${esc(txt ? (x.texto || '') : x.valor)}" style="width:120px"> <button class="btn" data-salva="${esc(x.chave)}">Salvar</button>` : ''}</td></tr>`; }).join('');
   $('tPar').querySelectorAll('[data-salva]').forEach(b => b.onclick = async () => {
     const i = $('tPar').querySelector(`[data-par="${b.dataset.salva}"]`), t = i.dataset.txt === '1';
