@@ -1156,7 +1156,8 @@ function linhaNb(x, completa){
         : `<div class="nota" style="color:var(--ru)">Logística ainda retendo (retida em ${fdata(x.avisado_em)})</div>`)) : '';
   const aviso = semFat ? (x.avisado_em ? `<div class="nota" title="e-mail em Itens Enviados · ${esc(x.avisado_por || '')}">📧 e-mail enviado à LOG ${diaHoraLog(x.avisado_em)}</div>`
     : x.preparado_em ? `<div class="nota" style="color:var(--av)" title="O aviso só conta quando o e-mail aparece em Itens Enviados (conferência de hora em hora)">✉️ e-mail preparado ${fdata(x.preparado_em)} — o envio é confirmado na próxima rodada (até 1h)</div>`
-    : `<div class="nota" style="color:var(--ru)">Logística não avisada</div>`) : '';
+    : x.situacao === VCANC ? `<div class="nota" style="color:var(--ru)">Logística não avisada</div>`
+    : `<div class="nota" style="color:var(--av)">só ALERTA — segue no protocolo; reter (📧 Logística) só se for o caso</div>`) : '';   // 032 (Silvio 28/10/2026)
   const acao = (E_ADM && (semFat || x.situacao === 'SEM APROVAÇÃO NO APP')
     ? (semFat ? `<button class="btn" data-avisa="${esc(chaveNb(x))}" title="E-mail RETER EXPEDIÇÃO para a Logística">📧 Logística</button>` : '') +
       `<button class="btn" data-just="${esc(chaveNb(x))}">Justificar</button><button class="btn" data-erro="${esc(chaveNb(x))}" title="Nota emitida por erro: sem expedição — fica fora do protocolo">Erro de emissão</button>` : '') +
@@ -1347,7 +1348,7 @@ async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: 
   ligaBotoesNb($('tNb'), () => NFB);
   const pend = NFBF.filter(x => ['BONIFICAÇÃO SEM FATURAMENTO', VCANC].includes(x.situacao) && !x.avisado_em);   // avisada = e-mail em Itens Enviados
   $('nbAvisaTodas').style.display = E_ADM && pend.length ? '' : 'none';
-  $('nbAvisaTodas').textContent = `📧 Avisar Logística — ${pend.length} nota(s) sem faturamento / venda cancelada sem e-mail enviado`;
+  $('nbAvisaTodas').textContent = `📧 Reter (RETER à Logística) — ${pend.length} nota(s) sem faturamento / venda cancelada, sem e-mail: só se decidir reter todas`;
   $('nbAvisaTodas').onclick = () => avisaLogistica(pend);
   const lib = NFBF.filter(x => aLiberarNb(x) && !x.liberar_preparado_em);
   $('nbLiberaTodas').style.display = APROVA && lib.length ? '' : 'none';
