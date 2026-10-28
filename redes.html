@@ -86,6 +86,7 @@
   /* quadro de aprovação "VPC em produtos" (Silvio 27/10/2026) */
   .modal-bg{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:200;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:30px 12px}
   .modal{background:var(--panel);border-radius:10px;max-width:1180px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.25)}
+  #tFila .chip{white-space:normal;line-height:1.35} #tFila td.nat{min-width:140px;max-width:190px}   /* fila cabe na tela (Silvio 28/10/2026) */
   .chip.sug{background:transparent;border:1px dashed currentColor}   /* natureza SUGERIDA (sem decisão de usuário) */
   .modal tr.off td{opacity:.45} .modal .tot{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;font-size:13px}
   .fixos button{cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3);margin-left:8px}
@@ -190,7 +191,7 @@
   <div class="painel" id="filaP"><h2>Pedidos de bonificação aguardando aprovação <span>pedidos de bonificação (CFOP 5910/6910) ainda sem nota no TOTVS · pré-avaliação pela 1ª venda do cliente na campanha · atualizado de hora em hora</span></h2>
     <div class="cards" id="cardsFila" style="margin:10px 14px 0"></div>
     <div class="cards" id="cardsNatF" style="margin:8px 14px 0"></div>
-    <div class="tbl-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th title="Natureza da bonificação, automática: definitiva = decisão de usuário no app (aprovação, justificativa); sugerida (tracejada) = pela observação do pedido ou pela pré-avaliação">Natureza</th><th>Situação no TOTVS</th><th class="n" title="Saldo do pedido de bonificação, sem IPI">Bonificação pedida</th><th>Pré-avaliação</th><th class="n" title="10% da(s) nota(s) do 1º pedido, sem IPI">Máximo</th><th></th></tr></thead><tbody id="tFila"><tr><td colspan="8" class="status">Carregando…</td></tr></tbody></table></div></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th title="Natureza da bonificação, automática: definitiva = decisão de usuário no app (aprovação, justificativa); sugerida (tracejada) = pela observação do pedido ou pela pré-avaliação. Abaixo, a situação do pedido no TOTVS">Natureza ·<br>situação TOTVS</th><th>Pré-avaliação</th><th class="n" title="Bonificação pedida = saldo do pedido de bonificação, sem IPI · Máximo = 10% da(s) nota(s) do 1º pedido, sem IPI">Pedida × máximo</th><th></th></tr></thead><tbody id="tFila"><tr><td colspan="6" class="status">Carregando…</td></tr></tbody></table></div></div>
   <div class="painel"><h2>Consultar cliente <span>avaliado pelo GRUPO (grupo de clientes + mesma raiz de CNPJ) · fature o 1º pedido → busque → marque a nota → registre</span></h2>
     <div class="corpo"><div class="linha-b" style="margin-top:0">
       <input id="bCnpj" placeholder="CNPJ, código TOTVS ou parte do nome" title="CNPJ/CPF, código do cliente no TOTVS (com /loja opcional: 000594/0001) ou parte do nome (ex.: Marcos Eletro)" style="width:280px"><button class="btn pri" id="bConsultar">Buscar</button><span class="nota" style="margin-left:6px" title="SIM: lista as notas de todos os CNPJs do grupo (grupo de clientes + mesma raiz de CNPJ). NÃO: só o CNPJ escolhido.">Consultar por grupo:</span><label class="nota" style="cursor:pointer"><input type="radio" name="bModo" value="S" checked> SIM</label><label class="nota" style="cursor:pointer"><input type="radio" name="bModo" value="N"> NÃO</label><span class="status" id="bSt" style="margin:0"></span></div>
@@ -1482,8 +1483,8 @@ async function resolveCliente(txt){
    Para cada pedido: pega a 1ª data de venda do CNPJ na campanha (notas ainda não usadas) e roda a mesma avaliação do banco. */
 async function pintaFila(){
   const r = await SB.from('cli_pedido_aberto').select('*').eq('tipo', 'BON').not('status', 'in', '("REPROVADO (COMERCIAL)","REPROVADO (DESCONTO)","CANCELADO")').order('emissao', {ascending:false});
-  const l = r.data || []; if(r.error){ $('tFila').innerHTML = `<tr><td colspan="8" class="status err">${esc(r.error.message)}</td></tr>`; return; }
-  if(!l.length){ $('tFila').innerHTML = '<tr><td colspan="8" class="status">Nenhum pedido de bonificação aguardando no TOTVS.</td></tr>'; return; }
+  const l = r.data || []; if(r.error){ $('tFila').innerHTML = `<tr><td colspan="6" class="status err">${esc(r.error.message)}</td></tr>`; return; }
+  if(!l.length){ $('tFila').innerHTML = '<tr><td colspan="6" class="status">Nenhum pedido de bonificação aguardando no TOTVS.</td></tr>'; return; }
   const cad = await SB.from('cli_cadastro').select('cod,loja,nome,cnpj,grupo').in('cod', [...new Set(l.map(x => x.cliente))]);
   // JÁ CONCEDIDA (Silvio 19/10/2026): pedido cujo cliente/grupo já tem bonificação aprovada no app nesta campanha mostra a
   // aprovação (nº, valor, NF de venda usada e NF de bonificação, se emitida) — e não uma nova pré-avaliação
@@ -1535,7 +1536,7 @@ function desenhaFila(){
     return `<div class="kpi ${CARD_NATF === k ? 'sel' : ''}" data-k="${k}" title="Natureza automática: definitiva = decisão de usuário no app; sugerida = observação do pedido / pré-avaliação"><div class="t">Natureza: ${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(v)} · ${fmt(v / totN * 100, 1)}%${l.length && k !== 'SEM' ? ` · ${d} definitiva(s), ${l.length - d} sugerida(s)` : ''}</div></div>`; }).join('');
   $('cardsNatF').querySelectorAll('.kpi[data-k]').forEach(e => e.onclick = () => { CARD_NATF = CARD_NATF === e.dataset.k ? '' : e.dataset.k; desenhaFila(); });
   const lista = base.filter(x => !CARD_NATF || natF(x).k === CARD_NATF);
-  if(!lista.length){ $('tFila').innerHTML = '<tr><td colspan="8" class="status">Nenhum pedido nesta situação.</td></tr>'; return; }
+  if(!lista.length){ $('tFila').innerHTML = '<tr><td colspan="6" class="status">Nenhum pedido nesta situação.</td></tr>'; return; }
   $('tFila').innerHTML = lista.map(({p, c, cnpj, av, notas, fat, ja, _nat}) => {
     const pedido = +p.valor_saldo, max = ja ? +ja.bx.bonificacao : av && av.elegivel ? +av.bonificacao : null, tol = +P.BONIF_TOLERANCIA || 0, maxTol = max === null ? null : max * (1 + tol);
     if(ja) notas = ja.vendas;
@@ -1560,9 +1561,10 @@ function desenhaFila(){
       : `<div class="nota" style="color:var(--ru)">⛔ ${fmt((pedido / max - 1) * 100, 1)}% acima — NÃO aprovar o excedente de ${fmoeda(pedido - max)} (limite c/ tolerância ${fmoeda(maxTol)})</div>`);
     return `<tr><td><b>${esc(p.pedido)}</b><div class="nota">${fdia(p.emissao)}</div>${p.obs ? `<div class="nota" title="${esc(p.obs)}" style="max-width:220px">Obs.: ${esc(p.obs.length > 90 ? p.obs.slice(0, 90) + '…' : p.obs)}</div>` : ''}</td>
       <td>${esc(c.nome || '')} <span class="nota">${esc(p.cliente)}/${esc(p.loja)}</span><div class="nota">${fcnpj(cnpj || '')}</div></td>
-      <td style="min-width:150px">${chipNat(_nat)}</td><td>${chipPed(p)}</td><td class="n">${fmoeda(pedido)}</td><td>${avTxt}</td><td class="n">${maxTxt}</td>
-      <td>${cnpj && !vpc ? `<button class="btn" data-fila="${esc(cnpj)}" data-notas="${esc(notas.map(n => n.doc).join(','))}">Abrir na consulta</button>` : ''}
-        ${APROVA && !vpc ? `<button class="btn" data-vpc-ped="${esc(p.filial + '|' + p.pedido)}" title="O vendedor está pagando em produto o VPC previsto em outro pedido de venda (fora da campanha)">VPC em produtos</button>` : ''}</td></tr>`; }).join('');
+      <td class="nat">${chipNat(_nat)}<div style="margin-top:6px">${chipPed(p)}</div></td><td>${avTxt}</td>
+      <td class="n" style="min-width:160px"><b>${fmoeda(pedido)}</b><div class="nota" style="margin-top:2px">pedida</div><div style="margin-top:8px;border-top:1px solid var(--line);padding-top:6px">máx. ${maxTxt}</div></td>
+      <td><div style="display:flex;flex-direction:column;gap:4px">${cnpj && !vpc ? `<button class="btn" data-fila="${esc(cnpj)}" data-notas="${esc(notas.map(n => n.doc).join(','))}">Abrir na consulta</button>` : ''}
+        ${APROVA && !vpc ? `<button class="btn" data-vpc-ped="${esc(p.filial + '|' + p.pedido)}" title="O vendedor está pagando em produto o VPC previsto em outro pedido de venda (fora da campanha)">VPC em produtos</button>` : ''}</div></td></tr>`; }).join('');
   ligaPdf($('tFila'));
   $('tFila').querySelectorAll('[data-vpc-ped]').forEach(b => b.onclick = () => {
     const f = FL.find(x => x.p.filial + '|' + x.p.pedido === b.dataset.vpcPed); if(!f) return;
