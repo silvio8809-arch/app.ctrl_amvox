@@ -587,7 +587,7 @@ async function pintaBonif(recarrega = true){   // card = filtro instantâneo
   $('tBo').innerHTML = BF.filter(filtro).map(x => { const vs = VINC.filter(b => b.bonif_id === x.id), ped = nb.filter(b => b.bonif_id === x.id);
     const antes = vs.some(b => b.emissao < diaBR(x.aprovado_em));
     return `<tr><td>${x.id}</td>
-    <td>${esc(x.nome || '')}<div class="nota">${fcnpj(x.cnpj)} · ${esc((x.classificacao || '').toLowerCase())}</div></td>
+    <td>${esc(x.nome || '')}<div class="nota">${fcnpj(x.cnpj)} · ${esc((x.classificacao || '').toLowerCase())}${x.complemento_de ? ` da bonificação nº ${x.complemento_de}` : ''}</div></td>
     <td>${ped.map(b => `NF ${esc(b.doc.replace(/^0+/, ''))} · ${fdia(b.emissao)}`).join('<br>')}<div class="nota">${fmoeda(+x.valor_notas)}</div></td>
     <td class="n">${fmoeda(+x.bonificacao)}<div class="nota" title="${esc(x.aprovado_por || '')}">aprovada ${fdata(x.aprovado_em)}</div></td>
     <td>${chip(x.situacao || 'AGUARDANDO NOTA', SITB[x.situacao] || 'c-in')}
@@ -1495,10 +1495,13 @@ async function pintaFila(){
     if(cnpj){
       const n = await SB.rpc('bonif_notas', {p_cnpj:cnpj});
       const ids = new Set((n.data || []).filter(x => x.usada_em).map(x => +x.usada_em));
-      const bx = BC.find(b => ids.has(+b.id) || b.cnpj === cnpj || (cnpj.length === 14 && b.raiz && b.raiz === cnpj.slice(0, 8)) || (c.grupo && b.grupo === c.grupo));
-      if(bx) ja = {bx, vendas: BN.filter(v => +v.bonif_id === +bx.id), nfb: BV.filter(v => +v.bonif_id === +bx.id)};
+      const bx = BC.filter(b => !b.complemento_de).find(b => ids.has(+b.id) || b.cnpj === cnpj || (cnpj.length === 14 && b.raiz && b.raiz === cnpj.slice(0, 8)) || (c.grupo && b.grupo === c.grupo));
+      /* 036 (Silvio 28/10/2026): grupo já aprovado COM venda nova no prazo do 1º pedido → o pedido é COMPLEMENTO e passa pela
+         mesma análise do pedido inicial (máximo = 10% das vendas novas, mesma tolerância) */
+      if(bx && !VNP.has(+bx.id)) ja = {bx, vendas: BN.filter(v => +v.bonif_id === +bx.id), nfb: BV.filter(v => +v.bonif_id === +bx.id)};
       const livres = ja ? [] : (n.data || []).filter(x => !x.usada_em);
-      if(livres.length){ const d = livres.map(x => x.emissao).sort()[0]; notas = livres.filter(x => x.emissao === d);
+      if(bx && VNP.has(+bx.id)){ const a = await SB.rpc('bonif_avaliar', {p_cnpj:cnpj, p_notas:[]}); av = a.data || null; notas = (av && av.notas) || []; }
+      else if(livres.length){ const d = livres.map(x => x.emissao).sort()[0]; notas = livres.filter(x => x.emissao === d);
         const a = await SB.rpc('bonif_avaliar', {p_cnpj:cnpj, p_notas:notas.map(x => ({filial:x.filial, doc:x.doc, serie:x.serie}))}); av = a.data || null; }
     }
     return {p, c, cnpj, av, notas, ja, fat:fatDe(p.cliente + '|' + p.loja)};
@@ -1543,7 +1546,7 @@ function desenhaFila(){
       : !av ? chip('SEM VENDA NA CAMPANHA', 'c-ru') + '<div class="nota">não aprovar: o 1º pedido ainda não virou nota</div>' +
         fat.map(f => `<div style="margin-top:3px"><b>${esc(f.pedido)}</b> <span class="nota">${fdia(f.emissao)} · ${fmoeda(+f.valor_saldo)}</span> ${chipPed(f)}</div>`).join('')
       : chip((av.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + av.classificacao, av.elegivel ? 'c-ok' : 'c-ru') +
-        `<div class="nota">1º pedido do grupo: ${(av.notas || notas).map(n => esc(String(n.doc).replace(/^0+/, '')) + ' (' + fdia(n.emissao).slice(0, 5) + ')').join(', ')} · ${fmoeda(+av.valor_notas)}${av.janela_aberta ? ` · ⚠️ prazo aberto até ${fdia(av.janela_ate)}` : ''}</div>`;
+        `<div class="nota">${av.classificacao === 'COMPLEMENTO' ? `complemento da bonificação nº ${av.complemento_de} · vendas novas no prazo` : '1º pedido do grupo'}: ${(av.notas || notas).map(n => esc(String(n.doc).replace(/^0+/, '')) + ' (' + fdia(n.emissao).slice(0, 5) + ')').join(', ')} · ${fmoeda(+av.valor_notas)}${av.janela_aberta ? ` · ⚠️ prazo aberto até ${fdia(av.janela_ate)}` : ''}</div>`;
     /* tolerância (Silvio 13/10/2026): até BONIF_TOLERANCIA (5%) acima dos 10% = OK; acima disso NÃO aprovar o excedente */
     const maxTxt = vpc ? fmoeda(+vpc.valor) + '<div class="nota">aprovado (VPC)</div>' : max === null ? '—' : ja ? fmoeda(max) + '<div class="nota">aprovado no app</div>' + (pedido <= maxTol + 0.01
         ? '<div class="nota" style="color:var(--ok)">pedido dentro do aprovado</div>'
@@ -1683,7 +1686,7 @@ async function avaliaBonif(){
   if(!VINC.length){ const v = await SB.from('bonif_nf_vinculo').select('*'); VINC = v.data || []; }
   if(r.data && r.data.bonificacao_anterior) await carregaVnp();
   const a = r.data, membros = a.membros || [];
-  const esp = ['SEM CADASTRO', 'NOTA INVÁLIDA'].includes(a.classificacao) ? null
+  const esp = ['SEM CADASTRO', 'NOTA INVÁLIDA', 'COMPLEMENTO', 'SEM VENDA NA CAMPANHA'].includes(a.classificacao) ? null
             : RD.bonif({membros, data:a.data_nota, usada: sel.some(n => n.usada_em), concedida: a.bonificacao_anterior}, P);
   const diverge = esp && esp.classificacao !== a.classificacao, cls = a.elegivel ? 'c-ok' : 'c-ru';
   // "Última compra até hoje" pode ser a PRÓPRIA nota avaliada (ou outra posterior a ela) — Silvio 14/10/2026 achou
