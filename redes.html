@@ -558,8 +558,17 @@ const SITB = {'AGUARDANDO NOTA':'c-in', 'CONCEDIDA (NF EMITIDA)':'c-ok', 'NF ACI
               'VENDA CANCELADA':'c-ru'};   // 026 (Silvio 22/10/2026): venda do 1º pedido cancelada no TOTVS
 let VINC = [], CARD_BO = '';
 let BONOTA = [];
+/* VENDA NOVA NO PRAZO DO 1º PEDIDO (Silvio 28/10/2026, migração 035): grupo já aprovado que comprou de novo dentro do prazo
+   (BONIF_JANELA_1PED_DIAS) — a aprovação não sobe sozinha; o app avisa com o complemento possível (decisão da Controladoria) */
+let VNP = new Map();
+async function carregaVnp(){ const r = await SB.rpc('bonif_vendas_no_prazo'); VNP = new Map((r.error ? [] : r.data || []).map(x => [+x.bonif_id, x])); }
+const avisoVnp = id => { const v = VNP.get(+id); if(!v) return '';
+  return `<div class="nota" style="color:var(--ru)">⚠️ venda nova do grupo no prazo do 1º pedido (até ${fdia(v.janela_ate)}): ` +
+    v.notas.map(n => `NF ${esc(String(n.doc).replace(/^0+/, ''))} de ${fdia(n.emissao)} (${fmoeda(+n.valor)}${n.nome ? ', ' + esc(n.nome) : ''})`).join('; ') +
+    ` — complemento possível ${fmoeda(+v.complemento)} (decisão da Controladoria)</div>`; };
 async function pintaBonif(recarrega = true){   // card = filtro instantâneo
   if(recarrega || !BONIF.length){
+    await carregaVnp();
     const [r, n, v] = await Promise.all([SB.from('bonif_campanha').select('*').order('id', {ascending:false}), SB.from('bonif_nota').select('*'), SB.from('bonif_nf_vinculo').select('*')]);
     if(r.error){ $('tBo').innerHTML = `<tr><td colspan="5" class="status err">${esc(r.error.message)}</td></tr>`; return; }
     BONIF = r.data; VINC = v.data || []; BONOTA = n.data || [];
@@ -568,7 +577,8 @@ async function pintaBonif(recarrega = true){   // card = filtro instantâneo
     nome:x.nome, cod:'', cnpj:x.cnpj, data:String(x.aprovado_em || '').slice(0, 10)}, 'b'));
   const GRUPOS_BO = [['', 'Aprovadas', () => true], ['OK', 'Concedidas', x => x.situacao === 'CONCEDIDA (NF EMITIDA)'],
                      ['AG', 'Aguardando nota', x => !x.situacao || x.situacao === 'AGUARDANDO NOTA'],
-                     ['PB', 'Com problema', x => ['NF ACIMA DO APROVADO', 'NOTA NÃO EMITIDA NO PRAZO', 'VENDA CANCELADA'].includes(x.situacao)]];
+                     ['PB', 'Com problema', x => ['NF ACIMA DO APROVADO', 'NOTA NÃO EMITIDA NO PRAZO', 'VENDA CANCELADA'].includes(x.situacao)],
+                     ['VN', 'Venda nova no prazo', x => VNP.has(+x.id)]];
   const totB = BF.reduce((a, x) => a + +x.bonificacao, 0) || 1, filtro = (GRUPOS_BO.find(g => g[0] === CARD_BO) || GRUPOS_BO[0])[2];
   $('cardsBo').innerHTML = GRUPOS_BO.map(([k, t, f]) => { const l = BF.filter(f), val = l.reduce((a, x) => a + +x.bonificacao, 0);
     return `<div class="kpi ${CARD_BO === k ? 'sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${l.length}</div><div class="nota">${fmoeda(val)} · ${fmt(val / totB * 100, 1)}%</div></div>`; }).join('');
@@ -582,7 +592,7 @@ async function pintaBonif(recarrega = true){   // card = filtro instantâneo
     <td class="n">${fmoeda(+x.bonificacao)}<div class="nota" title="${esc(x.aprovado_por || '')}">aprovada ${fdata(x.aprovado_em)}</div></td>
     <td>${chip(x.situacao || 'AGUARDANDO NOTA', SITB[x.situacao] || 'c-in')}
       ${vs.map(b => `<div class="nota">NF ${esc(b.doc.replace(/^0+/, ''))} · ${fdia(b.emissao)} · ${fmoeda(+b.valor)}${b.cnpj !== x.cnpj ? ' · outro CNPJ do grupo' : ''}</div>`).join('')}
-      ${antes ? `<div style="margin-top:4px">${chip('NF de bonificação emitida antes da aprovação', 'c-av')}</div>` : ''}</td><td>${iconePdf(x.id)}</td></tr>`; }).join('')
+      ${antes ? `<div style="margin-top:4px">${chip('NF de bonificação emitida antes da aprovação', 'c-av')}</div>` : ''}${avisoVnp(x.id)}</td><td>${iconePdf(x.id)}</td></tr>`; }).join('')
     || '<tr><td colspan="6" class="status">Nenhuma bonificação nesta situação.</td></tr>';
   ligaPdf($('tBo'));
 }
@@ -1474,7 +1484,7 @@ async function pintaFila(){
   // JÁ CONCEDIDA (Silvio 19/10/2026): pedido cujo cliente/grupo já tem bonificação aprovada no app nesta campanha mostra a
   // aprovação (nº, valor, NF de venda usada e NF de bonificação, se emitida) — e não uma nova pré-avaliação
   const [bc, bn, bv] = await Promise.all([SB.from('bonif_campanha').select('*').order('id', {ascending:false}),
-    SB.from('bonif_nota').select('bonif_id,doc,serie,emissao,valor'), SB.from('bonif_nf_vinculo').select('*'), carregaVpcs()]);
+    SB.from('bonif_nota').select('bonif_id,doc,serie,emissao,valor'), SB.from('bonif_nf_vinculo').select('*'), carregaVpcs(), carregaVnp()]);
   const BC = (bc.data || []).filter(b => !P.CAMP_INICIO || (b.data_nota >= P.CAMP_INICIO && b.data_nota <= P.CAMP_FIM)), BN = bn.data || [], BV = bv.data || [];   // só a campanha vigente
   const nome = new Map((cad.data || []).map(x => [x.cod + '|' + x.loja, x]));
   const fat = await SB.from('cli_pedido_aberto').select('pedido,cliente,loja,emissao,valor_saldo,status,fin_obs').eq('tipo', 'FAT').in('cliente', [...new Set(l.map(x => x.cliente))]);
@@ -1528,7 +1538,7 @@ function desenhaFila(){
       : ja ? chip('JÁ CONCEDIDA — bonificação nº ' + ja.bx.id, 'c-in') + ' ' + iconePdf(ja.bx.id) +
         `<div class="nota">via NF de venda ${ja.vendas.map(v => esc(String(v.doc).replace(/^0+/, ''))).join(', ') || '—'}` +
         `${ja.vendas[0] ? ' de ' + fdia(ja.vendas[0].emissao) : ''} · aprovada em ${fdata(ja.bx.aprovado_em)}${ja.bx.aprovado_por ? ' por ' + esc(String(ja.bx.aprovado_por).split('@')[0]) : ''}</div>` +
-        `<div class="nota">${ja.nfb.length ? 'NF de bonificação: ' + ja.nfb.map(v => esc(String(v.doc).replace(/^0+/, ''))).join(', ') : 'NF de bonificação ainda não emitida'}</div>`
+        `<div class="nota">${ja.nfb.length ? 'NF de bonificação: ' + ja.nfb.map(v => esc(String(v.doc).replace(/^0+/, ''))).join(', ') : 'NF de bonificação ainda não emitida'}</div>` + avisoVnp(ja.bx.id)
       : !cnpj ? chip('sem cadastro', 'c-ne')
       : !av ? chip('SEM VENDA NA CAMPANHA', 'c-ru') + '<div class="nota">não aprovar: o 1º pedido ainda não virou nota</div>' +
         fat.map(f => `<div style="margin-top:3px"><b>${esc(f.pedido)}</b> <span class="nota">${fdia(f.emissao)} · ${fmoeda(+f.valor_saldo)}</span> ${chipPed(f)}</div>`).join('')
@@ -1671,6 +1681,7 @@ async function avaliaBonif(){
   if(sel.length && sel[0].cnpj) CNPJ_B = sel[0].cnpj;   // consulta pelo grupo: avalia o CNPJ das notas marcadas
   const r = await SB.rpc('bonif_avaliar', {p_cnpj:CNPJ_B, p_notas:pn}); if(r.error){ $('bSt').textContent = r.error.message; return; }
   if(!VINC.length){ const v = await SB.from('bonif_nf_vinculo').select('*'); VINC = v.data || []; }
+  if(r.data && r.data.bonificacao_anterior) await carregaVnp();
   const a = r.data, membros = a.membros || [];
   const esp = ['SEM CADASTRO', 'NOTA INVÁLIDA'].includes(a.classificacao) ? null
             : RD.bonif({membros, data:a.data_nota, usada: sel.some(n => n.usada_em), concedida: a.bonificacao_anterior}, P);
@@ -1689,7 +1700,7 @@ async function avaliaBonif(){
   $('bRes').innerHTML = `<div class="painel"><h2>Resultado ${chip((a.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + a.classificacao, cls)}${a.cod ? ' <button class="btn" id="bParecer" title="Parecer final em PDF: veredito, motivo, regras e compras do grupo — para aprovar ou reprovar o pedido de bonificação">📄 Parecer (PDF)</button>' : ''}</h2><div class="corpo">
     <div style="font-size:14.5px">${esc(a.motivo)}</div>
     ${a.bonificacao_anterior ? (() => { const bx = a.bonificacao_anterior, vs = VINC.filter(v => v.bonif_id === bx.id);
-      return `<div class="nota" style="font-size:13px">${iconePdf(bx.id)} Bonificação aprovada nº ${bx.id} em ${fdata(bx.aprovado_em)} (${fmoeda(+bx.bonificacao)}) · situação: <b>${esc(bx.situacao || 'AGUARDANDO NOTA')}</b>${vs.length ? ' · concedida via ' + vs.map(v => `NF ${esc(v.doc)}/${esc(v.serie)} de ${fdia(v.emissao)} (${fmoeda(+v.valor)})`).join(', ') : ''}</div>`; })() : ''}
+      return `<div class="nota" style="font-size:13px">${iconePdf(bx.id)} Bonificação aprovada nº ${bx.id} em ${fdata(bx.aprovado_em)} (${fmoeda(+bx.bonificacao)}) · situação: <b>${esc(bx.situacao || 'AGUARDANDO NOTA')}</b>${vs.length ? ' · concedida via ' + vs.map(v => `NF ${esc(v.doc)}/${esc(v.serie)} de ${fdia(v.emissao)} (${fmoeda(+v.valor)})`).join(', ') : ''}</div>${avisoVnp(bx.id)}`; })() : ''}
     ${diverge ? `<div class="status err">⚠️ O motor do app (${esc(esp.classificacao)}) divergiu do banco (${esc(a.classificacao)}). Vale o do banco; avise a Controladoria.</div>` : ''}
     ${md ? `<div class="nota">ℹ️ Outras notas do grupo no mesmo dia: ${esc(md)}.</div>` : ''}
     ${a.janela_ate ? `<div class="nota">ℹ️ 1º pedido do grupo = vendas de ${fdia(a.data_nota)} a ${fdia(a.janela_ate)} (${a.janela_dias} dias, todos os CNPJs): ${(a.notas || []).length} nota(s) de ${a.cnpjs_1o_pedido || 1} CNPJ(s) — ${fmoeda(+a.valor_notas)} sem IPI.</div>` : ''}
