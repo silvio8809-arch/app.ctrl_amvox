@@ -577,7 +577,7 @@ async function pintaBonif(recarrega = true){   // card = filtro instantâneo
     nome:x.nome, cod:'', cnpj:x.cnpj, data:String(x.aprovado_em || '').slice(0, 10)}, 'b'));
   const GRUPOS_BO = [['', 'Aprovadas', () => true], ['OK', 'Concedidas', x => x.situacao === 'CONCEDIDA (NF EMITIDA)'],
                      ['AG', 'Aguardando nota', x => !x.situacao || x.situacao === 'AGUARDANDO NOTA'],
-                     ['PB', 'Com problema', x => ['NF ACIMA DO APROVADO', 'NOTA NÃO EMITIDA NO PRAZO', 'VENDA CANCELADA'].includes(x.situacao)],
+                     ['PB', 'Com problema', x => ['NF ACIMA DO APROVADO', 'NOTA NÃO EMITIDA NO PRAZO', 'VENDA CANCELADA'].includes(x.situacao) || !!x.alerta],
                      ['VN', 'Venda nova no prazo', x => VNP.has(+x.id)]];
   const totB = BF.reduce((a, x) => a + +x.bonificacao, 0) || 1, filtro = (GRUPOS_BO.find(g => g[0] === CARD_BO) || GRUPOS_BO[0])[2];
   $('cardsBo').innerHTML = GRUPOS_BO.map(([k, t, f]) => { const l = BF.filter(f), val = l.reduce((a, x) => a + +x.bonificacao, 0);
@@ -588,11 +588,11 @@ async function pintaBonif(recarrega = true){   // card = filtro instantâneo
     const antes = vs.some(b => b.emissao < diaBR(x.aprovado_em));
     return `<tr><td>${x.id}</td>
     <td>${esc(x.nome || '')}<div class="nota">${fcnpj(x.cnpj)} · ${esc((x.classificacao || '').toLowerCase())}${x.complemento_de ? ` da bonificação nº ${x.complemento_de}` : ''}</div></td>
-    <td>${ped.map(b => `NF ${esc(b.doc.replace(/^0+/, ''))} · ${fdia(b.emissao)}`).join('<br>')}<div class="nota">${fmoeda(+x.valor_notas)}</div></td>
+    <td>${ped.map(b => `NF ${esc(b.doc.replace(/^0+/, ''))} · ${fdia(b.emissao)}${b.reemitida_de ? `<div class="nota">reemissão de ${esc(b.reemitida_de)} (emitida ${fdia(b.emissao_original)})</div>` : ''}`).join('<br>')}<div class="nota">${fmoeda(+x.valor_notas)}</div></td>
     <td class="n">${fmoeda(+x.bonificacao)}<div class="nota" title="${esc(x.aprovado_por || '')}">aprovada ${fdata(x.aprovado_em)}</div></td>
     <td>${chip(x.situacao || 'AGUARDANDO NOTA', SITB[x.situacao] || 'c-in')}
       ${vs.map(b => `<div class="nota">NF ${esc(b.doc.replace(/^0+/, ''))} · ${fdia(b.emissao)} · ${fmoeda(+b.valor)}${b.cnpj !== x.cnpj ? ' · outro CNPJ do grupo' : ''}</div>`).join('')}
-      ${antes ? `<div style="margin-top:4px">${chip('NF de bonificação emitida antes da aprovação', 'c-av')}</div>` : ''}${avisoVnp(x.id)}</td><td>${iconePdf(x.id)}</td></tr>`; }).join('')
+      ${antes ? `<div style="margin-top:4px">${chip('NF de bonificação emitida antes da aprovação', 'c-av')}</div>` : ''}${avisoVnp(x.id)}${x.alerta ? `<div class="nota" style="color:var(--ru)">⚠️ ${esc(x.alerta)}</div>` : ''}</td><td>${iconePdf(x.id)}</td></tr>`; }).join('')
     || '<tr><td colspan="6" class="status">Nenhuma bonificação nesta situação.</td></tr>';
   ligaPdf($('tBo'));
 }
@@ -637,7 +637,7 @@ function conferencia(d){
   linhas.push(['B01 — Grupo inteiro', 'Avaliar todos os CNPJs do grupo de clientes e da mesma raiz',
     `${membros.length} CNPJ(s) avaliado(s): ${membros.slice(0, 6).map(x => `${x.nome} ${fcnpj(x.cnpj)}`).join('; ')}${membros.length > 6 ? '; …' : ''}. Grupo: ${b.grupo || 'sem grupo econômico'} · raiz ${b.raiz || '—'}.`, 'OK']);
   const dentro = dn >= P.CAMP_INICIO && dn <= P.CAMP_FIM, mesmoDia = new Set(vendas.map(v => v.emissao)).size <= 1;
-  const prim = hist.filter(h => h.emissao >= P.CAMP_INICIO).map(h => h.emissao).sort()[0];
+  const prim = hist.filter(h => h.emissao >= P.CAMP_INICIO).map(h => h.emissao).concat(vendas.map(v => v.emissao_original).filter(Boolean)).sort()[0];   // B16: NF reemitida conta da emissão original
   linhas.push(['B02 — 1º pedido do grupo', `Vendas do grupo (todos os CNPJs) da 1ª compra na campanha até ${+P.BONIF_JANELA_1PED_DIAS || 15} dias depois (desde 28/10/2026; antes: notas de um CNPJ e um dia); valor sem IPI`,
     `${vendas.map(v => `NF ${v.doc.replace(/^0+/, '')} de ${fdia(v.emissao)} · ${fmoeda(+v.valor)} sem IPI`).join('; ')}. Campanha ${fdia(P.CAMP_INICIO)} a ${fdia(P.CAMP_FIM)}. ` +
     (prim === dn ? 'É a 1ª venda do grupo na campanha.' : prim ? `Atenção: o grupo tem venda anterior na campanha (${fdia(prim)}).` : ''),
@@ -658,6 +658,10 @@ function conferencia(d){
     (nfb.length ? `NF de bonificação ${fmoeda(vnf)} sem IPI = ${fmt(vnf / +b.bonificacao * 100, 1)}% do máximo aprovado (${fmoeda(+b.bonificacao)}).` : 'NF de bonificação ainda não emitida.') +
     (nfb.length && vnf > limite + 0.01 && b.obs ? ` Exceção registrada na aprovação: ${b.obs}` : ''),
     !nfb.length ? 'AGUARDANDO' : vnf <= limite + 0.01 ? 'OK' : b.obs ? 'EXCEÇÃO' : 'RESSALVA']);
+  const reem = vendas.filter(v => v.reemitida_de);
+  if(reem.length || b.alerta) linhas.push(['B16 — NF de venda reemitida', 'NF de venda cancelada e reemitida no mesmo pedido: a aprovação acompanha a nota nova; nota menor = alerta de bonificação a maior',
+    (reem.length ? `${reem.map(v => `NF ${v.doc.replace(/^0+/, '')} de ${fdia(v.emissao)} (${fmoeda(+v.valor)})`).join('; ')} substitui(em) ${[...new Set(reem.map(v => v.reemitida_de))].join('; ')}, emitida(s) em ${fdia(reem[0].emissao_original)}.` : '') +
+    (b.alerta ? ` ALERTA: ${b.alerta}` : ' Notas substitutas cobrem o valor das canceladas.'), b.alerta ? 'RESSALVA' : 'OK']);
   linhas.push(['B09 — Quem registra', 'Controladoria (ADM) ou aprovador autorizado (BONIF_APROVADORES)',
     `Registrada por ${b.aprovado_por || '—'} em ${fdata(b.aprovado_em)}. O banco só aceita o registro de ADM ou de aprovador autorizado e reavalia a elegibilidade na hora.`, 'OK']);
   const prazo = +P.BONIF_PRAZO_DIAS || 30;
