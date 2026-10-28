@@ -196,7 +196,7 @@
       <input id="bCnpj" placeholder="CNPJ, código TOTVS ou parte do nome" title="CNPJ/CPF, código do cliente no TOTVS (com /loja opcional: 000594/0001) ou parte do nome (ex.: Marcos Eletro)" style="width:280px"><button class="btn pri" id="bConsultar">Buscar</button><span class="nota" style="margin-left:6px" title="SIM: lista as notas de todos os CNPJs do grupo (grupo de clientes + mesma raiz de CNPJ). NÃO: só o CNPJ escolhido.">Consultar por grupo:</span><label class="nota" style="cursor:pointer"><input type="radio" name="bModo" value="S" checked> SIM</label><label class="nota" style="cursor:pointer"><input type="radio" name="bModo" value="N"> NÃO</label><span class="status" id="bSt" style="margin:0"></span></div>
       <div class="linha-b"><span class="nota" id="bCarga">—</span><button class="btn so-aprova" id="bAtualiza" title="A nota entra na próxima rodada (até 1h); precisa do Mac ligado com VPN">Atualizar notas</button></div>
     </div></div>
-  <div class="painel" id="bNotasP" style="display:none"><h2><em id="bNotasT" style="font-style:normal">Notas de venda do CNPJ na campanha</em> <span>marque a(s) nota(s) do 1º pedido (mesmo dia e mesmo CNPJ)</span></h2>
+  <div class="painel" id="bNotasP" style="display:none"><h2><em id="bNotasT" style="font-style:normal">Notas de venda do CNPJ na campanha</em> <span>marque uma nota do grupo — o app soma sozinho o 1º pedido: vendas do grupo (todos os CNPJs) da 1ª compra na campanha até 15 dias depois</span></h2>
     <div class="tbl-wrap"><table><thead><tr><th></th><th>Filial</th><th>Nota / série</th><th>Emissão</th><th class="n">Valor sem IPI</th><th class="n">IPI</th><th class="n">Peças</th><th>Situação</th></tr></thead><tbody id="bNotas"></tbody></table></div>
     <div class="corpo"><div class="status err" id="bAvisoUsada" style="display:none;margin-bottom:8px"></div><button class="btn pri" id="bAvaliar" disabled>Avaliar a nota marcada</button></div></div>
   <div class="painel" id="bPedP" style="display:none"><h2>Pedidos de venda do grupo ainda sem nota <span>situação no TOTVS: aprovação comercial → crédito (FIN) → faturamento · atualizado de hora em hora</span></h2>
@@ -628,10 +628,10 @@ function conferencia(d){
     `${membros.length} CNPJ(s) avaliado(s): ${membros.slice(0, 6).map(x => `${x.nome} ${fcnpj(x.cnpj)}`).join('; ')}${membros.length > 6 ? '; …' : ''}. Grupo: ${b.grupo || 'sem grupo econômico'} · raiz ${b.raiz || '—'}.`, 'OK']);
   const dentro = dn >= P.CAMP_INICIO && dn <= P.CAMP_FIM, mesmoDia = new Set(vendas.map(v => v.emissao)).size <= 1;
   const prim = hist.filter(h => h.emissao >= P.CAMP_INICIO).map(h => h.emissao).sort()[0];
-  linhas.push(['B02 — Controle por nota', 'Nota(s) do 1º pedido, na campanha; data e valor sem IPI da nota',
+  linhas.push(['B02 — 1º pedido do grupo', `Vendas do grupo (todos os CNPJs) da 1ª compra na campanha até ${+P.BONIF_JANELA_1PED_DIAS || 15} dias depois (desde 28/10/2026; antes: notas de um CNPJ e um dia); valor sem IPI`,
     `${vendas.map(v => `NF ${v.doc.replace(/^0+/, '')} de ${fdia(v.emissao)} · ${fmoeda(+v.valor)} sem IPI`).join('; ')}. Campanha ${fdia(P.CAMP_INICIO)} a ${fdia(P.CAMP_FIM)}. ` +
     (prim === dn ? 'É a 1ª venda do grupo na campanha.' : prim ? `Atenção: o grupo tem venda anterior na campanha (${fdia(prim)}).` : ''),
-    dentro && mesmoDia && (!prim || prim === dn) ? 'OK' : 'RESSALVA']);
+    dentro && (!prim || prim === dn) ? 'OK' : 'RESSALVA']);
   const antes = hist.filter(h => h.emissao < dn && !docsV.has(h.doc)), ult = antes[antes.length - 1];
   const reat = (b.classificacao || '').toUpperCase().includes('REATIV'), novo = (b.classificacao || '').toUpperCase().includes('NOVO');
   const okClass = ult ? ult.emissao < corte && reat : novo || (!av.antigo);
@@ -783,7 +783,7 @@ async function parecerPdf(a, grupoRot){
     doc.autoTable({...opTab(doc, img, M), startY: y, theme: 'grid',
       body: [['Cliente / grupo avaliado', `${grupoRot ? grupoRot + ' — ' : ''}${a.nome || ''} (código ${a.cod || ''}/${a.loja || ''}) — CNPJ ${fcnpj(a.cnpj)}`],
              ['Grupo econômico', `${a.grupo_nome || a.grupo || 'sem grupo de clientes'} · raiz do CNPJ ${fraiz(a.raiz)} · ${membros.length} CNPJ(s) avaliados juntos`],
-             ['Nota(s) avaliada(s)', `${(a.notas || []).map(n => `NF ${String(n.doc).replace(/^0+/, '')}/${n.serie}`).join(', ')} de ${fdia(a.data_nota)} — ${fmoeda(+a.valor_notas)} sem IPI`],
+             ['Nota(s) do 1º pedido', `${(a.notas || []).map(n => `NF ${String(n.doc).replace(/^0+/, '')}/${n.serie} de ${fdia(n.emissao)}`).join(', ')} — ${fmoeda(+a.valor_notas)} sem IPI (vendas do grupo de ${fdia(a.data_nota)} a ${fdia(a.janela_ate || a.data_nota)}, ${a.cnpjs_1o_pedido || 1} CNPJ(s))`],
              ['Última compra do grupo antes da nota', ult],
              [`Corte (${a.meses} meses antes da nota)`, fdia(a.corte)],
              ['Parecer final', final]].map(r => r.map(pdfTxt)),
@@ -794,8 +794,8 @@ async function parecerPdf(a, grupoRot){
     const ehNovo = a.classificacao === 'CLIENTE NOVO', ehReat = a.classificacao === 'REATIVAÇÃO';
     const regras = [
       ['B01 — Grupo inteiro', 'Avaliar juntos todos os CNPJs do grupo de clientes e da mesma raiz de CNPJ', `${membros.length} CNPJ(s) avaliados: grupo ${a.grupo_nome || a.grupo || '—'}, raiz ${fraiz(a.raiz)}.`, 'ATENDE'],
-      ['B02 — 1º pedido na campanha', 'A bonificação só cabe na nota do 1º pedido do grupo dentro da campanha',
-        prim ? `1ª compra do grupo na campanha: ${fdia(prim)}. Nota avaliada: ${fdia(a.data_nota)}.` : 'Sem compra do grupo na campanha.', prim && prim === a.data_nota ? 'ATENDE' : 'NÃO ATENDE'],
+      ['B02 — 1º pedido na campanha', `O 1º pedido do grupo = vendas de todos os CNPJs do grupo da 1ª compra na campanha até ${a.janela_dias ?? (+P.BONIF_JANELA_1PED_DIAS || 15)} dias depois`,
+        prim ? `1ª compra do grupo na campanha: ${fdia(prim)}. 1º pedido: ${fdia(a.data_nota)} a ${fdia(a.janela_ate || a.data_nota)} — ${(a.notas || []).length} nota(s) de ${a.cnpjs_1o_pedido || 1} CNPJ(s).${a.janela_aberta ? ' Prazo ainda aberto.' : ''}` : 'Sem compra do grupo na campanha.', prim && prim === a.data_nota ? 'ATENDE' : 'NÃO ATENDE'],
       ['B03/B04 — Cliente novo ou reativação', `Nenhuma compra do grupo antes da nota (novo) ou a última há mais de ${a.meses} meses (reativação)`,
         `Última compra do grupo antes da nota: ${ult}. Corte: ${fdia(a.corte)}.`, ehNovo || ehReat ? 'ATENDE' : a.classificacao === 'NÃO É REATIVAÇÃO' ? 'NÃO ATENDE' : '—'],
       ['B05 — Uma por grupo', 'Uma bonificação por grupo na campanha; cada nota só pode ser usada uma vez',
@@ -1533,7 +1533,7 @@ function desenhaFila(){
       : !av ? chip('SEM VENDA NA CAMPANHA', 'c-ru') + '<div class="nota">não aprovar: o 1º pedido ainda não virou nota</div>' +
         fat.map(f => `<div style="margin-top:3px"><b>${esc(f.pedido)}</b> <span class="nota">${fdia(f.emissao)} · ${fmoeda(+f.valor_saldo)}</span> ${chipPed(f)}</div>`).join('')
       : chip((av.elegivel ? 'ELEGÍVEL — ' : 'NÃO ELEGÍVEL — ') + av.classificacao, av.elegivel ? 'c-ok' : 'c-ru') +
-        `<div class="nota">venda: ${notas.map(n => esc(n.doc.replace(/^0+/, ''))).join(', ')} de ${fdia(notas[0].emissao)} · ${fmoeda(+av.valor_notas)}</div>`;
+        `<div class="nota">1º pedido do grupo: ${(av.notas || notas).map(n => esc(String(n.doc).replace(/^0+/, '')) + ' (' + fdia(n.emissao).slice(0, 5) + ')').join(', ')} · ${fmoeda(+av.valor_notas)}${av.janela_aberta ? ` · ⚠️ prazo aberto até ${fdia(av.janela_ate)}` : ''}</div>`;
     /* tolerância (Silvio 13/10/2026): até BONIF_TOLERANCIA (5%) acima dos 10% = OK; acima disso NÃO aprovar o excedente */
     const maxTxt = vpc ? fmoeda(+vpc.valor) + '<div class="nota">aprovado (VPC)</div>' : max === null ? '—' : ja ? fmoeda(max) + '<div class="nota">aprovado no app</div>' + (pedido <= maxTol + 0.01
         ? '<div class="nota" style="color:var(--ok)">pedido dentro do aprovado</div>'
@@ -1653,9 +1653,10 @@ async function buscaNotas(){
     $('bAvisoUsada').style.display = us.length ? '' : 'none';
     $('bAvisoUsada').innerHTML = us.map(n => `⚠️ A NF ${esc(n.doc.replace(/^0+/, ''))}/${esc(n.serie)} já está vinculada à <b>bonificação nº ${esc(n.usada_em)}</b> — ${esc(txtUsada(n))}. ` +
       'Ela não pode ser usada de novo; "Avaliar" mostra a situação (JÁ CONCEDIDA).').join('<br>');
-    const dias = new Set(sel.map(x => x.emissao)).size, cnpjs = new Set(sel.map(x => x.cnpj)).size;   // a avaliação do banco é por CNPJ
-    $('bAvaliar').disabled = !sel.length || dias > 1 || cnpjs > 1;
-    $('bAvaliar').textContent = !sel.length ? 'Avaliar a nota marcada' : dias > 1 ? 'As notas precisam ser do mesmo dia' : cnpjs > 1 ? 'As notas precisam ser do mesmo CNPJ' : `Avaliar ${sel.length} nota(s) — ${fmoeda(sel.reduce((a, x) => a + +x.valor, 0))}`; };
+    /* 034 (Silvio 28/10/2026, caso NOVO LAR): o banco monta sozinho o 1º pedido = vendas do GRUPO (todos os CNPJs) da 1ª compra
+       na campanha até BONIF_JANELA_1PED_DIAS dias depois; marcar uma nota só indica o grupo */
+    $('bAvaliar').disabled = !sel.length;
+    $('bAvaliar').textContent = !sel.length ? 'Marque uma nota do grupo para avaliar' : `Avaliar o 1º pedido do grupo (${+P.BONIF_JANELA_1PED_DIAS || 15} dias)`; };
   $('bNotas').querySelectorAll('input').forEach(x => x.onchange = marca); marca();
   await nfBonifGrupo();
 }
@@ -1690,10 +1691,12 @@ async function avaliaBonif(){
     ${a.bonificacao_anterior ? (() => { const bx = a.bonificacao_anterior, vs = VINC.filter(v => v.bonif_id === bx.id);
       return `<div class="nota" style="font-size:13px">${iconePdf(bx.id)} Bonificação aprovada nº ${bx.id} em ${fdata(bx.aprovado_em)} (${fmoeda(+bx.bonificacao)}) · situação: <b>${esc(bx.situacao || 'AGUARDANDO NOTA')}</b>${vs.length ? ' · concedida via ' + vs.map(v => `NF ${esc(v.doc)}/${esc(v.serie)} de ${fdia(v.emissao)} (${fmoeda(+v.valor)})`).join(', ') : ''}</div>`; })() : ''}
     ${diverge ? `<div class="status err">⚠️ O motor do app (${esc(esp.classificacao)}) divergiu do banco (${esc(a.classificacao)}). Vale o do banco; avise a Controladoria.</div>` : ''}
-    ${md ? `<div class="nota">ℹ️ Outras notas do grupo no mesmo dia: ${esc(md)}. Se forem do mesmo pedido e deste CNPJ, marque-as também.</div>` : ''}
+    ${md ? `<div class="nota">ℹ️ Outras notas do grupo no mesmo dia: ${esc(md)}.</div>` : ''}
+    ${a.janela_ate ? `<div class="nota">ℹ️ 1º pedido do grupo = vendas de ${fdia(a.data_nota)} a ${fdia(a.janela_ate)} (${a.janela_dias} dias, todos os CNPJs): ${(a.notas || []).length} nota(s) de ${a.cnpjs_1o_pedido || 1} CNPJ(s) — ${fmoeda(+a.valor_notas)} sem IPI.</div>` : ''}
+    ${a.janela_aberta ? `<div class="status err" style="margin-top:6px">⚠️ Prazo do 1º pedido ainda aberto até ${fdia(a.janela_ate)}: novas vendas do grupo até lá entram no 1º pedido e o máximo pode subir. Se o pedido de bonificação estiver acima do máximo de hoje, espere o prazo (ou a nova venda).</div>` : ''}
     ${a.cod ? `<div class="grade2" style="margin-top:12px"><div><b>Cliente</b>${esc(a.nome)} (${esc(a.cod)}/${esc(a.loja)})</div><div><b>Grupo de clientes</b>${esc(a.grupo_nome || a.grupo || 'sem grupo')}</div>
       <div><b>Raiz do CNPJ</b>${esc(a.raiz)}</div><div><b>CNPJs no grupo</b>${membros.length}</div>
-      <div><b>Nota(s) do 1º pedido</b>${(a.notas || []).map(n => esc(n.doc) + '/' + esc(n.serie)).join(', ')} · ${fdia(a.data_nota)}</div>
+      <div><b>Nota(s) do 1º pedido</b>${(a.notas || []).map(n => esc(String(n.doc).replace(/^0+/, '')) + '/' + esc(n.serie) + ' de ' + fdia(n.emissao)).join(', ')}</div>
       <div><b>Última compra do grupo antes da nota</b>${a.ult_compra_grupo ? fdia(a.ult_compra_grupo) + ' · NF ' + esc(a.ult_doc || '') : (a.antigo ? 'antes de ' + fdia(a.nota_desde) : 'nenhuma')}</div>
       <div><b>Corte (${a.meses} meses antes da nota)</b>${fdia(a.corte)}</div>
       <div><b>Valor da(s) nota(s) sem IPI</b>${fmoeda(+a.valor_notas)}</div><div><b>Bonificação máxima</b>${a.elegivel ? fmoeda(+a.bonificacao) + ` (${fpct(+a.pct)})` : '—'}</div></div>` : ''}
