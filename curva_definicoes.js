@@ -36,8 +36,10 @@ const CV_DEF = {
     cautelaNotas: 3           // D10
   },
 
-  /* régua da skill margem (aplicada no ETL; repetida aqui só para a Metodologia de ADM/GERENTE) */
-  premissasMargem: { impostos: 0.15, devolucao: 0.03, taxaCF: 0.018, prazoBase: 120, fatorCusto: 1.01, royaltyBoomvox: 0.03 },
+  /* RÉGUA ÚNICA da MC (29/10/2026) — mesmos números de .claude/scripts/regua_mc.py (aplicada no ETL) e da query da T.I.
+     (CALCULO_MARGEM_ATUAL_2026-10-29). impostos = venda Brasil; impostosSuframa = venda SUFRAMA com desconto de imposto
+     destacado na NF (a nota já vem líquida; o desconto é pago pelo cliente e não é recolhido) — sobre o valor líquido. */
+  premissasMargem: { impostos: 0.15, impostosSuframa: { '227': 0, '228': 0.0925 }, devolucao: 0.03, taxaCF: 0.018, prazoBase: 120, fatorCusto: 1.01, royaltyBoomvox: 0.03 },
 
   gravidades: { critico: 'Crítico', atencao: 'Atenção', leitura: 'Leitura', aviso: 'Aviso' },
 
@@ -97,6 +99,6 @@ const CV_DEF = {
       exemplo: '', limitacoes: '' }
   ],
 
-  formulaMargem: P => `Margem estimada (R$) = valor sem IPI × (1 − impostos ${pct(P.impostos)} − devolução ${pct(P.devolucao)} − royalty) − comissão da nota − frete da UF (tabela de frete por UF) − VPC do cadastro do cliente − custo financeiro − custo × ${P.fatorCusto.toLocaleString('pt-BR')}. Custo financeiro = valor × ${pct(P.taxaCF)} ao mês sobre o prazo real dos títulos da nota que passar de ${P.prazoBase} dias. Royalty de ${pct(P.royaltyBoomvox)} só na família Boomvox (licença R10).`
+  formulaMargem: P => `Margem estimada (R$) = valor sem IPI × (1 − devolução ${pct(P.devolucao)} − royalty) − impostos − comissão da nota − frete da UF (tabela de frete por UF) − VPC do cadastro do cliente − custo financeiro − custo × ${P.fatorCusto.toLocaleString('pt-BR')}. Custo financeiro = valor × ${pct(P.taxaCF)} ao mês sobre o prazo real dos títulos da nota que passar de ${P.prazoBase} dias. Royalty de ${pct(P.royaltyBoomvox)} só na família Boomvox (licença R10). Impostos pela régua única: venda Brasil ${pct(P.impostos)} do valor sem IPI; venda SUFRAMA com desconto de imposto destacado na nota — ICMS + PIS/COFINS (tabela 227) ${pct(P.impostosSuframa['227'])}; só ICMS (tabela 228) o PIS/COFINS da própria nota (${(P.impostosSuframa['228'] * 100).toLocaleString('pt-BR')}%). Na SUFRAMA a nota já vem líquida do desconto, que é pago pelo cliente (tabelas 227/228 = 078 + 12,77%) e não é imposto recolhido pela AMVOX.`
 };
 function pct(x){ return (x * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%'; }
