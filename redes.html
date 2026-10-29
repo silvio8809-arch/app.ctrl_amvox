@@ -790,15 +790,23 @@ async function parecerPdf(a, grupoRot){
     /* JÁ CONCEDIDA: em que nota (Silvio 29/10/2026 — "afirma que já foi concedida, só não diz em que nota; essa informação é
        crucial"): NF(s) de venda usadas na aprovação anterior + NF de bonificação emitida (ou "ainda não emitida") */
     let jaTxt = '';
+    /* pedido BON do grupo que É o da bonificação já aprovada (Silvio 29/10/2026 — "pode deixar explícito no parecer"): pelos
+       pedidos em aberto, na ordem de emissão, até o aprovado + tolerância menos a NF de bonificação já emitida → PODE SEGUIR;
+       o que passar disso → REPROVAR. Pedido aprovado como VPC em produtos fica fora da campanha. */
+    const segue = new Map(), tolP = +P.BONIF_TOLERANCIA || 0;
     if(a.bonificacao_anterior){ const bx = a.bonificacao_anterior;
       const [vn, vb] = await Promise.all([SB.from('bonif_nota').select('doc,serie,emissao,valor,reemitida_de').eq('bonif_id', bx.id).order('emissao'),
                                          SB.from('bonif_nf_vinculo').select('doc,serie,emissao,valor').eq('bonif_id', bx.id).order('emissao')]);
       const nf = x => `NF ${String(x.doc).replace(/^0+/, '')}/${x.serie} de ${fdia(x.emissao)} (${fmoeda(+x.valor)})`;
       jaTxt = `Bonificação nº ${bx.id}, aprovada em ${fdata(bx.aprovado_em)} — ${fmoeda(+bx.bonificacao)} · situação: ${bx.situacao || 'AGUARDANDO NOTA'}. ` +
-        `NF(s) de venda usadas: ${(vn.data || []).map(x => nf(x) + (x.reemitida_de ? ` [reemissão de ${x.reemitida_de}]` : '')).join(', ') || '—'}. ` +
+        `NF(s) de venda usadas: ${(vn.data || []).map(x => nf(x) + (x.reemitida_de ? ` [reemissão de ${x.reemitida_de}]` : '')).join(', ') || '—'}. `;
+      let resta = +bx.bonificacao * (1 + tolP) - (vb.data || []).reduce((t, x) => t + +x.valor, 0);
+      peds.forEach(p => { if(vpcDoPedido(p.filial, p.pedido)) return; if(+p.valor_saldo <= resta + 0.01){ segue.set(p.pedido, bx.id); resta -= +p.valor_saldo; } });
+      jaTxt = jaTxt +
         `NF de bonificação: ${(vb.data || []).length ? vb.data.map(nf).join(', ') : 'ainda não emitida — ' + (peds.length
           ? `pedido(s) de bonificação do grupo no TOTVS: ${peds.map(p => `${p.pedido} de ${fdia(p.emissao)} (${fmoeda(+p.valor_saldo)}) — ${String(p.status || '').toLowerCase()}`).join('; ')}`
-          : 'nenhum pedido de bonificação do grupo em aberto no TOTVS')}.`; }
+          : 'nenhum pedido de bonificação do grupo em aberto no TOTVS')}.` +
+        (segue.size ? ` O pedido ${[...segue.keys()].join(', ')} é o pedido desta bonificação nº ${bx.id} (dentro do valor aprovado, com a tolerância de ${fmt(tolP * 100, 0)}%) e PODE SEGUIR.` : ''); }
     const doc = new window.jspdf.jsPDF({unit: 'mm', format: 'a4'}), W = 210, M = 18;
     fundoPdf(doc, img);
     let y = 46;
@@ -813,7 +821,9 @@ async function parecerPdf(a, grupoRot){
     const tol = +P.BONIF_TOLERANCIA || 0, limite = +a.bonificacao * (1 + tol);
     const final = eleg
       ? `O grupo tem direito à bonificação desta campanha: até ${fmoeda(+a.bonificacao)} (${fmt(+a.pct * 100, 0)}% de ${fmoeda(+a.valor_notas)}, valor sem IPI da(s) nota(s) do 1º pedido). Pedido de bonificação até ${fmoeda(limite)} (tolerância de ${fmt(tol * 100, 0)}%) pode ser aprovado; o que passar disso deve ser reduzido. É uma bonificação por grupo na campanha.`
-      : `O grupo NÃO tem direito à bonificação de cliente novo / reativação nesta campanha. Motivo: ${String(a.motivo || '').replace(/\b(\d{14})\b/g, x => fcnpj(x))} ${jaTxt ? ' Notas e pedido da bonificação já concedida na linha acima.' : ''} Pedidos de bonificação deste grupo vinculados a esta campanha devem ser REPROVADOS, com este parecer como justificativa.`;
+      : `O grupo NÃO tem direito à bonificação de cliente novo / reativação nesta campanha. Motivo: ${String(a.motivo || '').replace(/\b(\d{14})\b/g, x => fcnpj(x))} ${jaTxt ? ' Notas e pedido da bonificação já concedida na linha acima.' : ''} ${segue.size
+        ? `EXCETO o pedido ${[...segue.keys()].join(', ')} — pedido da própria bonificação nº ${[...segue.values()][0]}, dentro do valor aprovado, que PODE SEGUIR —, os demais pedidos de bonificação deste grupo vinculados a esta campanha devem ser REPROVADOS`
+        : 'Pedidos de bonificação deste grupo vinculados a esta campanha devem ser REPROVADOS'}, com este parecer como justificativa.`;
     const ult = a.ult_compra_grupo ? `NF ${String(a.ult_doc || '').replace(/^0+/, '')} de ${fdia(a.ult_compra_grupo)} — CNPJ ${fcnpj(a.ult_cnpj)}` : (a.antigo ? `nenhuma desde ${fdia(a.nota_desde)} (início das notas carregadas)` : 'nenhuma');
     doc.autoTable({...opTab(doc, img, M), startY: y, theme: 'grid',
       body: [['Cliente / grupo avaliado', `${grupoRot ? grupoRot + ' — ' : ''}${a.nome || ''} (código ${a.cod || ''}/${a.loja || ''}) — CNPJ ${fcnpj(a.cnpj)}`],
@@ -860,10 +870,11 @@ async function parecerPdf(a, grupoRot){
     doc.autoTable({...opTab(doc, img, M), startY: y, theme: 'grid', head: [['Pedido', 'Emissão', 'Cliente', 'Valor', 'Situação no TOTVS', 'Parecer']],
       body: peds.length ? peds.map(p => { const m = membros.find(x => x.cod === p.cliente && x.loja === p.loja) || {};
           return [p.pedido, fdia(p.emissao), `${p.cliente}/${p.loja} ${fcnpj(m.cnpj || p.cnpj || '')}`, fmoeda(+p.valor_saldo), p.status,
-                  !eleg ? 'REPROVAR' : +p.valor_saldo <= limite + 0.01 ? 'PODE APROVAR' : `REDUZIR a ${fmoeda(limite)}`].map(pdfTxt); })
+                  vpcDoPedido(p.filial, p.pedido) ? 'VPC EM PRODUTOS — fora da campanha' : segue.has(p.pedido) ? `PODE SEGUIR — pedido da bonificação nº ${segue.get(p.pedido)}`
+                  : !eleg ? 'REPROVAR' : +p.valor_saldo <= limite + 0.01 ? 'PODE APROVAR' : `REDUZIR a ${fmoeda(limite)}`].map(pdfTxt); })
         : [[{content: pdfTxt('Nenhum pedido de bonificação (CFOP 5910/6910) do grupo em aberto na última carga do TOTVS. O parecer vale para qualquer pedido que vier a ser lançado nesta campanha.'), colSpan: 6}]],
       headStyles: {fillColor: [30, 30, 34], textColor: 255, fontSize: 7.8}, styles: {fontSize: 7.5, cellPadding: 1.3, textColor: 30, lineColor: 200}, columnStyles: {3: {halign: 'right'}},
-      didParseCell: h => { if(h.section === 'body' && h.column.index === 5 && peds.length){ h.cell.styles.fontStyle = 'bold'; h.cell.styles.textColor = String(h.cell.raw).startsWith('PODE') ? [20, 96, 63] : [180, 35, 24]; } }});
+      didParseCell: h => { if(h.section === 'body' && h.column.index === 5 && peds.length){ h.cell.styles.fontStyle = 'bold'; h.cell.styles.textColor = /^(PODE|VPC)/.test(String(h.cell.raw)) ? [20, 96, 63] : [180, 35, 24]; } }});
     y = doc.lastAutoTable.finalY + 4;
     doc.setFont('helvetica', 'italic'); doc.setFontSize(7); doc.setTextColor(110);
     const rod = `Avaliação pela função do banco (bonif_avaliar), a mesma que trava o registro · Política de Redes ${RD_DEF.versaoPolitica}.`;
