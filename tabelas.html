@@ -434,8 +434,16 @@ function badges(d){
 let visiveis=[];
 /* MARGEM nas tabelas (pedido Silvio 01/10/2026): coluna SÓ NA TELA e só p/ ADM — nunca em arquivo
    (regra feedback_margem_nao_sai_em_arquivo). Metodologia da skill margem, na base Brasil (sem
-   frete/VPC): MC = RL − 6% (comissão+devolução) − custo dep-40 × 1,01, RL = preço − ICMS 12% − PIS/COF 9,25%.
-   Custo = coluna 5 do bloco SIM (itens suframados); sem custo => "—". */
+   frete/VPC): MC = RL − 6% (comissão+devolução) − custo dep-40 × 1,01. RL pela RÉGUA ÚNICA (Silvio 29/10/2026 — mesma de
+   .claude/scripts/regua_mc.py, curva_definicoes.js e da query da T.I.): venda Brasil (078, tabelas internas, clientes e Suframa 229)
+   = preço × (1 − 15%); Suframa 227 = líquido da NF (preço − ICMS 12% − PIS/COF 9,25%), sem imposto; Suframa 228 = líquido da NF
+   (preço − ICMS 12%) − PIS/COF 9,25% — o desconto destacado é pago pelo cliente (078 + 12,77%) e não é imposto recolhido. */
+const REGUA_IMP = {BRASIL: 0.15, '227': 0, '228': 0.0925};
+/* fator RL sobre o preço da tabela (bruto, sem IPI) — tab = '227'/'228' só na Suframa; qualquer outra = venda Brasil */
+const fatorRL = tab => tab === '227' ? 0.88 * (1 - 0.0925) * (1 - REGUA_IMP['227'])
+                    : tab === '228' ? 0.88 * (1 - REGUA_IMP['228'])
+                    : 1 - REGUA_IMP.BRASIL;
+/* Custo = coluna 5 do bloco SIM (itens suframados); sem custo => "—". */
 const MARG_ADM = () => window.PAPEL === 'ADM' || window.PAPEL === 'GERENTE';   /* ADM e GERENTE (Silvio 01/10/2026) */
 const CUSTO_MC = {}; SIM.forEach(s=>{ CUSTO_MC[s[0]] = s[4]; });
 /* ⚠ CUSTO EM REVISÃO (pedido Silvio 01/10/2026): item cujo custo dep-40 deixa a margem NEGATIVA na base
@@ -445,7 +453,7 @@ const _IDXP = Object.fromEntries(PRODUTOS.map(d=>[d[0],d]));
 function custoAlerta(cod){
   const custo = CUSTO_MC[cod], d = _IDXP[cod];
   if (custo==null || !(custo>0) || !d || d[6] || d[3]==='Clima') return null;
-  const p = calc(d).m, rl = p*(1-0.12)*(1-0.0925), mc = (rl - 0.06*p - custo*1.01)/rl;
+  const p = calc(d).m, rl = p*fatorRL(), mc = (rl - 0.06*p - custo*1.01)/rl;   // base Brasil pela régua única
   return mc < 0 ? {custo, p, mc} : null;
 }
 function badgeCusto(cod){
@@ -453,10 +461,10 @@ function badgeCusto(cod){
   const det = MARG_ADM() ? ` Custo dep-40 R$ ${fmt(a.custo)} × preço 078 R$ ${fmt(a.p)}.` : '';
   return `<span class="badge b-custo" title="Custo com distorção: a margem fica negativa na base Brasil (fora do saldão CLIMA).${det} Será conferido no fechamento do custo do mês — use o preço com cautela.">⚠ CUSTO EM REVISÃO</span>`;
 }
-function margemCel(preco, cod){
+function margemCel(preco, cod, tab){   // tab: '227'/'228' na aba Suframa; demais = venda Brasil (régua única)
   const custo = CUSTO_MC[cod];
   if (preco==null || !(preco>0) || custo==null) return '<td class="num" style="color:var(--muted)">—</td>';
-  const rl = preco*(1-0.12)*(1-0.0925), mcp = (rl - 0.06*preco - custo*1.01)/rl;
+  const rl = preco*fatorRL(tab), mcp = (rl - 0.06*preco - custo*1.01)/rl;
   const bg = mcp>=0.30?'#EAF3EC':(mcp>=0?'#FDF3E7':'#FDE8E8');
   return `<td class="num" style="background:${bg};font-weight:600">${(mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</td>`;
 }
@@ -843,7 +851,7 @@ function renderS(){
     bd+=badgeCusto(d[0]);
     return `<tr style="cursor:default"><td class="cod">${d[0]}</td><td><span class="mod">${d[1]}</span>${bd}<br><span class="seg">${d[2]}</span></td>`+
       `<td class="dest num">${nova!=null?fmt(nova):'—'}</td><td class="num">${atual!=null?fmt(atual):'—'}</td>`+
-      `<td class="num">${celDelta}</td>${MARG_ADM()?margemCel(nova,d[0]):''}</tr>`;
+      `<td class="num">${celDelta}</td>${MARG_ADM()?margemCel(nova,d[0],tabSuf):''}</tr>`;
   }).join('');
   document.getElementById('thMargS').style.display = MARG_ADM()?'':'none';
 }
@@ -923,7 +931,7 @@ document.getElementById('copiarA').onclick=async()=>{
     /* v0.33 (10/10/2026, Silvio): IPI fora da tela, do PDF e do Excel do simulador — sem coluna IPI e sem
        "Líquido s/ IPI" (igual ao Total NF un.); "Sugerido s/ IPI" virou "Sugerido". */
     const liqSI=J-dIcms-dPis, liq=liqSI+ipiCob;
-    const icmsMC=J*0.12, pisMC=(J-icmsMC)*0.0925, rl=J-icmsMC-pisMC;
+    const rl=J*fatorRL(pp.tab);   // régua única: 229 = venda Brasil (15%); 227/228 = líquido da NF − imposto devido
     const mc=rl-0.06*J-vpcR-freR-custo*1.01;
     return {cod,desc,qtd,base,vpcR,freR,J,ipi,ipiCob,dIcms,dPis,liqSI,liq,mc,rl,mcp:mc/rl};
   }
