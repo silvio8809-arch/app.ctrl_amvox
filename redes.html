@@ -1767,10 +1767,23 @@ async function avaliaBonif(){
   ${membros.length ? `<div class="painel"><h2>CNPJs do grupo <span>linhas em destaque = compra a menos de ${a.meses} meses antes da nota</span></h2><div class="tbl-wrap"><table><thead><tr><th>CNPJ</th><th>Cliente</th><th>UF</th><th>Grupo</th><th>1ª compra</th><th>Última compra ANTES da nota</th><th>Última compra até hoje</th><th></th></tr></thead><tbody>${lin}</tbody></table></div></div>` : ''}`;
   ligaPdf($('bRes'));
   if($('bParecer')) $('bParecer').onclick = () => parecerPdf(ULT_AV, GRUPO_B ? GRUPO_B.rotulo : '');
+  /* REGISTRAR (Silvio 30/10/2026, caso LL DISTRIBUIDORA nº 30): o botão continuava ativo e a tela continuava "ELEGÍVEL" enquanto
+     o app atualizava as listas (alguns segundos) — o 2º clique era recusado com "JÁ CONCEDIDA … registro nº 30", parecendo
+     contradição. Agora o botão trava no 1º clique e, no fim, a tela mostra a confirmação do registro (nº, valor, notas). */
   if($('bRegistrar')) $('bRegistrar').onclick = async () => {
+    const bt = $('bRegistrar'); if(bt.disabled) return;
+    const txt = bt.textContent; bt.disabled = true; bt.textContent = 'Registrando…';
     const u = await SB.rpc('bonif_registrar', {p_cnpj:CNPJ_B, p_notas:pn, p_obs:($('bObs').value || '').trim() || null});
-    if(u.error) return alert(u.error.message);
-    $('bSt').textContent = `Registrada: nº ${u.data.id} · bonificação ${fmoeda(+u.data.bonificacao)}`; await confereAuto(); await pintaBonif(); await pintaNfBonif(); await buscaNotas(); };
+    if(u.error){ bt.disabled = false; bt.textContent = txt; return alert(u.error.message); }
+    bt.textContent = `✓ Registrada — nº ${u.data.id}`;
+    const nfs = (a.notas || []).map(n => 'NF ' + esc(String(n.doc).replace(/^0+/, '')) + '/' + esc(n.serie)).join(', ');
+    $('bSt').textContent = `Registrada: nº ${u.data.id} · bonificação ${fmoeda(+u.data.bonificacao)} — atualizando as listas…`;
+    await confereAuto(); await pintaBonif(); await pintaNfBonif(); await buscaNotas();
+    $('bRes').innerHTML = `<div class="painel"><h2>Resultado ${chip('REGISTRADA — bonificação nº ' + u.data.id, 'c-ok')} ${iconePdf(u.data.id)}</h2><div class="corpo">
+      <div style="font-size:14.5px">✅ Bonificação nº ${u.data.id} registrada agora (${esc(String(a.classificacao || '').toLowerCase())}): <b>${fmoeda(+u.data.bonificacao)}</b> sobre ${fmoeda(+a.valor_notas)} do 1º pedido (${nfs}).</div>
+      <div class="nota">Situação: aguardando a NF de bonificação — ela é ligada sozinha quando for emitida. Uma nova avaliação deste grupo vai mostrar "JÁ CONCEDIDA — registro nº ${u.data.id}" (é o próprio registro feito agora).</div></div></div>`;
+    ligaPdf($('bRes'));
+    $('bSt').textContent = `Registrada: nº ${u.data.id} · bonificação ${fmoeda(+u.data.bonificacao)}`; };
 }
 $('bConsultar').onclick = buscaNotas; $('bAvaliar').onclick = avaliaBonif;
 try { const mg = localStorage.getItem('redes_consulta_grupo'); if(mg === 'N' || mg === 'S') document.querySelector(`input[name=bModo][value=${mg}]`).checked = true; } catch(e){}
