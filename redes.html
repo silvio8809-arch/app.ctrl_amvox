@@ -1916,7 +1916,7 @@ async function inicia(){
   /* aprovador de bonificação (Silvio 11/10/2026): ADM ou e-mail em BONIF_APROVADORES registra a aprovação e pede "Atualizar notas" */
   try { APROVA = E_ADM || (await SB.rpc('bonif_aprova')).data === true; } catch(e){ APROVA = E_ADM; }
   document.body.classList.toggle('e-aprova', APROVA);
-  $('quemlog').textContent = '👤 ' + (window.USUARIO_EMAIL || '') + ' · ' + (window.PAPEL || 'CONSULTA') + (APROVA && !E_ADM ? ' · aprovador de bonificação' : '');
+  mostraConectado(APROVA && !E_ADM ? 'aprovador de bonificação' : '');   // cabeçalho padrão (config.js, 04/11/2026)
   marcaAtualizacao();
   opcoesInicio();
   try { await carrega(); } catch(e){ $('st').className = 'status err'; $('st').textContent = 'Sem acesso aos dados de redes: ' + (e.message || e); return; }
