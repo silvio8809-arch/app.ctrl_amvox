@@ -14,6 +14,7 @@ async function guardaPagina(){
   if (!window.APPS.includes('precos')) { semAcessoApp('o app de Preços'); return null; }
   sessionStorage.setItem('perfil', window.PAPEL === 'ADM' ? 'adm' : 'consulta');
   window.USUARIO_EMAIL = session.user.email;
+  window.USUARIO_NOME = (session.user.user_metadata && session.user.user_metadata.nome) || '';
   if (!(await carregaDadosPagina())) return null;
   document.documentElement.style.visibility = 'visible';
   document.dispatchEvent(new CustomEvent('papel-pronto'));
@@ -54,6 +55,39 @@ async function carregaDadosPagina(){
   return true;
 }
 async function sair(){ await SB.auth.signOut(); location.replace('index.html'); }
+
+/* USUÁRIO CONECTADO — mesmo padrão do Dash (Silvio 04/11/2026: "implemente a mesma visão para todos os demais aplicativos,
+   para manter o padrão de comunicação visual"). Bloco à direita do cabeçalho: as linhas de base/atualização da página e, por
+   último, "Conectado: <usuário> · <papel>". Página sem cabeçalho (Custos, com menu lateral) → no rodapé do menu. extra = texto
+   adicional do papel (ex.: aprovador de bonificação no Redes). */
+function mostraConectado(extra){
+  const u = window.USUARIO_EMAIL; if (!u) return;
+  const quem = window.USUARIO_NOME ? `${window.USUARIO_NOME} (${u})` : u;
+  const papel = [window.PAPEL || 'CONSULTA', extra].filter(Boolean).join(' · ');
+  if (!document.getElementById('cx-estilo')) document.head.insertAdjacentHTML('beforeend', '<style id="cx-estilo">' +
+    'header .cx-dir{margin-left:auto;text-align:right;font:500 11px var(--sans,sans-serif);letter-spacing:.08em;text-transform:uppercase;color:#9A9A97;line-height:1.7}' +
+    'header .cx-dir > .data{display:block;margin-left:0}' +
+    '.cx-quem b{color:#fff;font-weight:600;text-transform:none;letter-spacing:0;font-size:12px}' +
+    '.side .cx-quem{margin-top:7px;word-break:break-all;color:#C9C9C5;font-size:12px}</style>');
+  let q = document.getElementById('quemlog');
+  const hd = document.querySelector('header');
+  if (hd){
+    let dir = hd.querySelector('.cx-dir');
+    if (!dir){
+      dir = document.createElement('div'); dir.className = 'cx-dir';
+      [...hd.children].filter(e => e.classList.contains('data')).forEach(e => { if (e.id === 'quemlog') e.remove(); else dir.appendChild(e); });
+      hd.appendChild(dir); q = null;
+    }
+    if (!q){ q = document.createElement('div'); q.id = 'quemlog'; dir.appendChild(q); }
+  } else {
+    const f = document.querySelector('.side .foot'); if (!f) return;
+    if (!q){ q = document.createElement('div'); q.id = 'quemlog'; f.appendChild(q); }
+  }
+  q.className = 'cx-quem';
+  q.innerHTML = 'Conectado: <b></b> · ' + papel.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  q.querySelector('b').textContent = quem;
+}
+document.addEventListener('papel-pronto', () => mostraConectado());
 
 // Vigia de versão (pedido Silvio 17/09/2026): a cada 10 min confere se há publicação nova
 // da página e recarrega automaticamente — garante todo mundo na versão mais atual sem
