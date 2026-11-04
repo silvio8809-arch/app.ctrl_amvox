@@ -778,7 +778,7 @@ async function inicia(){
   SKUS = s.data; METAS = m.data || []; LOG = l.data && l.data[0];
   // linhas fora do app vão para "Outras"; a linha original vira o segmento (a meta continua a geral)
   SKUS.forEach(x => { if(!CV_DEF.linhasApp.includes(x.linha)){ x.linhaOrig = x.linha; x.segmento = x.linha; x.linha = CV_DEF.linhaOutras; } });
-  $('cab').innerHTML = `${esc(window.USUARIO_EMAIL || '')} · ${esc(window.PAPEL || '')}<br>dados de ${LOG ? new Date(LOG.finished_at).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}`;
+  $('cab').innerHTML = `dados de ${LOG ? new Date(LOG.finished_at).toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'}) : '—'}`;
   const p = new URLSearchParams(location.search);
   S.sku = p.get('sku') || ''; const sk = SKUS.find(x => x.sku === S.sku);
   S.linha = sk ? sk.linha : (p.get('linha') || 'Áudio'); S.per = +(p.get('per') || 12);
