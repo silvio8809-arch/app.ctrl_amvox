@@ -241,7 +241,7 @@
     <div class="tbl-wrap">
       <table style="min-width:760px">
         <thead><tr>
-          <th>Código</th><th>Modelo</th><th class="dest" id="thNova">Tabela — NOVA</th><th>TOTVS hoje</th><th>Δ (R$ · %) — vazio = OK</th><th id="thMargS" style="display:none" title="Margem de contribuição na base Brasil (sem frete/VPC): preço − impostos 15% sobre o valor com IPI − 6% comissão/devolução − custo dep-40 × 1,01 (Suframa: imposto devido da tabela, sem IPI). Só na tela, perfis ADM e Gerente.">Margem</th>
+          <th>Código</th><th>Modelo</th><th class="dest" id="thNova">Tabela — NOVA</th><th>TOTVS hoje</th><th>Δ (R$ · %) — vazio = OK</th><th id="thMargS" style="display:none" title="Margem de contribuição na base Brasil (sem frete/VPC): preço − impostos 15% e comissão/devolução 6% sobre o valor com IPI − custo dep-40 × 1,01 (Suframa: imposto devido da tabela, sem IPI). Só na tela, perfis ADM e Gerente.">Margem</th>
         </tr></thead>
         <tbody id="corpoS"></tbody>
       </table>
@@ -446,6 +446,8 @@ const IPI_SKU = {}; SIM.forEach(s=>{ IPI_SKU[s[0]] = +s[5] || 0; });
 const fatorRL = (tab, cod) => tab === '227' ? 0.88 * (1 - 0.0925) * (1 - REGUA_IMP['227'])
                     : tab === '228' ? 0.88 * (1 - REGUA_IMP['228'])
                     : 1 - REGUA_IMP.BRASIL * (1 + (tab === '229' ? 0 : (IPI_SKU[cod] || 0)));
+/* 05/11/2026 (Silvio, opção A): TODOS os % da margem prevista (devolução 3% + comissão 3% aqui) sobre o valor COM IPI. */
+const multIPI = (tab, cod) => (tab === '227' || tab === '228' || tab === '229') ? 1 : 1 + (IPI_SKU[cod] || 0);
 /* Custo = coluna 5 do bloco SIM (itens suframados); sem custo => "—". */
 const MARG_ADM = () => window.PAPEL === 'ADM' || window.PAPEL === 'GERENTE';   /* ADM e GERENTE (Silvio 01/10/2026) */
 const CUSTO_MC = {}; SIM.forEach(s=>{ CUSTO_MC[s[0]] = s[4]; });
@@ -456,7 +458,7 @@ const _IDXP = Object.fromEntries(PRODUTOS.map(d=>[d[0],d]));
 function custoAlerta(cod){
   const custo = CUSTO_MC[cod], d = _IDXP[cod];
   if (custo==null || !(custo>0) || !d || d[6] || d[3]==='Clima') return null;
-  const p = calc(d).m, rl = p*fatorRL(undefined, cod), mc = (rl - 0.06*p - custo*1.01)/rl;   // base Brasil pela régua única (15% × valor c/ IPI)
+  const p = calc(d).m, rl = p*fatorRL(undefined, cod), mc = (rl - 0.06*p*multIPI(undefined, cod) - custo*1.01)/rl;   // base Brasil pela régua única (15% × valor c/ IPI)
   return mc < 0 ? {custo, p, mc} : null;
 }
 function badgeCusto(cod){
@@ -467,11 +469,11 @@ function badgeCusto(cod){
 function margemCel(preco, cod, tab){   // tab: '227'/'228' na aba Suframa; demais = venda Brasil (régua única)
   const custo = CUSTO_MC[cod];
   if (preco==null || !(preco>0) || custo==null) return '<td class="num" style="color:var(--muted)">—</td>';
-  const rl = preco*fatorRL(tab, cod), mcp = (rl - 0.06*preco - custo*1.01)/rl;
+  const rl = preco*fatorRL(tab, cod), mcp = (rl - 0.06*preco*multIPI(tab, cod) - custo*1.01)/rl;
   const bg = mcp>=0.30?'#EAF3EC':(mcp>=0?'#FDF3E7':'#FDE8E8');
   return `<td class="num" style="background:${bg};font-weight:600">${(mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</td>`;
 }
-const TH_MARG = '<th title="Margem de contribuição na base Brasil (sem frete/VPC): preço − impostos 15% sobre o valor com IPI − 6% comissão/devolução − custo dep-40 × 1,01 (Suframa: imposto devido da tabela, sem IPI). Só na tela, perfis ADM e Gerente.">Margem</th>';
+const TH_MARG = '<th title="Margem de contribuição na base Brasil (sem frete/VPC): preço − impostos 15% e comissão/devolução 6% sobre o valor com IPI − custo dep-40 × 1,01 (Suframa: imposto devido da tabela, sem IPI). Só na tela, perfis ADM e Gerente.">Margem</th>';
 function render(){
   chip(document.getElementById('chipsLinha'), linhas, ()=>fLin, v=>{
     fLin=v;
