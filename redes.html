@@ -275,6 +275,8 @@ const chip = (txt, cls) => `<span class="chip ${cls}">${esc(txt)}</span>`;
 
 /* ---------------- estado ---------------- */
 let P = {...RD_DEF.padrao}, PARROWS = [], E_ADM = false, APROVA = false, UID = null;
+/* painéis de leitura do gerente — REPRESENTANTE vê igual, SEM ações (Silvio 05/11/2026; o banco barra as gravações) */
+const VE_GERENTE = () => window.PAPEL === 'GERENTE' || window.PAPEL === 'REPRESENTANTE';
 let REDES = [], CNPJS = new Map(), ORDENS = [], EXC = [], CAD = new Map(), VENDAS = new Map();
 const S = {cardSol:'', cardAc:'', cardOr:'', det:null, detAc:null, edit:null, lista:[], arquivo:null};
 
@@ -1410,7 +1412,7 @@ function ligaBotoesNb(raiz, fonte){
   raiz.querySelectorAll('[data-just]').forEach(b => b.onclick = () => justifica(b.dataset.just, 'JUSTIFICADA'));
 }
 async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: só redesenha, sem ir ao banco (Silvio 13/10/2026)
-  if(!(E_ADM || window.PAPEL === 'GERENTE')){ $('nbBloco').style.display = 'none'; return; }
+  if(!(E_ADM || VE_GERENTE())){ $('nbBloco').style.display = 'none'; return; }
   $('nbBloco').style.display = '';
   if(recarrega || !NFB.length){
     await Promise.all([carregaFinObs(), carregaVpcs(), carregaObsNf()]); pintaVpc();
@@ -1442,7 +1444,7 @@ async function pintaNfBonif(recarrega = true){   // card = filtro instantâneo: 
   $('nbLiberaTodas').onclick = () => liberaLogistica(lib);
 }
 async function nfBonifGrupo(){
-  if(!(E_ADM || window.PAPEL === 'GERENTE')) return;
+  if(!(E_ADM || VE_GERENTE())) return;
   if(!FINOBS.size) await carregaFinObs();
   if(!OBSNF.size) await carregaObsNf();
   const r = await SB.rpc('bonif_nf_painel', {p_cnpj:CNPJ_B}); const l = r.error ? [] : (r.data || []);
@@ -1807,7 +1809,7 @@ async function pintaVarredura(){
   $('oTabs').innerHTML = [1, 2, 3].map(f => { const cod = P['TABELA_F' + f], x = tabs.filter(q => q.faixa_rede === f);
     return `<div class="req"><span class="ic">${cod ? '✅' : '⏳'}</span><span class="id">FAIXA ${f}</span><div>${cod ? `<b>${esc(cod)}</b> — ${esc((tabs.find(q => q.codtab === cod) || {}).descricao || '')}` : 'ainda não existe no TOTVS uma tabela ativa com o nome "REDES FAIXA ' + f + '"'}
       ${x.length > 1 ? `<div class="det">⚠️ mais de uma tabela com esse nome: ${x.map(q => esc(q.codtab) + (q.ativa ? '' : ' (inativa)')).join(', ')} — vale a menor ativa</div>` : ''}</div></div>`; }).join('');
-  const div = d.error || !(E_ADM || window.PAPEL === 'GERENTE') ? null : d.data;   // varredura: só Controladoria e gerentes
+  const div = d.error || !(E_ADM || VE_GERENTE()) ? null : d.data;   // varredura: só Controladoria e gerentes
   $('oDivP').style.display = div == null ? 'none' : '';
   if(div) $('tDiv').innerHTML = div.map(x => `<tr><td>${chip(x.tipo, x.tipo.startsWith('VÍNCULO') ? 'c-ru' : 'c-av')}</td><td>${fcnpj(x.cnpj || '')}</td><td>${esc(x.nome || '')} <span class="nota">${esc(x.cod || '')}/${esc(x.loja || '')}</span></td>
     <td>${esc(x.tabela || '—')}</td><td>${esc(x.detalhe || '')}</td></tr>`).join('') || `<tr><td colspan="5" class="status">Nenhuma divergência na última varredura${div.length === 0 ? '' : ''}.</td></tr>`;
