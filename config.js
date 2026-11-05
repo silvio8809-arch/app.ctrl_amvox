@@ -12,6 +12,8 @@ async function guardaPagina(){
     window.APPS = data && Array.isArray(data.apps) ? data.apps : ['precos', 'dash'];
   } catch (e) { window.PAPEL = 'CONSULTA'; window.APPS = ['precos', 'dash']; }   // falha de leitura: o banco segue travando
   if (!window.APPS.includes('precos')) { semAcessoApp('o app de Preços'); return null; }
+  // REPRESENTANTE (05/11/2026): vê o que o gerente vê, exceto margem — sem a página de Custos
+  if (window.PAPEL === 'REPRESENTANTE' && /custos(\.html)?$/.test(location.pathname)) { location.replace('tabelas.html'); return null; }
   sessionStorage.setItem('perfil', window.PAPEL === 'ADM' ? 'adm' : 'consulta');
   window.USUARIO_EMAIL = session.user.email;
   window.USUARIO_NOME = (session.user.user_metadata && session.user.user_metadata.nome) || '';
@@ -40,7 +42,8 @@ async function carregaDadosPagina(){
   if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once:true }));
   const adiados = [...document.querySelectorAll('script[type="text/plain"][data-pos-dados]')];
   if (!adiados.length) return true;
-  const pagina = (location.pathname.split('/').pop() || '').replace(/\.html$/, '');
+  // REPRESENTANTE lê a cópia SEM CUSTO dos dados (<pagina>_rep — a trava do banco só entrega essa a ele)
+  const pagina = (location.pathname.split('/').pop() || '').replace(/\.html$/, '') + (window.PAPEL === 'REPRESENTANTE' ? '_rep' : '');
   const { data, error } = await SB.from('app_bloco').select('nome,texto').eq('pagina', pagina).order('ordem');
   if (error || !data || !data.length){
     document.documentElement.style.visibility = 'visible';
