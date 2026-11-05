@@ -36,8 +36,9 @@ const CV_DEF = {
     cautelaNotas: 3           // D10
   },
 
-  /* RÉGUA ÚNICA da MC (29/10/2026) — mesmos números de .claude/scripts/regua_mc.py (aplicada no ETL) e da query da T.I.
-     (CALCULO_MARGEM_ATUAL_2026-10-29). impostos = venda Brasil; impostosSuframa = venda SUFRAMA com desconto de imposto
+  /* RÉGUA ÚNICA da MC (29/10/2026; revisão 04/11/2026) — mesmos números de .claude/scripts/regua_mc.py (aplicada no ETL) e da
+     query da T.I. (CALCULO_MARGEM_ATUAL_2026-11-04, V4). Venda Brasil: 15% sobre o valor COM IPI. Com nota: VPC, frete e
+     comissão gravados pelo SFA no pedido. impostos = venda Brasil; impostosSuframa = venda SUFRAMA com desconto de imposto
      destacado na NF (a nota já vem líquida; o desconto é pago pelo cliente e não é recolhido) — sobre o valor líquido. */
   premissasMargem: { impostos: 0.15, impostosSuframa: { '227': 0, '228': 0.0925 }, devolucao: 0.03, taxaCF: 0.018, prazoBase: 120, fatorCusto: 1.01, royaltyBoomvox: 0.03 },
 
@@ -90,7 +91,7 @@ const CV_DEF = {
     { id: 'D8', nome: 'Margem contra a meta', gravidade: 'atencao', soMargem: true,
       procura: L => 'Margem estimada do período contra a meta da linha/segmento. Abaixo do piso = crítico; abaixo da meta = atenção. Mostra o preço de equilíbrio: o preço que daria a meta com os custos e deduções do próprio período.',
       exemplo: 'BAGVOX (Áudio · Bateria, meta 35%): margem em torno de 10%.',
-      limitacoes: 'Margem estimada pela régua da skill margem (não é a contábil). VPC = cadastro atual do cliente.' },
+      limitacoes: 'Margem estimada pela régua da skill margem (não é a contábil). VPC, frete e comissão = os gravados pelo SFA no pedido de cada nota; pedidos de antes do SFA (até mai/2026) usam o VPC do cadastro e o frete da UF.' },
     { id: 'D9', nome: 'Concentração', gravidade: 'leitura',
       procura: L => `Maior conta acima de ${pct(L.concMaior)} das peças do período, ou as 3 maiores acima de ${pct(L.concTop3)}.`,
       exemplo: '', limitacoes: '' },
@@ -99,6 +100,6 @@ const CV_DEF = {
       exemplo: '', limitacoes: '' }
   ],
 
-  formulaMargem: P => `Margem estimada (R$) = valor sem IPI × (1 − devolução ${pct(P.devolucao)} − royalty) − impostos − comissão da nota − frete da UF (tabela de frete por UF) − VPC do cadastro do cliente − custo financeiro − custo × ${P.fatorCusto.toLocaleString('pt-BR')}. Custo financeiro = valor × ${pct(P.taxaCF)} ao mês sobre o prazo real dos títulos da nota que passar de ${P.prazoBase} dias. Royalty de ${pct(P.royaltyBoomvox)} só na família Boomvox (licença R10). Impostos pela régua única: venda Brasil ${pct(P.impostos)} do valor sem IPI; venda SUFRAMA com desconto de imposto destacado na nota — ICMS + PIS/COFINS (tabela 227) ${pct(P.impostosSuframa['227'])}; só ICMS (tabela 228) o PIS/COFINS da própria nota (${(P.impostosSuframa['228'] * 100).toLocaleString('pt-BR')}%). Na SUFRAMA a nota já vem líquida do desconto, que é pago pelo cliente (tabelas 227/228 = 078 + 12,77%) e não é imposto recolhido pela AMVOX.`
+  formulaMargem: P => `Margem estimada (R$) = valor sem IPI × (1 − royalty) − devolução ${pct(P.devolucao)} do valor com IPI − impostos − comissão − frete − VPC − custo financeiro − custo × ${P.fatorCusto.toLocaleString('pt-BR')}. Comissão, frete e VPC = o que o SFA gravou no pedido de venda da nota (comissão em R$ do representante, gerente e diretor; frete e VPC em % sobre o valor com IPI; pedido FOB = frete zero); pedido de antes do SFA (até mai/2026) = comissão % do pedido, frete da UF e VPC do cadastro. Custo financeiro = valor × ${pct(P.taxaCF)} ao mês sobre o prazo real dos títulos da nota que passar de ${P.prazoBase} dias. Royalty de ${pct(P.royaltyBoomvox)} só na família Boomvox (licença R10). Impostos pela régua única: venda Brasil ${pct(P.impostos)} do valor com IPI (carga tributária da DRE ÷ faturamento com IPI; o IPI já está dentro); venda SUFRAMA com desconto de imposto destacado na nota — ICMS + PIS/COFINS (tabela 227) ${pct(P.impostosSuframa['227'])}; só ICMS (tabela 228) o PIS/COFINS da própria nota (${(P.impostosSuframa['228'] * 100).toLocaleString('pt-BR')}%). Na SUFRAMA a nota já vem líquida do desconto, que é pago pelo cliente (tabelas 227/228 = 078 + 12,77%) e não é imposto recolhido pela AMVOX.`
 };
 function pct(x){ return (x * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + '%'; }
