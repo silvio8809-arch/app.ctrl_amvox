@@ -62,7 +62,12 @@
   .b-custo{background:#FDE8E8;color:#8E1216;cursor:help}
   .b-boom{background:#EDEBE8;color:#4C4E52}
   .seg{color:var(--muted);font-size:12px}
-  table.simgrade thead th{padding:9px 7px;font-size:10px} table.simgrade tbody td{padding:6px 7px;font-size:13px}
+  table.simgrade thead th{padding:9px 19px 9px 7px;font-size:10px} table.simgrade tbody td{padding:6px 7px;font-size:13px}
+  main:has(> #tela-simulador.on){max-width:none}   /* v0.42: simulador usa a largura toda da tela (Silvio 05/11) */
+  .ajuda{position:absolute;top:3px;right:4px;width:13px;height:13px;border-radius:50%;background:rgba(255,255,255,.25);color:#fff;font:700 9px/13px var(--sans);text-align:center;letter-spacing:0;cursor:help}
+  .ajuda:hover{background:#fff;color:var(--ink)}
+  #ajudaTip{display:none;position:fixed;z-index:70;max-width:280px;background:var(--ink);color:#fff;font:12.5px/1.45 var(--body);padding:9px 11px;border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.25);text-transform:none;letter-spacing:0;text-align:left;white-space:normal}
+  #ajudaTip b{display:block;font:700 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:#F2C9CB;margin-bottom:3px}
 
   /* DETALHE */
   #veu{display:none;position:fixed;inset:0;background:rgba(18,18,20,.45);z-index:5}
@@ -957,15 +962,44 @@ document.getElementById('copiarA').onclick=async()=>{
 
   // ---- colunas (mesma grade nas 2 visões) ----
   const COLS=[
-    {k:'n',t:'#'},{k:'cod',t:'Produto',left:1},{k:'desc',t:'Descrição',left:1},{k:'qtd',t:'Qtd'},{k:'est',t:'Estoque'},
-    {k:'tab',t:'Tabela',dest:1},{k:'pvpc',t:'% VPC'},{k:'pvad',t:'% VPC ad.'},{k:'vpc',t:'VPC'},{k:'vad',t:'VPC adic.'},
-    {k:'fre',t:'Frete'},{k:'ipi',t:'IPI'},{k:'sug',t:'Sugerido'},{k:'neg',t:'Negociado'},{k:'pdesc',t:'% Desc'},
-    {k:'dsuf',t:'Desc. Suframa'},{k:'liq',t:'Total Líq. NF (un)',dest:1},
-    {k:'tot',t:'Total'},{k:'totnf',t:'Total NF'},{k:'mc',t:'MC %'}];
+    {k:'n',t:'#',h:'Número da linha na proposta.'},
+    {k:'cod',t:'Produto',left:1,h:'Código do produto. Digite parte do nome (palavras em qualquer ordem) ou o código e escolha na lista com o mouse ou com Enter.'},
+    {k:'desc',t:'Descrição',left:1,h:'Nome do produto no cadastro do TOTVS.'},
+    {k:'qtd',t:'Qtd',h:'Quantidade de unidades do produto. Campo editável.'},
+    {k:'est',t:'Estoque',h:'Disponível para venda no depósito 40 (saldo menos reservado e empenhado), atualizado diariamente. Passe o mouse sobre o valor para ver a quantidade.'},
+    {k:'tab',t:'Tabela',dest:1,h:'Preço unitário da tabela Suframa escolhida no cabeçalho, sem VPC e sem frete.'},
+    {k:'pvpc',t:'% VPC',h:'Percentual de VPC do cliente, somado por fora ao preço de tabela. Campo editável (padrão 0%).'},
+    {k:'pvad',t:'% VPC ad.',h:'VPC adicional negociado neste pedido, somado por fora ao preço de tabela. Campo editável (padrão 0%).'},
+    {k:'vpc',t:'VPC',h:'Valor do VPC por unidade, em R$.'},
+    {k:'vad',t:'VPC adic.',h:'Valor do VPC adicional por unidade, em R$.'},
+    {k:'fre',t:'Frete',h:'Frete da UF de destino (tabela oficial por UF), por unidade, em R$ e %. Somado por fora ao preço de tabela.'},
+    {k:'ipi',t:'IPI',h:'Venda para a área Suframa é isenta de IPI.'},
+    {k:'sug',t:'Sugerido',h:'Preço unitário sem desconto: Tabela + VPC + VPC adicional + Frete. É o preço que o SFA sugere.'},
+    {k:'neg',t:'Negociado',h:'Preço unitário combinado com o cliente. Começa igual ao sugerido; digite outro valor para simular um desconto. Campo editável.'},
+    {k:'pdesc',t:'% Desc',h:'Desconto do negociado sobre o sugerido. É o percentual a digitar no campo % DESC do SFA.'},
+    {k:'dsuf',t:'Desc. Suframa',h:'Desconto destacado na NF pelo benefício Suframa, por unidade: ICMS 12% (tabelas 228 e 227) e PIS/COFINS 9,25% (tabela 227). Entre parênteses, o % sobre o negociado. A tabela 229 não tem desconto destacado.'},
+    {k:'liq',t:'Total Líq. NF (un)',dest:1,h:'Valor de uma unidade na nota fiscal: Negociado − Desc. Suframa.'},
+    {k:'tot',t:'Total',h:'Valor da linha antes do desconto Suframa: Negociado × Qtd (igual ao TOTAL do SFA).'},
+    {k:'totnf',t:'Total NF',h:'Valor da linha na nota fiscal, o que o cliente paga: Total Líq. NF (un) × Qtd.'},
+    {k:'mc',t:'MC %',h:'Margem de contribuição projetada da linha. Uso interno: não sai no PDF nem no Excel.'}];
   const SAIDA=['est','tab','vpc','vad','fre','ipi','sug','pdesc','dsuf','liq','tot','totnf','mc'];
   function cabecalho(id, acoes){
-    document.getElementById(id).innerHTML = COLS.map(c=>`<th class="${c.dest?'dest':''}"${c.left?' style="text-align:left"':''}>${c.t}</th>`).join('') + (acoes?'<th></th>':'');
+    document.getElementById(id).innerHTML = COLS.map((c,i)=>`<th class="${c.dest?'dest':''}"${c.left?' style="text-align:left"':''}>${c.t}<span class="ajuda" data-i="${i}" aria-label="O que é ${c.t}?">?</span></th>`).join('') + (acoes?'<th></th>':'');
   }
+  /* "O que é?" — ajuda de campo no canto superior direito de cada cabeçalho (Silvio 05/11/2026) */
+  const tip=document.createElement('div'); tip.id='ajudaTip'; document.body.appendChild(tip);
+  function mostraAjuda(el){
+    const c=COLS[+el.dataset.i]; tip.innerHTML='<b>O que é? '+c.t+'</b>'+c.h; tip.style.display='block';
+    const r=el.getBoundingClientRect(), w=tip.offsetWidth, h=tip.offsetHeight;
+    let x=Math.min(Math.max(8, r.right-w), innerWidth-w-8), y=r.bottom+6; if(y+h>innerHeight-8) y=r.top-h-6;
+    tip.style.left=Math.round(x)+'px'; tip.style.top=Math.round(y)+'px';
+  }
+  ['simHead','stHead'].forEach(id=>{ const el=document.getElementById(id);
+    el.addEventListener('mouseover',e=>{ const a=e.target.closest('.ajuda'); if(a) mostraAjuda(a); });
+    el.addEventListener('mouseout',e=>{ if(e.target.closest('.ajuda')) tip.style.display='none'; });
+    el.addEventListener('click',e=>{ const a=e.target.closest('.ajuda'); if(a){ e.stopPropagation(); mostraAjuda(a); } });   // toque (celular/tablet)
+  });
+  window.addEventListener('scroll',()=>{ tip.style.display='none'; },true);
   cabecalho('simHead', true); cabecalho('stHead', false);
   const inSt='box-sizing:border-box;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:13px var(--body);background:var(--panel);color:var(--ink);text-align:right';
   function celulasHTML(prodCell, descTxt){
