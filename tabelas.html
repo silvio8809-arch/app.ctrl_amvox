@@ -63,6 +63,7 @@
   .b-boom{background:#EDEBE8;color:#4C4E52}
   .seg{color:var(--muted);font-size:12px}
   table.simgrade thead th{padding:9px 19px 9px 7px;font-size:10px} table.simgrade tbody td{padding:6px 7px;font-size:13px}
+  body.rep .so-margem{display:none}   /* REPRESENTANTE não vê margem (05/11/2026) */
   main:has(> #tela-simulador.on){max-width:none}   /* v0.42: simulador usa a largura toda da tela (Silvio 05/11) */
   .ajuda{position:absolute;top:3px;right:4px;width:13px;height:13px;border-radius:50%;background:rgba(255,255,255,.25);color:#fff;font:700 9px/13px var(--sans);text-align:center;letter-spacing:0;cursor:help}
   .ajuda:hover{background:#fff;color:var(--ink)}
@@ -136,7 +137,7 @@
       <button class="chip" data-modo="tabela">Simulação por tabela</button>
     </div>
     <div id="modoCliente">
-    <div class="aviso" style="margin-bottom:12px">Simulador de <b>preço líquido Suframa/ZFM</b>: informe cliente, tabela e UF no cabeçalho e escolha os produtos <b>linha a linha</b> (busca por <b>nome parcial ou completo</b>, ou pelo código) — o botão <b>➕</b> inclui outro produto. A grade segue as colunas do <b>SFA</b>: <b>Qtd</b>, <b>% VPC</b>, <b>% VPC ad.</b> e <b>Negociado</b> são editáveis na linha (o negociado começa igual ao sugerido e o <b>% Desc</b> é calculado). Cada linha mostra o <b>desconto Suframa</b> destacado em NF, o <b>total líquido da NF</b> e a <b>margem</b>; o resumo aparece nos cards abaixo.</div>
+    <div class="aviso" style="margin-bottom:12px">Simulador de <b>preço líquido Suframa/ZFM</b>: informe cliente, tabela e UF no cabeçalho e escolha os produtos <b>linha a linha</b> (busca por <b>nome parcial ou completo</b>, ou pelo código) — o botão <b>➕</b> inclui outro produto. A grade segue as colunas do <b>SFA</b>: <b>Qtd</b>, <b>VPC %</b>, <b>VPC adic. %</b> e <b>Negociado</b> são editáveis na linha (o negociado começa igual ao sugerido e o <b>% Desc</b> é calculado). Cada linha mostra o <b>desconto Suframa</b> destacado em NF, o <b>total líquido da NF</b><span class="so-margem"> e a <b>margem</b></span>; o resumo aparece nos cards abaixo.</div>
     <div class="barra" style="align-items:flex-end">
       <div class="busca" style="max-width:300px"><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Cliente</label>
         <input id="simCli" placeholder="Nome do cliente" style="width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
@@ -152,7 +153,7 @@
         <button class="btn" id="simProp" style="background:var(--accent);color:#fff;border-color:var(--accent);margin-left:8px">📄 Gerar proposta (PDF)</button></div>
     </div>
     <div class="tbl-wrap" style="margin-top:12px">
-      <table class="simgrade" style="min-width:2050px">
+      <table class="simgrade" style="min-width:1880px">
         <thead><tr id="simHead"></tr></thead>
         <tbody id="simLinhas"></tbody>
       </table>
@@ -161,7 +162,7 @@
     </div><!-- /modoCliente -->
 
     <div id="modoTabela" style="display:none">
-      <div class="aviso" style="margin-bottom:12px">Simulação <b>por tabela</b>: escolha a tabela Suframa e a UF de destino e clique em <b>Gerar simulação</b> — o painel lista <b>todos os itens da tabela</b> na mesma grade do SFA da simulação por cliente — <b>Qtd</b>, <b>% VPC</b>, <b>% VPC ad.</b> e <b>Negociado</b> editáveis na linha, desconto Suframa destacado em NF, <b>total líquido da NF</b> e <b>margem</b>.</div>
+      <div class="aviso" style="margin-bottom:12px">Simulação <b>por tabela</b>: escolha a tabela Suframa e a UF de destino e clique em <b>Gerar simulação</b> — o painel lista <b>todos os itens da tabela</b> na mesma grade do SFA da simulação por cliente — <b>Qtd</b>, <b>VPC %</b>, <b>VPC adic. %</b> e <b>Negociado</b> editáveis na linha, desconto Suframa destacado em NF, <b>total líquido da NF</b><span class="so-margem"> e <b>margem</b></span>.</div>
       <div class="barra" style="align-items:flex-end">
         <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Tabela</label><br>
           <select id="stTab" style="padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)">
@@ -178,7 +179,7 @@
       <div id="stVazio" style="color:var(--muted);padding:22px 4px">Escolha a tabela e a UF e clique em <b>Gerar simulação</b>.</div>
       <div id="stResultado" style="display:none">
         <div class="tbl-wrap" style="margin-top:12px">
-          <table class="simgrade" style="min-width:1960px">
+          <table class="simgrade" style="min-width:1790px">
             <thead><tr id="stHead"></tr></thead>
             <tbody id="stLinhas"></tbody>
           </table>
@@ -957,7 +958,7 @@ document.getElementById('copiarA').onclick=async()=>{
       card('Sugerido', fmt(tot.sug)) + card('Total negociado', fmt(tot.neg)) +
       card('Desc. Suframa', tot.dsuf?'−'+fmt(tot.dsuf)+' ('+pct(tot.dsuf/tot.neg)+')':'—') +
       card('TOTAL DA NF', fmt(tot.liq), true) +
-      card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
+      (VE_MC ? card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC) : '');
   }
 
   // ---- colunas (mesma grade nas 2 visões) ----
@@ -968,10 +969,8 @@ document.getElementById('copiarA').onclick=async()=>{
     {k:'qtd',t:'Qtd',h:'Quantidade de unidades do produto. Campo editável.'},
     {k:'est',t:'Estoque',h:'Disponível para venda no depósito 40 (saldo menos reservado e empenhado), atualizado diariamente. Passe o mouse sobre o valor para ver a quantidade.'},
     {k:'tab',t:'Tabela',dest:1,h:'Preço unitário da tabela Suframa escolhida no cabeçalho, sem VPC e sem frete.'},
-    {k:'pvpc',t:'% VPC',h:'Percentual de VPC do cliente, somado por fora ao preço de tabela. Campo editável (padrão 0%).'},
-    {k:'pvad',t:'% VPC ad.',h:'VPC adicional negociado neste pedido, somado por fora ao preço de tabela. Campo editável (padrão 0%).'},
-    {k:'vpc',t:'VPC',h:'Valor do VPC por unidade, em R$.'},
-    {k:'vad',t:'VPC adic.',h:'Valor do VPC adicional por unidade, em R$.'},
+    {k:'vpc',t:'VPC',h:'Digite o % de VPC do cliente (padrão 0%); ao lado, o valor por unidade em R$. Somado por fora ao preço de tabela.'},
+    {k:'vad',t:'VPC adic.',h:'Digite o % de VPC adicional negociado neste pedido (padrão 0%); ao lado, o valor por unidade em R$. Somado por fora ao preço de tabela.'},
     {k:'fre',t:'Frete',h:'Frete da UF de destino (tabela oficial por UF), por unidade, em R$ e %. Somado por fora ao preço de tabela.'},
     {k:'ipi',t:'IPI',h:'Venda para a área Suframa é isenta de IPI.'},
     {k:'sug',t:'Sugerido',h:'Preço unitário sem desconto: Tabela + VPC + VPC adicional + Frete. É o preço que o SFA sugere.'},
@@ -982,6 +981,9 @@ document.getElementById('copiarA').onclick=async()=>{
     {k:'tot',t:'Total',h:'Valor da linha antes do desconto Suframa: Negociado × Qtd (igual ao TOTAL do SFA).'},
     {k:'totnf',t:'Total NF',h:'Valor da linha na nota fiscal, o que o cliente paga: Total Líq. NF (un) × Qtd.'},
     {k:'mc',t:'MC %',h:'Margem de contribuição projetada da linha. Uso interno: não sai no PDF nem no Excel.'}];
+  /* REPRESENTANTE (05/11/2026): vê tudo que o gerente vê, EXCETO margem — e nem recebe o custo (dados _rep) */
+  const VE_MC = window.PAPEL !== 'REPRESENTANTE';
+  if(!VE_MC) COLS.splice(COLS.findIndex(c=>c.k==='mc'),1);
   const SAIDA=['est','tab','vpc','vad','fre','ipi','sug','pdesc','dsuf','liq','tot','totnf','mc'];
   function cabecalho(id, acoes){
     document.getElementById(id).innerHTML = COLS.map((c,i)=>`<th class="${c.dest?'dest':''}"${c.left?' style="text-align:left"':''}>${c.t}<span class="ajuda" data-i="${i}" aria-label="O que é ${c.t}?">?</span></th>`).join('') + (acoes?'<th></th>':'');
@@ -1007,8 +1009,9 @@ document.getElementById('copiarA').onclick=async()=>{
       if(c.k==='cod') return `<td style="text-align:left">${prodCell}</td>`;
       if(c.k==='desc') return `<td class="c-desc" style="text-align:left;max-width:230px;overflow:hidden;text-overflow:ellipsis" title="${descTxt||''}">${descTxt||'—'}</td>`;
       if(c.k==='qtd') return `<td><input class="inQtd" type="number" min="1" style="width:64px;${inSt}"></td>`;
-      if(c.k==='pvpc') return `<td><input class="inVpc" type="text" inputmode="decimal" placeholder="0" style="width:62px;${inSt}"></td>`;
-      if(c.k==='pvad') return `<td><input class="inVad" type="text" inputmode="decimal" placeholder="0" style="width:62px;${inSt}"></td>`;
+      /* v0.43 (Silvio 05/11): % e R$ do VPC na MESMA coluna — campo do % editável + valor em R$ ao lado (padrão do frete) */
+      if(c.k==='vpc') return `<td style="white-space:nowrap"><input class="inVpc" type="text" inputmode="decimal" placeholder="0" title="% de VPC" style="width:52px;${inSt}"> <span style="color:var(--muted)">%</span> <span class="c-vpc">—</span></td>`;
+      if(c.k==='vad') return `<td style="white-space:nowrap"><input class="inVad" type="text" inputmode="decimal" placeholder="0" title="% de VPC adicional" style="width:52px;${inSt}"> <span style="color:var(--muted)">%</span> <span class="c-vad">—</span></td>`;
       if(c.k==='neg') return `<td><input class="inNeg" type="text" inputmode="decimal" style="width:98px;${inSt};font-weight:700"></td>`;
       return `<td class="num c-${c.k}${c.dest?' dest':''}">—</td>`;
     }).join('');
@@ -1017,7 +1020,8 @@ document.getElementById('copiarA').onclick=async()=>{
   function pinta(tr, r){
     const set=(k,v)=>{ const el=tr.querySelector('.c-'+k); if(el) el.textContent=v; };
     const estEl=tr.querySelector('.c-est');
-    if(!r){ SAIDA.forEach(k=>set(k,'—')); tr.querySelector('.c-mc').style.background='';
+    const mcEl=tr.querySelector('.c-mc');
+    if(!r){ SAIDA.forEach(k=>set(k,'—')); if(mcEl) mcEl.style.background='';
       const ng=tr.querySelector('.inNeg'); if(ng && document.activeElement!==ng) ng.value=''; return; }
     if(r.est==null) estEl.textContent='—';
     else estEl.innerHTML = r.est>0 ? `<span style="color:#1E7A3A;font-weight:700" title="${r.est.toLocaleString('pt-BR')} un. disponíveis no depósito 40">Disponível</span>`
@@ -1028,9 +1032,8 @@ document.getElementById('copiarA').onclick=async()=>{
     tr.querySelector('.c-pdesc').style.background = (r.negEdit && Math.abs(r.pdesc)>=0.00005) ? '#FFF4D6' : '';
     set('dsuf', r.dsuf ? '− '+fmt(r.dsuf)+' ('+pct(r.pdsuf)+')' : '—');
     set('liq',fmt(r.liq)); set('tot',fmt(r.N*r.qtd)); set('totnf',fmt(r.liq*r.qtd));
-    const mcEl=tr.querySelector('.c-mc');
-    mcEl.textContent=(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
-    mcEl.style.background = r.mcp>=0.30?'#EAF3EC':(r.mcp>=0?'#FDF3E7':'#FDE8E8');
+    if(mcEl){ mcEl.textContent=(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+      mcEl.style.background = r.mcp>=0.30?'#EAF3EC':(r.mcp>=0?'#FDF3E7':'#FDE8E8'); }
     const ng=tr.querySelector('.inNeg'); if(ng && document.activeElement!==ng) ng.value=fmt(r.N);
   }
   function ligaEdicao(tr, st, aoMudar){
@@ -1200,8 +1203,8 @@ document.getElementById('copiarA').onclick=async()=>{
     let linhas='';
     rs.forEach((r,i)=>{
       linhas+=`<tr><td class=c>${String(i+1).padStart(2,'0')}</td><td class=mono>${r.cod}</td><td class=dsc>${r.desc}</td><td class=r>${r.qtd}</td>`+
-        `<td class="r tab">R$ ${brf(r.base)}</td><td class=r>${pcf(r.pvpc)}</td><td class=r>${pcf(r.pvad)}</td>`+
-        `<td class="r add">+R$ ${brf(r.vpcR)}</td><td class="r add">+R$ ${brf(r.vadR)}</td><td class="r add">+R$ ${brf(r.freR)} (${pcf(r.pfre)})</td>`+
+        `<td class="r tab">R$ ${brf(r.base)}</td>`+
+        `<td class="r add">+R$ ${brf(r.vpcR)} (${pcf(r.pvpc)})</td><td class="r add">+R$ ${brf(r.vadR)} (${pcf(r.pvad)})</td><td class="r add">+R$ ${brf(r.freR)} (${pcf(r.pfre)})</td>`+
         `<td class=c>Isento</td><td class=r>R$ ${brf(r.J)}</td><td class="r neg">R$ ${brf(r.N)}</td><td class=r>${r.negEdit?pcf(r.pdesc):'0%'}</td>`+
         `<td class="r sufc">${r.dsuf?'−R$ '+brf(r.dsuf)+' ('+pcf(r.pdsuf)+')':'—'}</td>`+
         `<td class="r neg">R$ ${brf(r.liq)}</td><td class=r>R$ ${brf(r.N*r.qtd)}</td><td class=r><b>R$ ${brf(r.liq*r.qtd)}</b></td></tr>`;
@@ -1263,7 +1266,7 @@ table{width:100%;border-collapse:collapse}
 </div>
 <div class=sec>Itens da proposta (${rs.length}) — grade do SFA + tratamento fiscal Suframa por item</div>
 <table class=itens><thead><tr><th>#</th><th>PRODUTO</th><th>DESCRIÇÃO</th><th>QTD</th>
- <th class=thtab>TABELA</th><th>% VPC</th><th>% VPC AD.</th><th>VPC</th><th>VPC ADIC.</th><th>FRETE</th><th>IPI</th>
+ <th class=thtab>TABELA</th><th>VPC</th><th>VPC ADIC.</th><th>FRETE</th><th>IPI</th>
  <th>SUGERIDO</th><th>NEGOCIADO</th><th>% DESC</th>
  <th class=thsuf>DESC. SUFRAMA</th><th class=thsuf>TOTAL LÍQ. NF (un)</th><th>TOTAL</th><th>TOTAL NF</th></tr></thead>
 <tbody>${linhas}</tbody></table>
@@ -1335,7 +1338,8 @@ document.addEventListener('papel-pronto', ()=>{
   if ((adm || window.PAPEL === 'GERENTE') && typeof render==='function') render();   /* mostra a coluna Margem (ADM/GERENTE) */
   /* GERENTE vê todas as abas de consulta (decisão Silvio 17/09); Parâmetros/Auditoria seguem
      só do ADM (bloco abaixo). Mantido: abre direto no Simulador, sua ferramenta principal. */
-  if (window.PAPEL === 'GERENTE'){
+  document.body.classList.toggle('rep', window.PAPEL === 'REPRESENTANTE');
+  if (window.PAPEL === 'GERENTE' || window.PAPEL === 'REPRESENTANTE'){
     const bs=document.querySelector('nav button[data-tela="simulador"]');
     if(bs) bs.click();
   }
