@@ -558,8 +558,8 @@ details.simparams .inner{padding:2px 18px 16px}
         <li><b>Despesa da máquina</b>: 27% (2025) e 16% (MC Estimativa) são parâmetros editáveis — não entram no custo de aquisição.</li>
         <li><b>Preço de venda inicial do Simulador = preço projetado para a MC MÍNIMA da linha</b>: 30% na linha
           ÁUDIO, 20% nas demais linhas. Trocar de SKU recalcula o padrão; o campo segue editável e a barra de
-          margem também recalcula o preço. Régua de divisores do guia (0,514/0,473/0,432 p/ MC 30/35/40; escala
-          linear → MC 20 = 0,596).</li>
+          margem também recalcula o preço. Régua de divisores do guia: deduções e base sobre o preço com IPI (áudio,
+          IPI 15%: 0,486/0,446/0,407 p/ MC 30/35/40; escala linear → MC 20 = 0,565).</li>
         <li><b>Duas margens, duas lentes (auditável):</b> <b>Margem Ctb. Bruta (MC) — régua do guia</b> é a MESMA métrica do guia de
           bolso (inversa exata do piso: digitar o piso MC30/35/40 devolve 30/35/40% quando o custo é o mesmo);
           <b>EBITDA</b> é a lente gerencial, que desconta também a despesa da máquina e usa os parâmetros
@@ -775,10 +775,13 @@ const SIM = {i:0, qty:null, price:null, ipi:null, vpcOn:false, dmaq:"25", dmaqCu
 const dmaqAtual = () => SIM.dmaq==="25" ? P.dmaq25 : (SIM.dmaq==="26" ? P.dmaqMC : SIM.dmaqCustom/100);
 const dmaqRotulo = () => SIM.dmaq==="25" ? " (Modelo 2025)" : (SIM.dmaq==="26" ? " (Modelo 2026)" : " (outro)");
 /* MC mínima por linha (definição Silvio): ÁUDIO = 30% · demais linhas = 20%.
-   Divisor da régua do guia é linear em MC (0,514/0,473/0,432 p/ 30/35/40) → divisor(m) = 0,760 − 0,82·m */
+   Régua do guia (05/11/2026): deduções 24% e base 18% sobre o preço COM IPI → divisor(m) = (1 − 0,24·(1+IPI)) − (1 − 0,18·(1+IPI))·m
+   (áudio, IPI 15%: 0,724 − 0,793·m → 0,486/0,446/0,407 p/ 30/35/40; sem IPI volta a 0,760 − 0,82·m). */
 const mcMin = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.30 : 0.20;
-const divMC = m => 0.760 - 0.82*m;
-const precoMC = (ct, m) => ct*1.01/divMC(m);
+const ipiGuia = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.15 : (SIM.ipi ?? 16.25)/100;   /* áudio = B1_IPI 15% (mesmo do guia) */
+const fcGuia = ipi => 1 - 0.24*(1+ipi), fbGuia = ipi => 1 - 0.18*(1+ipi);
+const divMC = (m, ipi=0.15) => fcGuia(ipi) - fbGuia(ipi)*m;
+const precoMC = (ct, m, ipi=0.15) => ct*1.01/divMC(m, ipi);
 const kv = (l,r,cls="") => `<div class="kv ${cls}"><span class="l">${l}</span><span class="r">${r}</span></div>`;
 const R$ = v => "R$ "+fmt(v);
 function renderSimOptions(){
@@ -815,7 +818,8 @@ function simCalc(){
   const c25 = s.usd25!=null ? custoM(s.usd25, P.freteProj, q, "25", s) : null;
   /* preço padrão = preço projetado p/ a MC MÍNIMA da linha (ÁUDIO 30% · demais 20%) */
   const mcAlvo = mcMin(s);
-  const pisoDef = precoMC(ct, mcAlvo);
+  const ipiG = ipiGuia(s);
+  const pisoDef = precoMC(ct, mcAlvo, ipiG);
   const price = SIM.price ?? Math.round(pisoDef*100)/100;
   const ipiS = (SIM.ipi ?? 16.25)/100;
   const vpc = SIM.vpcOn ? price*SIM.vpcPct/100 : 0;
@@ -824,13 +828,13 @@ function simCalc(){
   const dmaqV = price*dmaqPct;
   const cv = ct+vpc+dmaqV;
   const lucroV = price - impS - cv;
-  /* MC pela régua do guia de bolso — inversa exata do piso: MC = (0,760 − 1,01·CT/P) ÷ 0,82.
+  /* MC pela régua do guia de bolso — inversa exata do piso: MC = (fc − 1,01·CT/P) ÷ fb (fc/fb com o IPI do guia).
      Auditável: digitar o piso MC30/35/40 devolve exatamente 30/35/40%. */
-  const mcGuia = (0.760 - 1.01*ct/price)/0.82;
+  const mcGuia = (fcGuia(ipiG) - 1.01*ct/price)/fbGuia(ipiG);
   const qty = SIM.qty ?? q;
   return {s, usd, f, q, fobR, freteR, segR, cifR, ii, afrmm, magic, courr, fixosUn, adicUn, ct,
           ipiImp, pisImp, cofImp, c25, price, pisoDef, mcAlvo, ipiS, vpc, impS, dmaqPct, dmaqV, cv,
-          lucroV, marg: lucroV/price, mcGuia, qty};
+          lucroV, marg: lucroV/price, mcGuia, ipiG, qty};
 }
 function donut(parts, total){
   const Rr=52, C=2*Math.PI*Rr; let off=0;
@@ -970,9 +974,9 @@ function renderSim(){
   /* pisos (só ADM) */
   document.getElementById("simpisos").innerHTML = ADM ? `
     <h2>Pisos de preço com o custo vigente (só ADM)</h2>
-    <div class="tiles">${tile("Piso MC 30%", R$(d.ct*1.01/0.514), "régua do guia de bolso")
-      +tile("Piso MC 35%", R$(d.ct*1.01/0.473), "")
-      +tile("Piso MC 40%", R$(d.ct*1.01/0.432), "")}</div>` : "";
+    <div class="tiles">${tile("Piso MC 30%", R$(precoMC(d.ct, .30, d.ipiG)), "régua do guia de bolso")
+      +tile("Piso MC 35%", R$(precoMC(d.ct, .35, d.ipiG)), "")
+      +tile("Piso MC 40%", R$(precoMC(d.ct, .40, d.ipiG)), "")}</div>` : "";
 }
 /* fiação dos campos do simulador */
 function simNum(id, fn){
@@ -1134,7 +1138,7 @@ function renderFreteMargem(){
   const MN = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
   /* preço fixo de tabela: preço projetado p/ a MC mínima da linha, no frete projetado */
   const ct0 = custoM(usd, P.freteProj, q, "26", s);
-  const priceRef = precoMC(ct0, mcMin(s));
+  const priceRef = precoMC(ct0, mcMin(s), ipiGuia(s));
   const t = (SIM.pisS+SIM.cofS+SIM.icmsS)/100, vpcr = SIM.vpcOn? SIM.vpcPct/100:0, dm = dmaqAtual();
   const margs = months.map(k=>{
     const fm = byM[k].reduce((a,b)=>a+b,0)/byM[k].length;
