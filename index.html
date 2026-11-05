@@ -145,7 +145,7 @@ async function mostraHub(session){
     if (!apps.length) $('semApps').style.display = 'block';
     const el = $('quemPapel'); el.textContent = papel;
     if (papel === 'ADM') el.classList.add('adm');
-    if (papel === 'GERENTE'){
+    if (papel === 'GERENTE' || papel === 'REPRESENTANTE'){   /* REPRESENTANTE = gerente sem margem (05/11/2026) */
       const cardCustos = document.querySelector('a.appc[href="custos.html"]');
       if (cardCustos) cardCustos.style.display='none';
     }
