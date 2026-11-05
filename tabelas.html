@@ -62,6 +62,7 @@
   .b-custo{background:#FDE8E8;color:#8E1216;cursor:help}
   .b-boom{background:#EDEBE8;color:#4C4E52}
   .seg{color:var(--muted);font-size:12px}
+  table.simgrade thead th{padding:9px 7px;font-size:10px} table.simgrade tbody td{padding:6px 7px;font-size:13px}
 
   /* DETALHE */
   #veu{display:none;position:fixed;inset:0;background:rgba(18,18,20,.45);z-index:5}
@@ -130,7 +131,7 @@
       <button class="chip" data-modo="tabela">Simulação por tabela</button>
     </div>
     <div id="modoCliente">
-    <div class="aviso" style="margin-bottom:12px">Simulador de <b>preço líquido Suframa/ZFM</b>: informe cliente, tabela, UF e VPC no cabeçalho e escolha os produtos <b>linha a linha</b> — o botão <b>➕</b> inclui outro produto na proposta. Cada linha mostra o preço sugerido, os descontos fiscais destacados em NF, o <b>líquido</b> e a <b>margem</b>; o resumo total aparece nos cards abaixo.</div>
+    <div class="aviso" style="margin-bottom:12px">Simulador de <b>preço líquido Suframa/ZFM</b>: informe cliente, tabela, UF e VPC no cabeçalho e escolha os produtos <b>linha a linha</b> (busca por <b>nome parcial ou completo</b>, ou pelo código) — o botão <b>➕</b> inclui outro produto. A grade segue as colunas do <b>SFA</b>: <b>Qtd</b>, <b>% VPC ad.</b> e <b>Negociado</b> são editáveis na linha (o negociado começa igual ao sugerido e o <b>% Desc</b> é calculado). Cada linha mostra os descontos fiscais destacados em NF, o <b>total líquido da NF</b> e a <b>margem</b>; o resumo aparece nos cards abaixo.</div>
     <div class="barra" style="align-items:flex-end">
       <div class="busca" style="max-width:300px"><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Cliente</label>
         <input id="simCli" placeholder="Nome do cliente" style="width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)"></div>
@@ -147,14 +148,9 @@
       <div class="acao"><button class="btn" id="simXls">⬇ Baixar XLS</button>
         <button class="btn" id="simProp" style="background:var(--accent);color:#fff;border-color:var(--accent);margin-left:8px">📄 Gerar proposta (PDF)</button></div>
     </div>
-    <datalist id="skuList"></datalist>
     <div class="tbl-wrap" style="margin-top:12px">
-      <table style="min-width:1150px">
-        <thead><tr>
-          <th>#</th><th style="text-align:left">Produto</th><th>Qtd</th>
-          <th class="dest">Tabela</th><th>VPC</th><th>Frete</th><th>Sugerido</th>
-          <th>Desc. ICMS</th><th>Desc. PIS/COF</th><th class="dest">Total NF (un)</th><th>Total NF</th><th>MC %</th><th></th>
-        </tr></thead>
+      <table class="simgrade" style="min-width:2050px">
+        <thead><tr id="simHead"></tr></thead>
         <tbody id="simLinhas"></tbody>
       </table>
     </div>
@@ -162,7 +158,7 @@
     </div><!-- /modoCliente -->
 
     <div id="modoTabela" style="display:none">
-      <div class="aviso" style="margin-bottom:12px">Simulação <b>por tabela</b>: escolha a tabela Suframa, a UF de destino e o VPC (se houver) e clique em <b>Gerar simulação</b> — o painel lista <b>todos os itens da tabela</b> com o preço sugerido, os descontos fiscais destacados em NF, o <b>líquido</b> e a <b>margem</b>, no mesmo formato da simulação por cliente.</div>
+      <div class="aviso" style="margin-bottom:12px">Simulação <b>por tabela</b>: escolha a tabela Suframa, a UF de destino e o VPC (se houver) e clique em <b>Gerar simulação</b> — o painel lista <b>todos os itens da tabela</b> na mesma grade do SFA da simulação por cliente — <b>Qtd</b>, <b>% VPC ad.</b> e <b>Negociado</b> editáveis na linha, descontos fiscais destacados em NF, <b>total líquido da NF</b> e <b>margem</b>.</div>
       <div class="barra" style="align-items:flex-end">
         <div><label style="font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted)">Tabela</label><br>
           <select id="stTab" style="padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)">
@@ -181,12 +177,8 @@
       <div id="stVazio" style="color:var(--muted);padding:22px 4px">Escolha a tabela e a UF e clique em <b>Gerar simulação</b>.</div>
       <div id="stResultado" style="display:none">
         <div class="tbl-wrap" style="margin-top:12px">
-          <table style="min-width:1150px">
-            <thead><tr>
-              <th>#</th><th style="text-align:left">Produto</th><th>Qtd</th>
-              <th class="dest">Tabela</th><th>VPC</th><th>Frete</th><th>Sugerido</th>
-              <th>Desc. ICMS</th><th>Desc. PIS/COF</th><th class="dest">Total NF (un)</th><th>Total NF</th><th>MC %</th>
-            </tr></thead>
+          <table class="simgrade" style="min-width:1960px">
+            <thead><tr id="stHead"></tr></thead>
             <tbody id="stLinhas"></tbody>
           </table>
         </div>
@@ -905,139 +897,215 @@ document.getElementById('copiarA').onclick=async()=>{
   catch(e){alert('Não foi possível copiar.');}
 };
 // ---- SIMULADOR PREÇO LÍQUIDO (grade multi-item — único acessível ao GERENTE) ----
+/* v0.40 (05/11/2026, Silvio): grade no PADRÃO DO SFA nas duas visões (por cliente e por tabela) —
+   # · Produto · Descrição · Qtd · Estoque · Tabela · % VPC · % VPC ad. · VPC · VPC adic. · Frete · IPI ·
+   Sugerido · Negociado · % Desc · Desc. ICMS · Desc. PIS/COF · Total Líq. NF (un) · Total · Total NF · MC %.
+   Editáveis na linha: Produto (busca por nome parcial/total, várias palavras, ou código), Qtd, % VPC ad. e
+   Negociado (começa = sugerido). Mecânica do SFA: NEGOCIADO = Tabela × (1 − Desc) × (1 + VPC + VPC ad. + Frete);
+   VPC/frete em R$ sobre a base já descontada. Sem juros e sem comissão na tela (decisão Silvio).
+   Negociado = sugerido e VPC ad. = 0 → números idênticos à v0.33. MC % só na tela (nunca em PDF/Excel). */
 (function(){
-  const dl=document.getElementById('skuList');
-  SIM.forEach(s=>{const o=document.createElement('option'); o.value=s[1]+'  ['+s[0]+']'; dl.appendChild(o);});
+  const NOMES_TAB={'229':'Suframa IPI (229)','228':'Suframa ICMS (228)','227':'Suframa ICMS+PIS/COF (227)'};
+  const pct=(v,d)=>(v*100).toLocaleString('pt-BR',{maximumFractionDigits:(d==null?2:d)})+'%';
+  const norm=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase();
+  const numBR=v=>{ let s=String(v==null?'':v).trim().replace(/R\$|\s/g,''); if(!s) return NaN;
+    if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.'); return parseFloat(s); };
+  const porCod={}; SIM.forEach(s=>{ porCod[s[0]]=s; });
   const ufSel=document.getElementById('simUf');
   FRETE_UF.forEach(([uf,p])=>{const o=document.createElement('option'); o.value=uf; o.textContent=uf+' ('+(p*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%)'; ufSel.appendChild(o);});
   ufSel.value='AM';
-  function achaSku(txt){
-    if(!txt) return null;
-    const m=txt.match(/\[(\w+)\]\s*$/);
-    if(m) return SIM.find(s=>s[0]===m[1]);
-    const q=txt.trim().toLowerCase();
-    if(q.length<3) return null;
-    return SIM.find(s=>s[1].toLowerCase().includes(q)||s[0].includes(q.toUpperCase()));
-  }
   function paramsAtuais(){
     const tab=document.getElementById('simTab').value;
-    return { tab, nomeTab:{'229':'Suframa IPI (229)','228':'Suframa ICMS (228)','227':'Suframa ICMS+PIS/COF (227)'}[tab],
-      uf:document.getElementById('simUf').value,
-      fre:(FRETE_UF.find(x=>x[0]===document.getElementById('simUf').value)||['',0])[1],
-      vpc:(parseFloat(String(document.getElementById('simVpc').value).replace(',','.'))||0)/100 };
+    return { tab, nomeTab:NOMES_TAB[tab], uf:ufSel.value,
+      fre:(FRETE_UF.find(x=>x[0]===ufSel.value)||['',0])[1],
+      vpc:(numBR(document.getElementById('simVpc').value)||0)/100 };
   }
-  function calcItem(s, pp, qtd){
-    const [cod,desc,lin,p078,custo,ipi]=s;
+  function calcItem(s, pp, qtd, vad, neg){
+    const [cod,desc,lin,p078,custo,ipi,est]=s;
+    vad=vad||0;
     const base = pp.tab==='229' ? p078 : p078*(1+P.acr);
-    const vpcR=base*pp.vpc, freR=base*pp.fre, J=base+vpcR+freR;
-    /* 09/10/2026 (Silvio, com Alexandro e Samuel): ISENÇÃO DE IPI nas 3 tabelas Suframa (227/228/229) —
-       não há IPI em nenhum cenário. Total da NF = sugerido − descontos destacados (ICMS; PIS/COF na 227),
-       conferido ao centavo com as NFs-modelo 262564 (227), 276076 (228) e 280552 (229). */
-    const ipiCob = 0;
-    const dIcms=(pp.tab!=='229')?J*0.12:0, dPis=(pp.tab==='227')?(J-dIcms)*0.0925:0;
-    /* v0.33 (10/10/2026, Silvio): IPI fora da tela, do PDF e do Excel do simulador — sem coluna IPI e sem
-       "Líquido s/ IPI" (igual ao Total NF un.); "Sugerido s/ IPI" virou "Sugerido". */
-    const liqSI=J-dIcms-dPis, liq=liqSI+ipiCob;
-    const rl=J*fatorRL(pp.tab);   // régua única: 229 = venda Brasil (15%); 227/228 = líquido da NF − imposto devido
-    const mc=rl-0.06*J-vpcR-freR-royR10(cod)*J-custo*1.01;
-    return {cod,desc,qtd,base,vpcR,freR,J,ipi,ipiCob,dIcms,dPis,liqSI,liq,mc,rl,mcp:mc/rl};
+    const J = base*(1+pp.vpc+vad+pp.fre);                       // sugerido
+    const negEdit = !!(neg && neg>0), N = negEdit ? neg : J;      // negociado
+    const k = J ? N/J : 1;                                        // desconto comercial sobre a tabela
+    const vpcR=base*k*pp.vpc, vadR=base*k*vad, freR=base*k*pp.fre;
+    /* 09/10/2026 (Silvio, com Alexandro e Samuel): ISENÇÃO DE IPI nas 3 tabelas Suframa (227/228/229).
+       Total da NF = negociado − descontos destacados (ICMS; PIS/COF na 227) — NFs-modelo 262564/276076/280552. */
+    const dIcms=(pp.tab!=='229')?N*0.12:0, dPis=(pp.tab==='227')?(N-dIcms)*0.0925:0;
+    const liq=N-dIcms-dPis;
+    const rl=N*fatorRL(pp.tab);   // régua única: 229 = venda Brasil (15%); 227/228 = líquido da NF − imposto devido
+    const mc=rl-0.06*N-vpcR-vadR-freR-royR10(cod)*N-custo*1.01;
+    return {cod,desc,qtd,est,base,pvpc:pp.vpc,pvad:vad,pfre:pp.fre,vpcR,vadR,freR,J,N,negEdit,pdesc:J?1-N/J:0,
+            ipi,ipiCob:0,dIcms,dPis,liqSI:liq,liq,mc,rl,mcp:mc/rl};
   }
   function card(k,v,destaque,cor){
     return `<div style="flex:1;min-width:118px;text-align:center;background:${destaque?'var(--accent)':(cor||'var(--panel)')};border:1px solid ${destaque?'var(--accent)':(cor||'var(--line)')};border-radius:8px;padding:10px 8px">
       <div style="font:600 9.5px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:${destaque?'#fff':'var(--muted)'}">${k}</div>
       <div class="num" style="font:700 ${destaque?'19px':'16px'} var(--sans);margin-top:4px;color:${destaque?'#fff':'var(--ink)'};white-space:nowrap">${v}</div></div>`;
   }
-  // ---- grade: produto escolhido NA LINHA; ➕ inclui outra linha (pedido Silvio 17/09) ----
-  const inSt='box-sizing:border-box;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font:13px var(--body);background:var(--panel);color:var(--ink)';
-  const CELLS=['cTab','cVpc','cFre','cSug','cIcms','cPis','cLiq','cTot','cMc'];
-  let LINHAS=[{txt:'',qtd:1}];
+  function somaTot(rs){
+    return rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.neg+=r.N*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
+      a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
+      {qtd:0,sug:0,neg:0,icms:0,pis:0,liq:0,mc:0,rl:0});
+  }
+  function cardsHTML(rs){
+    const tot=somaTot(rs), mcpT=tot.mc/tot.rl;
+    const corMC = mcpT>=0.30 ? '#EAF3EC' : (mcpT>=0 ? '#FDF3E7' : '#FDE8E8');
+    return card('Itens', rs.length) + card('Qtd total', tot.qtd.toLocaleString('pt-BR')) +
+      card('Sugerido', fmt(tot.sug)) + card('Total negociado', fmt(tot.neg)) +
+      card('Desc. ICMS', tot.icms?'−'+fmt(tot.icms):'—') + card('Desc. PIS/COF', tot.pis?'−'+fmt(tot.pis):'—') +
+      card('TOTAL DA NF', fmt(tot.liq), true) +
+      card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
+  }
+
+  // ---- colunas (mesma grade nas 2 visões) ----
+  const COLS=[
+    {k:'n',t:'#'},{k:'cod',t:'Produto',left:1},{k:'desc',t:'Descrição',left:1},{k:'qtd',t:'Qtd'},{k:'est',t:'Estoque'},
+    {k:'tab',t:'Tabela',dest:1},{k:'pvpc',t:'% VPC'},{k:'pvad',t:'% VPC ad.'},{k:'vpc',t:'VPC'},{k:'vad',t:'VPC adic.'},
+    {k:'fre',t:'Frete'},{k:'ipi',t:'IPI'},{k:'sug',t:'Sugerido'},{k:'neg',t:'Negociado'},{k:'pdesc',t:'% Desc'},
+    {k:'icms',t:'Desc. ICMS'},{k:'pis',t:'Desc. PIS/COF'},{k:'liq',t:'Total Líq. NF (un)',dest:1},
+    {k:'tot',t:'Total'},{k:'totnf',t:'Total NF'},{k:'mc',t:'MC %'}];
+  const SAIDA=['est','tab','pvpc','vpc','vad','fre','ipi','sug','pdesc','icms','pis','liq','tot','totnf','mc'];
+  function cabecalho(id, acoes){
+    document.getElementById(id).innerHTML = COLS.map(c=>`<th class="${c.dest?'dest':''}"${c.left?' style="text-align:left"':''}>${c.t}</th>`).join('') + (acoes?'<th></th>':'');
+  }
+  cabecalho('simHead', true); cabecalho('stHead', false);
+  const inSt='box-sizing:border-box;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:13px var(--body);background:var(--panel);color:var(--ink);text-align:right';
+  function celulasHTML(prodCell, descTxt){
+    return COLS.slice(1).map(c=>{
+      if(c.k==='cod') return `<td style="text-align:left">${prodCell}</td>`;
+      if(c.k==='desc') return `<td class="c-desc" style="text-align:left;max-width:230px;overflow:hidden;text-overflow:ellipsis" title="${descTxt||''}">${descTxt||'—'}</td>`;
+      if(c.k==='qtd') return `<td><input class="inQtd" type="number" min="1" style="width:64px;${inSt}"></td>`;
+      if(c.k==='pvad') return `<td><input class="inVad" type="text" inputmode="decimal" placeholder="0" style="width:62px;${inSt}"></td>`;
+      if(c.k==='neg') return `<td><input class="inNeg" type="text" inputmode="decimal" style="width:98px;${inSt};font-weight:700"></td>`;
+      return `<td class="num c-${c.k}${c.dest?' dest':''}">—</td>`;
+    }).join('');
+  }
+  /* pinta UMA linha (sem reconstruir — o foco do campo em digitação não se perde) */
+  function pinta(tr, r){
+    const set=(k,v)=>{ const el=tr.querySelector('.c-'+k); if(el) el.textContent=v; };
+    const estEl=tr.querySelector('.c-est');
+    if(!r){ SAIDA.forEach(k=>set(k,'—')); tr.querySelector('.c-mc').style.background='';
+      const ng=tr.querySelector('.inNeg'); if(ng && document.activeElement!==ng) ng.value=''; return; }
+    if(r.est==null) estEl.textContent='—';
+    else estEl.innerHTML = r.est>0 ? `<span style="color:#1E7A3A;font-weight:700" title="${r.est.toLocaleString('pt-BR')} un. disponíveis no depósito 40">Disponível</span>`
+                                   : `<span style="color:#B42318;font-weight:700" title="saldo disponível zero no depósito 40">Sem estoque</span>`;
+    set('tab',fmt(r.base)); set('pvpc',pct(r.pvpc)); set('vpc','+ '+fmt(r.vpcR)); set('vad','+ '+fmt(r.vadR));
+    set('fre','+ '+fmt(r.freR)+' ('+pct(r.pfre)+')'); set('ipi','Isento'); set('sug',fmt(r.J));
+    set('pdesc', r.negEdit ? pct(r.pdesc) : '0%');
+    tr.querySelector('.c-pdesc').style.background = (r.negEdit && Math.abs(r.pdesc)>=0.00005) ? '#FFF4D6' : '';
+    set('icms',r.dIcms?'−'+fmt(r.dIcms):'—'); set('pis',r.dPis?'−'+fmt(r.dPis):'—');
+    set('liq',fmt(r.liq)); set('tot',fmt(r.N*r.qtd)); set('totnf',fmt(r.liq*r.qtd));
+    const mcEl=tr.querySelector('.c-mc');
+    mcEl.textContent=(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
+    mcEl.style.background = r.mcp>=0.30?'#EAF3EC':(r.mcp>=0?'#FDF3E7':'#FDE8E8');
+    const ng=tr.querySelector('.inNeg'); if(ng && document.activeElement!==ng) ng.value=fmt(r.N);
+  }
+  function ligaEdicao(tr, st, aoMudar){
+    const q=tr.querySelector('.inQtd'), v=tr.querySelector('.inVad'), n=tr.querySelector('.inNeg');
+    q.value=st.qtd; v.value=st.vad?String(+(st.vad*100).toFixed(4)).replace('.',','):''; n.value=st.neg?fmt(st.neg):'';
+    q.addEventListener('input',()=>{ st.qtd=Math.max(1,parseInt(q.value)||1); aoMudar(); });
+    v.addEventListener('input',()=>{ const x=numBR(v.value); st.vad=(x>0?x:0)/100; aoMudar(); });
+    n.addEventListener('input',()=>{ const x=numBR(n.value); st.neg=(x>0?x:null); aoMudar(); });
+    n.addEventListener('focus',()=>n.select());
+    n.addEventListener('blur',aoMudar);
+  }
+
+  // ---- busca do produto: nome parcial ou completo (várias palavras, qualquer ordem) ou código ----
+  const drop=document.createElement('div');
+  drop.style.cssText='display:none;position:fixed;z-index:60;background:var(--panel);border:1px solid var(--line);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.14);max-height:300px;overflow-y:auto;min-width:420px';
+  document.body.appendChild(drop);
+  let dropAlvo=null, dropSel=0, dropLista=[];
+  function busca(txt){
+    const ws=norm(txt).split(/\s+/).filter(Boolean);
+    if(!ws.length) return [];
+    return SIM.filter(s=>{ const h=norm(s[0]+' '+s[1]); return ws.every(w=>h.includes(w)); }).slice(0,20);
+  }
+  function fechaDrop(){ drop.style.display='none'; dropAlvo=null; }
+  function abreDrop(inp, aoEscolher){
+    dropLista=busca(inp.value); dropSel=0; dropAlvo={inp,aoEscolher};
+    if(!dropLista.length){ drop.innerHTML=`<div style="padding:8px 12px;font:13px var(--body);color:var(--muted)">${inp.value.trim()?'Nenhum produto com esse nome.':'Digite parte do nome ou o código.'}</div>`; }
+    else drop.innerHTML=dropLista.map((s,i)=>`<div data-i="${i}" style="padding:7px 12px;cursor:pointer;font:13px var(--body);border-bottom:1px solid var(--line);${i===0?'background:var(--accent-soft)':''}"><span style="color:var(--muted);font:500 11px var(--sans)">${s[0]}</span>&nbsp; ${s[1]}</div>`).join('');
+    const rc=inp.getBoundingClientRect();
+    drop.style.left=Math.round(rc.left)+'px'; drop.style.top=Math.round(rc.bottom+3)+'px'; drop.style.display='block';
+  }
+  function marcaDrop(){ [...drop.children].forEach((d,i)=>d.style.background=(i===dropSel?'var(--accent-soft)':'')); const el=drop.children[dropSel]; if(el&&el.scrollIntoView) el.scrollIntoView({block:'nearest'}); }
+  drop.addEventListener('mousedown',e=>{ const d=e.target.closest('[data-i]'); if(!d||!dropAlvo) return; e.preventDefault();
+    const a=dropAlvo; fechaDrop(); a.aoEscolher(dropLista[+d.dataset.i]); });
+  window.addEventListener('scroll',()=>{ if(dropAlvo) fechaDrop(); },true);
+
+  // ================= VISÃO 1: SIMULAÇÃO POR CLIENTE (produto escolhido NA LINHA; ➕ inclui outra) =================
+  let LINHAS=[{cod:null,txt:'',qtd:1,vad:0,neg:null}];
   function montaGrade(foco){
     const tb=document.getElementById('simLinhas'); tb.innerHTML='';
     LINHAS.forEach((ln,i)=>{
       const tr=document.createElement('tr'); tr.style.cursor='default';
-      tr.innerHTML=`<td class="num">${String(i+1).padStart(2,'0')}</td>
-        <td style="text-align:left;min-width:240px"><input class="inSku" list="skuList" placeholder="Modelo ou código…" style="width:100%;${inSt}"></td>
-        <td><input class="inQtd" type="number" min="1" style="width:72px;text-align:right;${inSt}"></td>
-        ${CELLS.map(c=>`<td class="num ${c}">—</td>`).join('')}
-        <td style="white-space:nowrap;text-align:center"><button class="btn bAdd" title="Incluir outro produto" style="padding:3px 10px;font-weight:700">➕</button> <button class="btn bDel" title="Remover linha" style="padding:3px 10px">✕</button></td>`;
-      const inSku=tr.querySelector('.inSku'), inQtd=tr.querySelector('.inQtd');
-      inSku.value=ln.txt; inQtd.value=ln.qtd;
-      inSku.addEventListener('input',()=>{ln.txt=inSku.value;recalc();});
-      inQtd.addEventListener('input',()=>{ln.qtd=Math.max(1,parseInt(inQtd.value)||1);recalc();});
-      tr.querySelector('.bAdd').onclick=()=>{ LINHAS.splice(i+1,0,{txt:'',qtd:1}); montaGrade(i+1); };
-      tr.querySelector('.bDel').onclick=()=>{ if(LINHAS.length>1) LINHAS.splice(i,1); else LINHAS[0]={txt:'',qtd:1}; montaGrade(); };
+      const s=ln.cod?porCod[ln.cod]:null;
+      tr.innerHTML=`<td class="num">${String(i+1).padStart(2,'0')}</td>`+
+        celulasHTML(`<input class="inSku" placeholder="Nome ou código…" autocomplete="off" style="width:150px;${inSt};text-align:left">`, s?s[1]:'')+
+        `<td style="white-space:nowrap;text-align:center"><button class="btn bAdd" title="Incluir outro produto" style="padding:3px 10px;font-weight:700">➕</button> <button class="btn bDel" title="Remover linha" style="padding:3px 10px">✕</button></td>`;
+      const inSku=tr.querySelector('.inSku');
+      inSku.value=ln.cod||ln.txt;
+      const escolhe=sx=>{ ln.cod=sx[0]; ln.txt=sx[0]; inSku.value=sx[0]; const d=tr.querySelector('.c-desc'); d.textContent=sx[1]; d.title=sx[1];
+        recalc(); const q=tr.querySelector('.inQtd'); if(q){ q.focus(); q.select(); } };
+      inSku.addEventListener('input',()=>{ ln.txt=inSku.value; const ex=porCod[inSku.value.trim().toUpperCase()];
+        ln.cod=ex?ex[0]:null; const d=tr.querySelector('.c-desc'); d.textContent=ex?ex[1]:'—'; d.title=ex?ex[1]:'';
+        abreDrop(inSku, escolhe); recalc(); });
+      inSku.addEventListener('focus',()=>{ if(!ln.cod) abreDrop(inSku, escolhe); });
+      inSku.addEventListener('keydown',e=>{
+        if(!dropAlvo||dropAlvo.inp!==inSku) return;
+        if(e.key==='ArrowDown'){ e.preventDefault(); dropSel=Math.min(dropSel+1,dropLista.length-1); marcaDrop(); }
+        else if(e.key==='ArrowUp'){ e.preventDefault(); dropSel=Math.max(dropSel-1,0); marcaDrop(); }
+        else if(e.key==='Enter'){ e.preventDefault(); if(dropLista[dropSel]){ fechaDrop(); escolhe(dropLista[dropSel]); } }
+        else if(e.key==='Escape'){ fechaDrop(); }
+      });
+      inSku.addEventListener('blur',()=>setTimeout(()=>{ if(dropAlvo&&dropAlvo.inp===inSku){
+        if(!ln.cod && dropLista.length===1){ const u=dropLista[0]; fechaDrop(); escolhe(u); } else fechaDrop(); } },150));
+      ligaEdicao(tr, ln, recalc);
+      tr.querySelector('.bAdd').onclick=()=>{ LINHAS.splice(i+1,0,{cod:null,txt:'',qtd:1,vad:0,neg:null}); montaGrade(i+1); };
+      tr.querySelector('.bDel').onclick=()=>{ if(LINHAS.length>1) LINHAS.splice(i,1); else LINHAS[0]={cod:null,txt:'',qtd:1,vad:0,neg:null}; montaGrade(); };
       tb.appendChild(tr);
     });
     if(foco!==undefined){ const el=tb.querySelectorAll('.inSku')[foco]; if(el) el.focus(); }
     recalc();
   }
   function itensValidos(){
-    const out=[]; LINHAS.forEach(ln=>{ const s=achaSku(ln.txt); if(s) out.push({s, qtd:ln.qtd}); }); return out;
+    const out=[]; LINHAS.forEach(ln=>{ const s=ln.cod?porCod[ln.cod]:null; if(s) out.push({s, qtd:ln.qtd, vad:ln.vad, neg:ln.neg}); }); return out;
   }
   function recalc(){
     const pp=paramsAtuais();
     const trs=[...document.getElementById('simLinhas').children];
     const rs=[];
     trs.forEach((tr,i)=>{
-      const s=achaSku(LINHAS[i].txt);
-      const set=(c,v)=>{ tr.querySelector('.'+c).textContent=v; };
-      const mcEl=tr.querySelector('.cMc');
-      if(!s){ CELLS.forEach(c=>set(c,'—')); mcEl.style.background=''; return; }
-      const r=calcItem(s, pp, LINHAS[i].qtd); rs.push(r);
-      set('cTab',fmt(r.base)); set('cVpc',r.vpcR?fmt(r.vpcR):'—'); set('cFre',fmt(r.freR));
-      set('cSug',fmt(r.J));
-      set('cIcms',r.dIcms?'−'+fmt(r.dIcms):'—'); set('cPis',r.dPis?'−'+fmt(r.dPis):'—');
-      set('cLiq',fmt(r.liq)); tr.querySelector('.cLiq').style.fontWeight='700';
-      set('cTot',fmt(r.liq*r.qtd));
-      mcEl.textContent=(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
-      mcEl.style.background = r.mcp>=0.30?'#EAF3EC':(r.mcp>=0?'#FDF3E7':'#FDE8E8');
+      const ln=LINHAS[i], s=ln&&ln.cod?porCod[ln.cod]:null;
+      if(!s){ pinta(tr,null); return; }
+      const r=calcItem(s, pp, ln.qtd, ln.vad, ln.neg); rs.push(r); pinta(tr,r);
     });
     const box=document.getElementById('simCards');
-    if(!rs.length){ box.innerHTML='<div style="color:var(--muted);font-size:13px;padding:4px 2px">Escolha ao menos um produto na grade para ver o resumo da proposta.</div>'; return; }
-    const tot=rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
-      a.ipi+=r.ipiCob*r.qtd; a.liqSI+=r.liqSI*r.qtd; a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
-      {qtd:0,sug:0,icms:0,pis:0,ipi:0,liqSI:0,liq:0,mc:0,rl:0});
-    const mcpT=tot.mc/tot.rl;
-    const corMC = mcpT>=0.30 ? '#EAF3EC' : (mcpT>=0 ? '#FDF3E7' : '#FDE8E8');
-    box.innerHTML =
-      card('Itens', rs.length) +
-      card('Qtd total', tot.qtd.toLocaleString('pt-BR')) +
-      card('Sugerido', fmt(tot.sug)) +
-      card('Desc. ICMS', tot.icms?'−'+fmt(tot.icms):'—') +
-      card('Desc. PIS/COF', tot.pis?'−'+fmt(tot.pis):'—') +
-      card('TOTAL DA NF', fmt(tot.liq), true) +
-      card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
+    box.innerHTML = rs.length ? cardsHTML(rs)
+      : '<div style="color:var(--muted);font-size:13px;padding:4px 2px">Escolha ao menos um produto na grade para ver o resumo da proposta.</div>';
   }
   montaGrade();
 
-  // ================= VISAO 2: SIMULACAO POR TABELA (Silvio 18/09) =================
-  // Mesma grade de produtos da visao por cliente; muda so a ENTRADA (tabela+UF+VPC) e o
-  // universo (todos os itens da tabela, em vez de escolha linha a linha).
+  // ================= VISÃO 2: SIMULAÇÃO POR TABELA (Silvio 18/09) =================
+  // Mesma grade da visão por cliente; muda só a ENTRADA (tabela+UF+VPC) e o universo (todos os itens da tabela).
   const stUf=document.getElementById('stUf');
   FRETE_UF.forEach(([uf,p])=>{const o=document.createElement('option'); o.value=uf;
     o.textContent=uf+' ('+(p*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%)'; stUf.appendChild(o);});
   stUf.value='AM';
-  let ST_QTD={};                     // qtd por código (default 1), preservada no regerar
+  const ST={};                       // por código: {qtd, vad, neg} — preservado ao regerar/trocar tabela
+  const stEst=cod=>(ST[cod]=ST[cod]||{qtd:1,vad:0,neg:null});
   function paramsTabela(){
     const tab=document.getElementById('stTab').value;
-    return { tab, nomeTab:{'229':'Suframa IPI (229)','228':'Suframa ICMS (228)','227':'Suframa ICMS+PIS/COF (227)'}[tab],
-      uf:stUf.value, fre:(FRETE_UF.find(x=>x[0]===stUf.value)||['',0])[1],
-      vpc:(parseFloat(String(document.getElementById('stVpc').value).replace(',','.'))||0)/100 };
+    return { tab, nomeTab:NOMES_TAB[tab], uf:stUf.value, fre:(FRETE_UF.find(x=>x[0]===stUf.value)||['',0])[1],
+      vpc:(numBR(document.getElementById('stVpc').value)||0)/100 };
   }
-  const ST_CELLS=['cTab','cVpc','cFre','cSug','cIcms','cPis','cLiq','cTot','cMc'];
-  /* monta as linhas UMA vez; o recalculo so troca os valores — se reconstruir a grade a cada
-     tecla, o campo de qtd perde o foco e o usuario nao consegue digitar "10" (achado no teste) */
+  /* monta as linhas UMA vez; o recálculo só troca os valores (o campo em digitação não perde o foco) */
   function stMonta(){
     const tb=document.getElementById('stLinhas'); tb.innerHTML='';
     SIM.forEach((s,i)=>{
-      const q=Math.max(1, parseInt(ST_QTD[s[0]])||1);
       const tr=document.createElement('tr'); tr.style.cursor='default'; tr.dataset.cod=s[0];
-      tr.innerHTML=`<td class="num">${String(i+1).padStart(2,'0')}</td>`+
-        `<td style="text-align:left"><span class="mod">${s[1]}</span><br><span class="seg">${s[0]}</span></td>`+
-        `<td><input class="stQ" type="number" min="1" value="${q}" style="width:68px;text-align:right;box-sizing:border-box;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font:13px var(--body);background:var(--panel);color:var(--ink)"></td>`+
-        ST_CELLS.map(c=>`<td class="num ${c}${c==='cTab'||c==='cLiq'?' dest':''}">—</td>`).join('');
-      tr.querySelector('.stQ').addEventListener('input',e=>{
-        ST_QTD[s[0]]=Math.max(1, parseInt(e.target.value)||1); stAtualiza(); });
+      tr.innerHTML=`<td class="num">${String(i+1).padStart(2,'0')}</td>`+celulasHTML(`<span class="mod">${s[0]}</span>`, s[1]);
+      ligaEdicao(tr, stEst(s[0]), stAtualiza);
       tb.appendChild(tr);
     });
   }
@@ -1045,30 +1113,8 @@ document.getElementById('copiarA').onclick=async()=>{
     const pp=paramsTabela();
     const trs=[...document.getElementById('stLinhas').children];
     const rs=[];
-    trs.forEach((tr,i)=>{
-      const s=SIM[i], q=Math.max(1, parseInt(ST_QTD[s[0]])||1);
-      const r=calcItem(s, pp, q); rs.push(r);
-      const set=(c,v)=>{ tr.querySelector('.'+c).textContent=v; };
-      set('cTab',fmt(r.base)); set('cVpc',r.vpcR?fmt(r.vpcR):'—'); set('cFre',fmt(r.freR));
-      set('cSug',fmt(r.J));
-      set('cIcms',r.dIcms?'−'+fmt(r.dIcms):'—'); set('cPis',r.dPis?'−'+fmt(r.dPis):'—');
-      set('cLiq',fmt(r.liq)); tr.querySelector('.cLiq').style.fontWeight='700';
-      set('cTot',fmt(r.liq*q));
-      const mcEl=tr.querySelector('.cMc');
-      mcEl.textContent=(r.mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%';
-      mcEl.style.background = r.mcp>=0.30?'#EAF3EC':(r.mcp>=0?'#FDF3E7':'#FDE8E8');
-    });
-    const tot=rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
-      a.ipi+=r.ipiCob*r.qtd; a.liqSI+=r.liqSI*r.qtd; a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
-      {qtd:0,sug:0,icms:0,pis:0,ipi:0,liqSI:0,liq:0,mc:0,rl:0});
-    const mcpT=tot.mc/tot.rl;
-    const corMC = mcpT>=0.30?'#EAF3EC':(mcpT>=0?'#FDF3E7':'#FDE8E8');
-    document.getElementById('stCards').innerHTML =
-      card('Itens', rs.length) + card('Qtd total', tot.qtd.toLocaleString('pt-BR')) +
-      card('Sugerido', fmt(tot.sug)) +
-      card('Desc. ICMS', tot.icms?'−'+fmt(tot.icms):'—') + card('Desc. PIS/COF', tot.pis?'−'+fmt(tot.pis):'—') +
-      card('TOTAL DA NF', fmt(tot.liq), true) +
-      card('Margem projetada', (mcpT*100).toLocaleString('pt-BR',{maximumFractionDigits:1})+'%', false, corMC);
+    trs.forEach((tr,i)=>{ const s=SIM[i], e=stEst(s[0]); const r=calcItem(s, pp, e.qtd, e.vad, e.neg); rs.push(r); pinta(tr,r); });
+    document.getElementById('stCards').innerHTML = cardsHTML(rs);
   }
   document.getElementById('stGerar').onclick=()=>{
     document.getElementById('stVazio').style.display='none';
@@ -1078,40 +1124,39 @@ document.getElementById('copiarA').onclick=async()=>{
     document.getElementById('stXls').disabled=false;
     document.getElementById('stProp').disabled=false;
   };
-  /* trocar tabela/UF/VPC depois de gerado recalcula na hora (nao precisa clicar de novo) */
-  ['stTab','stUf','stVpc'].forEach(id=>document.getElementById(id).addEventListener('change',()=>{
+  /* trocar tabela/UF/VPC depois de gerado recalcula na hora (não precisa clicar de novo) */
+  ['stTab','stUf','stVpc'].forEach(id=>['input','change'].forEach(ev=>document.getElementById(id).addEventListener(ev,()=>{
     if(document.getElementById('stResultado').style.display!=='none') stAtualiza();
-  }));
+  })));
   /* XLS e PDF da simulação POR TABELA — mesmos geradores/padrão da visão por cliente */
-  function stItens(){ return SIM.map(s=>({s, qtd:Math.max(1, parseInt(ST_QTD[s[0]])||1)})); }
+  function stItens(){ return SIM.map(s=>{ const e=stEst(s[0]); return {s, qtd:e.qtd, vad:e.vad, neg:e.neg}; }); }
   document.getElementById('stXls').onclick=function(){
     const pp=paramsTabela();
     baixarXLS('AMVOX_SIMULACAO_TABELA_'+pp.tab+'_'+pp.uf+'_'+hojeArq()+'.xlsx', pp.nomeTab,
-      stItens().map(it=>linhaXLS(calcItem(it.s, pp, it.qtd))), COLS_SIM,
+      stItens().map(it=>linhaXLS(calcItem(it.s, pp, it.qtd, it.vad, it.neg))), COLS_SIM,
       'Simulação por tabela · UF '+pp.uf+' · VPC '+(pp.vpc*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%', pp.tab);
     okBotao('stXls','Baixado ✓');
   };
   document.getElementById('stProp').onclick=function(){
     gerarPropostaPDF(stItens(), paramsTabela(), 'SIMULAÇÃO POR TABELA');
   };
-  /* alternador das 2 visoes */
+  /* alternador das 2 visões */
   document.querySelectorAll('#simModos .chip').forEach(b=>b.onclick=()=>{
     document.querySelectorAll('#simModos .chip').forEach(x=>x.classList.toggle('on', x===b));
     const porTabela = b.dataset.modo==='tabela';
     document.getElementById('modoCliente').style.display = porTabela?'none':'block';
     document.getElementById('modoTabela').style.display  = porTabela?'block':'none';
+    fechaDrop();
   });
   ['simTab','simUf','simVpc'].forEach(id=>{
     const el=document.getElementById(id);
     el.addEventListener('input',recalc); el.addEventListener('change',recalc);
   });
 
-  // ---- PROPOSTA PDF no layout SFA (grade completa; foco Suframa) ----
+  // ---- PROPOSTA PDF no layout SFA (grade do simulador, sem estoque e SEM margem) ----
   function gerarPropostaPDF(itens, pp, cli){
-    const rs = itens.map(it=>calcItem(it.s, pp, it.qtd));
-    const tot = rs.reduce((a,r)=>{ a.qtd+=r.qtd; a.sug+=r.J*r.qtd; a.icms+=r.dIcms*r.qtd; a.pis+=r.dPis*r.qtd;
-      a.ipi+=r.ipiCob*r.qtd; a.liqSI+=r.liqSI*r.qtd; a.liq+=r.liq*r.qtd; a.mc+=r.mc*r.qtd; a.rl+=r.rl*r.qtd; return a; },
-      {qtd:0,sug:0,icms:0,pis:0,ipi:0,liqSI:0,liq:0,mc:0,rl:0});
+    const rs = itens.map(it=>calcItem(it.s, pp, it.qtd, it.vad, it.neg));
+    const tot = somaTot(rs);
     const ag=new Date(); const p2=n=>String(n).padStart(2,'0');
     const num='SIM-'+ag.getFullYear()+p2(ag.getMonth()+1)+p2(ag.getDate())+'-'+p2(ag.getHours())+p2(ag.getMinutes());
     const dt=p2(ag.getDate())+'/'+p2(ag.getMonth()+1)+'/'+ag.getFullYear();
@@ -1120,12 +1165,14 @@ document.getElementById('copiarA').onclick=async()=>{
     const pcf=v=>(v*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%';
     let linhas='';
     rs.forEach((r,i)=>{
-      linhas+=`<tr><td class=c>${String(i+1).padStart(2,'0')}</td><td class=mono>${r.cod}</td><td>${r.desc}</td><td class=c>PC</td><td class=r>${r.qtd}</td>`+
-        `<td class="r tab">R$ ${brf(r.base)}</td><td class="r add">+R$ ${brf(r.vpcR)}</td><td class="r add">+R$ ${brf(r.freR)}</td>`+
-        `<td class=r>R$ ${brf(r.J)}</td>`+
+      linhas+=`<tr><td class=c>${String(i+1).padStart(2,'0')}</td><td class=mono>${r.cod}</td><td class=dsc>${r.desc}</td><td class=r>${r.qtd}</td>`+
+        `<td class="r tab">R$ ${brf(r.base)}</td><td class=r>${pcf(r.pvpc)}</td><td class=r>${pcf(r.pvad)}</td>`+
+        `<td class="r add">+R$ ${brf(r.vpcR)}</td><td class="r add">+R$ ${brf(r.vadR)}</td><td class="r add">+R$ ${brf(r.freR)} (${pcf(r.pfre)})</td>`+
+        `<td class=c>Isento</td><td class=r>R$ ${brf(r.J)}</td><td class="r neg">R$ ${brf(r.N)}</td><td class=r>${r.negEdit?pcf(r.pdesc):'0%'}</td>`+
         `<td class="r sufc">${r.dIcms?'−R$ '+brf(r.dIcms):'—'}</td><td class="r sufc">${r.dPis?'−R$ '+brf(r.dPis):'—'}</td>`+
-        `<td class="r neg">R$ ${brf(r.liq)}</td><td class=r><b>R$ ${brf(r.liq*r.qtd)}</b></td></tr>`;
+        `<td class="r neg">R$ ${brf(r.liq)}</td><td class=r>R$ ${brf(r.N*r.qtd)}</td><td class=r><b>R$ ${brf(r.liq*r.qtd)}</b></td></tr>`;
     });
+    const descCom=tot.sug-tot.neg;
     const html=`<!doctype html><html><head><meta charset="utf-8"><title>${num}</title><style>
 *{box-sizing:border-box} body{margin:0;font:10px/1.35 "Helvetica Neue",Arial,sans-serif;color:#1a1a1a}
 .page{padding:14px 16px}
@@ -1140,14 +1187,15 @@ document.getElementById('copiarA').onclick=async()=>{
 .f span{color:#777}.f b{text-align:right;font-weight:700}.st{color:#D71920}
 .sec{font-size:10px;font-weight:800;text-transform:uppercase;margin:6px 0 4px}
 table{width:100%;border-collapse:collapse}
-.itens th{background:#2b2b2b;color:#fff;font-size:7.6px;font-weight:700;padding:4px 3px;text-align:center;text-transform:uppercase}
+.itens th{background:#2b2b2b;color:#fff;font-size:6.8px;font-weight:700;padding:4px 2px;text-align:center;text-transform:uppercase}
 .itens th.thtab{background:#0f3d24}.itens th.thsuf{background:#7a1418}
-.itens td{border-bottom:1px solid #ececec;padding:4px 3px;font-size:8.4px}
+.itens td{border-bottom:1px solid #ececec;padding:3px 2px;font-size:7.4px}
 .itens tr:nth-child(even) td{background:#fafafa}
 .c{text-align:center}.r{text-align:right;white-space:nowrap}.add{color:#c0392b}.neg{font-weight:800}
+.dsc{max-width:150px}
 .tab{font-weight:800;background:#eef7f1!important;color:#0f3d24}
 .sufc{background:#fdf3f4!important;color:#7a1418;font-weight:700}
-.mono{font-family:Menlo,monospace;font-size:8px}
+.mono{font-family:Menlo,monospace;font-size:7px}
 .liqbox{display:flex;background:#f2f8f4;border:1px solid #cfe6d8;border-radius:3px;margin-top:8px;padding:6px 4px}
 .liqbox>div{flex:1;text-align:center;border-right:1px solid #e2eee7}
 .liqbox>div:last-child{border-right:none}
@@ -1155,11 +1203,6 @@ table{width:100%;border-collapse:collapse}
 .liqbox b{font-size:9.5px}.liqbox .tot{flex:1.7;background:#eaf5ee;border-radius:2px}.liqbox .tot b{font-size:12px;font-weight:800}
 .cols{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px}
 .tt{border:1px solid #d8d8d8;border-radius:3px;padding:7px 8px}
-.marg th{background:#f0f0f0;font-size:7.6px;text-transform:uppercase;padding:3px;color:#444}
-.marg td{border-bottom:1px solid #eee;padding:3px;font-size:8.4px}
-.marg .tr td{background:#f7f7f7;border-top:1.5px solid #ccc}
-.tag{display:inline-block;padding:1px 6px;border-radius:8px;font-size:7.4px;font-weight:800}
-.tag.ok{background:#C6EACE;color:#14532d}.tag.warn{background:#FFEB9C;color:#7a5b00}.tag.bad{background:#FFC7CE;color:#8b1a1a}
 .aviso{border:1.5px solid #D71920;background:#fdf3f4;border-radius:3px;padding:7px 9px;margin-top:9px;font-size:8.8px;line-height:1.45}
 .rod{text-align:center;font-size:7.2px;color:#999;margin-top:8px;border-top:1px solid #eee;padding-top:5px}
 .nota{font-size:7.4px;color:#777;margin-top:5px;line-height:1.4}
@@ -1185,26 +1228,30 @@ table{width:100%;border-collapse:collapse}
   <div class=f><span>Validade</span><b>30 dias</b></div></div>
 </div>
 <div class=sec>Itens da proposta (${rs.length}) — grade do SFA + tratamento fiscal Suframa por item</div>
-<table class=itens><thead><tr><th>#</th><th>PRODUTO</th><th>DESCRIÇÃO</th><th>UM</th><th>QTD</th>
- <th class=thtab>TABELA</th><th>VPC</th><th>FRETE</th><th>SUGERIDO</th>
- <th class=thsuf>DESC. ICMS</th><th class=thsuf>DESC. PIS/COF</th><th class=thsuf>TOTAL NF (un)</th><th>TOTAL NF</th></tr></thead>
+<table class=itens><thead><tr><th>#</th><th>PRODUTO</th><th>DESCRIÇÃO</th><th>QTD</th>
+ <th class=thtab>TABELA</th><th>% VPC</th><th>% VPC AD.</th><th>VPC</th><th>VPC ADIC.</th><th>FRETE</th><th>IPI</th>
+ <th>SUGERIDO</th><th>NEGOCIADO</th><th>% DESC</th>
+ <th class=thsuf>DESC. ICMS</th><th class=thsuf>DESC. PIS/COF</th><th class=thsuf>TOTAL LÍQ. NF (un)</th><th>TOTAL</th><th>TOTAL NF</th></tr></thead>
 <tbody>${linhas}</tbody></table>
 <div class=liqbox>
  <div><span>ITENS</span><b>${rs.length}</b></div>
  <div><span>QTD TOTAL</span><b>${tot.qtd}</b></div>
  <div><span>SUGERIDO</span><b>R$ ${brf(tot.sug)}</b></div>
+ <div><span>TOTAL NEGOCIADO</span><b>R$ ${brf(tot.neg)}</b></div>
  <div><span>DESC. ICMS</span><b>${tot.icms?'−R$ '+brf(tot.icms):'—'}</b></div>
  <div><span>DESC. PIS/COF</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
  <div class=tot><span>TOTAL DA NF</span><b>R$ ${brf(tot.liq)}</b></div></div>
 <div class=cols>
  <div class=tt><div class=bt>Totais</div>
   <div class=f><span>Sugerido</span><b>R$ ${brf(tot.sug)}</b></div>
+  ${Math.abs(descCom)>=0.005?`<div class=f><span>Desconto comercial (% Desc)</span><b>${descCom>0?'−':'+'}R$ ${brf(Math.abs(descCom))}</b></div>`:''}
+  <div class=f><span>Total negociado</span><b>R$ ${brf(tot.neg)}</b></div>
   <div class=f><span>Desconto ICMS (12%)</span><b>${tot.icms?'−R$ '+brf(tot.icms):'—'}</b></div>
   <div class=f><span>Desconto PIS/COFINS (9,25%)</span><b>${tot.pis?'−R$ '+brf(tot.pis):'—'}</b></div>
   <div class=f style="border-top:1px solid #ddd;margin-top:3px;padding-top:4px;font-size:11px"><span>TOTAL DA NF</span><b>R$ ${brf(tot.liq)}</b></div></div>
 </div>
-<div class=nota>Preço base Brasil = tabela 078 vigente na data, acrescido do percentual de incremento da região quando a tabela o prevê. Frete da UF e VPC entram por fora, conforme o cadastro. Descontos de ICMS e PIS/COFINS destacados na NF conforme o benefício da tabela.</div>
-<div class=aviso>⚠️ <b>DOCUMENTO DE SIMULAÇÃO</b> — não substitui a proposta oficial numerada (PROP-ano-nº) emitida pela Controladoria. O pedido deve ser digitado no SFA com a tabela <b>${pp.nomeTab}</b>, VPC e frete exatamente como acima, sob pena de recálculo automático das condições.</div>
+<div class=nota>Preço base Brasil = tabela 078 vigente na data, acrescido do percentual de incremento da região quando a tabela o prevê. Frete da UF e VPC entram por fora, conforme o cadastro. Descontos de ICMS e PIS/COFINS destacados na NF conforme o benefício da tabela. Venda Suframa isenta de IPI.</div>
+<div class=aviso>⚠️ <b>DOCUMENTO DE SIMULAÇÃO</b> — não substitui a proposta oficial numerada (PROP-ano-nº) emitida pela Controladoria. O pedido deve ser digitado no SFA com a tabela <b>${pp.nomeTab}</b>, VPC, VPC adicional, frete e % de desconto de cada item exatamente como acima, sob pena de recálculo automático das condições.</div>
 <div class=rod>AMVOX / REISTAR — Simulador de Preço Líquido Suframa · ${num} · ${dt} · ${quem}</div>
 </div><scr`+`ipt>window.print();</scr`+`ipt></body></html>`;
     const w=window.open('','_blank');
@@ -1216,21 +1263,22 @@ table{width:100%;border-collapse:collapse}
     if(!itens.length){ alert('Adicione ao menos um produto à grade.'); return; }
     gerarPropostaPDF(itens, paramsAtuais(), (document.getElementById('simCli').value||'—').toUpperCase());
   };
-  /* XLS da simulação POR CLIENTE — mesmo padrão de arquivo das abas Consulta/Suframa */
-  /* ⚠️ MARGEM (MC %) NAO ENTRA em arquivo exportado — informacao confidencial (Silvio 18/09).
+  /* XLS da simulação — mesmo padrão de arquivo das abas Consulta/Suframa, colunas da grade do SFA */
+  /* ⚠️ MARGEM (MC %) NÃO ENTRA em arquivo exportado — informação confidencial (Silvio 18/09).
      Ela aparece somente na TELA, para uso interno. */
-  const COLS_SIM=[{t:'CÓDIGO',w:14,tipo:'s'},{t:'PRODUTO',w:44,tipo:'s'},{t:'QTD',w:8,tipo:'n'},
-    {t:'TABELA',w:13,tipo:'n'},{t:'VPC',w:11,tipo:'n'},{t:'FRETE',w:11,tipo:'n'},
-    {t:'SUGERIDO',w:16,tipo:'n'},{t:'DESC. ICMS',w:13,tipo:'n'},{t:'DESC. PIS/COF',w:14,tipo:'n'},
-    {t:'TOTAL NF (UN)',w:16,tipo:'n'},{t:'TOTAL NF',w:16,tipo:'n'}];
-  function linhaXLS(r){ return [r.cod,r.desc,r.qtd,r.base,r.vpcR,r.freR,r.J,
-    r.dIcms?-r.dIcms:0, r.dPis?-r.dPis:0, r.liq, r.liq*r.qtd]; }
+  const COLS_SIM=[{t:'CÓDIGO',w:13,tipo:'s'},{t:'DESCRIÇÃO',w:40,tipo:'s'},{t:'QTD',w:8,tipo:'n'},{t:'ESTOQUE DISP.',w:12,tipo:'n'},
+    {t:'TABELA',w:13,tipo:'n'},{t:'% VPC',w:8,tipo:'p'},{t:'% VPC AD.',w:9,tipo:'p'},{t:'VPC',w:11,tipo:'n'},{t:'VPC ADIC.',w:11,tipo:'n'},
+    {t:'FRETE',w:11,tipo:'n'},{t:'IPI',w:8,tipo:'s'},{t:'SUGERIDO',w:14,tipo:'n'},{t:'NEGOCIADO',w:14,tipo:'n'},{t:'% DESC',w:8,tipo:'p'},
+    {t:'DESC. ICMS',w:13,tipo:'n'},{t:'DESC. PIS/COF',w:14,tipo:'n'},{t:'TOTAL LÍQ. NF (UN)',w:17,tipo:'n'},
+    {t:'TOTAL',w:15,tipo:'n'},{t:'TOTAL NF',w:15,tipo:'n'}];
+  function linhaXLS(r){ return [r.cod,r.desc,r.qtd,(r.est==null?'':r.est),r.base,r.pvpc,r.pvad,r.vpcR,r.vadR,r.freR,'ISENTO',r.J,r.N,
+    (r.negEdit?r.pdesc:0), r.dIcms?-r.dIcms:0, r.dPis?-r.dPis:0, r.liq, r.N*r.qtd, r.liq*r.qtd]; }
   document.getElementById('simXls').onclick = function(){
     const itens = itensValidos();
     if(!itens.length){ alert('Adicione ao menos um produto à grade.'); return; }
     const pp=paramsAtuais(), cli=(document.getElementById('simCli').value||'').toUpperCase();
     baixarXLS('AMVOX_SIMULACAO_'+pp.tab+'_'+pp.uf+'_'+hojeArq()+'.xlsx', pp.nomeTab,
-      itens.map(it=>linhaXLS(calcItem(it.s, pp, it.qtd))), COLS_SIM,
+      itens.map(it=>linhaXLS(calcItem(it.s, pp, it.qtd, it.vad, it.neg))), COLS_SIM,
       'Simulação por cliente'+(cli?' · '+cli:'')+' · UF '+pp.uf+' · VPC '+(pp.vpc*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%', pp.tab);
     okBotao('simXls','Baixado ✓');
   };
