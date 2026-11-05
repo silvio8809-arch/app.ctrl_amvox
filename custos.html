@@ -1268,7 +1268,7 @@ renderSimOptions(); wireSim(); renderParams(); render();
 <script type="text/plain" data-pos-dados>
 /* papel do LOGIN comanda o modo ADM (aprovado 15/09/2026): CONSULTA nem vê o gate */
 document.addEventListener('papel-pronto', ()=>{
-  if (window.PAPEL === 'GERENTE'){ location.replace('tabelas.html'); return; }
+  if (window.PAPEL === 'GERENTE' || window.PAPEL === 'REPRESENTANTE'){ location.replace('tabelas.html'); return; }
   const adm = window.PAPEL === 'ADM';
   if (window.USUARIO_EMAIL && !document.getElementById('quemlog')){
     const f=document.querySelector('.side .foot');
