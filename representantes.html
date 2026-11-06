@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&display=swap">
 <style>
   /* REPRESENTANTES (Silvio 05/11/2026): gerentes e o comercial ADM cadastram o e-mail do representante; a rotina da
-     Controladoria (a cada 30 min, dias úteis 08h–18h) cria o acesso (perfil REPRESENTANTE, app de Preços) e envia o e-mail
+     Controladoria (a cada 15 min, dias úteis 08h–18h) cria o acesso (perfil REPRESENTANTE, app de Preços) e envia o e-mail
      com o link para criar a senha. Quem cadastra também remove o acesso. Regras no banco (migração 040). */
   :root{
     --ink:#17181A; --muted:#6B7076; --line:#E6E5E2; --ground:#F7F6F4; --panel:#FFFFFF; --topo:#121214; --accent:#D71920;
@@ -56,7 +56,7 @@
   <div id="semAcesso" class="painel"><div class="corpo">Seu usuário não pode cadastrar representantes. Esta área é dos gerentes e do comercial ADM; se precisar, fale com a Controladoria.
     <div style="margin-top:12px"><a href="index.html">Voltar ao início</a></div></div></div>
   <div id="area">
-    <div class="aviso">Cadastre o <b>e-mail</b> e o <b>nome</b> do representante. Em até <b>30 minutos</b> (dias úteis, das 08h às 18h) ele recebe um e-mail com o link para <b>criar a senha</b> e acessar o <b>App de Preços</b> no perfil Representante — vê preços, simulador e tabelas, <b>sem margem</b>. Se não entrar, um link novo é enviado às 09h e às 14h dos dias úteis. Para tirar o acesso, use <b>Remover acesso</b>.</div>
+    <div class="aviso">Cadastre o <b>e-mail</b> e o <b>nome</b> do representante. Em até <b>15 minutos</b> (dias úteis, das 08h às 18h) ele recebe um e-mail com o link para <b>criar a senha</b> e acessar o <b>App de Preços</b> no perfil Representante — vê preços, simulador e tabelas, <b>sem margem</b>. Se não entrar, um link novo é enviado às 09h e às 14h dos dias úteis. Para tirar o acesso, use <b>Remover acesso</b>.</div>
     <div class="painel"><h2>Novo representante</h2><div class="corpo">
       <div class="form">
         <div><label for="fEmail">E-mail *</label><input id="fEmail" type="email" placeholder="nome@empresa.com.br" style="width:280px" autocomplete="off"></div>
@@ -81,10 +81,10 @@ const fdh=t=>{ if(!t) return ''; const d=new Date(t), p=n=>String(n).padStart(2,
 let LISTA=[], CARD='';
 /* situação exibida (a tabela guarda PENDENTE/CRIADO/REMOVER/REMOVIDO/ERRO; "ativo" = já entrou) */
 function sit(x){
-  if(x.situacao==='PENDENTE') return {k:'PEND', t:'Aguardando liberação', c:'c-av', d:'o e-mail sai em até 30 min (dias úteis, 08h–18h)'};
+  if(x.situacao==='PENDENTE') return {k:'PEND', t:'Aguardando liberação', c:'c-av', d:'o e-mail sai em até 15 min (dias úteis, 08h–18h)'};
   if(x.situacao==='CRIADO' && !x.ultimo_acesso) return {k:'LIB', t:'Liberado — aguardando 1º acesso', c:'c-in', d:'link de senha enviado; reenvio às 09h e 14h até entrar'};
   if(x.situacao==='CRIADO') return {k:'ATIVO', t:'Ativo', c:'c-ok', d:''};
-  if(x.situacao==='REMOVER') return {k:'REM', t:'Removendo', c:'c-ne', d:'o acesso é retirado em até 30 min'};
+  if(x.situacao==='REMOVER') return {k:'REM', t:'Removendo', c:'c-ne', d:'o acesso é retirado em até 15 min'};
   if(x.situacao==='REMOVIDO') return {k:'REM', t:'Removido', c:'c-ne', d:x.removido_por?`por ${x.removido_por} em ${fdh(x.removido_em)}`:''};
   return {k:'ERRO', t:'Erro — fale com a Controladoria', c:'c-ru', d:x.erro||''};
 }
@@ -119,19 +119,19 @@ $('fSalvar').onclick=async()=>{
   st.className='status'; if(!email||!nome){ st.className='status err'; st.textContent='Informe o e-mail e o nome.'; return; }
   $('fSalvar').disabled=true; st.textContent='Cadastrando…';
   try{ await cadastra(email,nome,obs); st.className='status ok';
-       st.textContent=`✅ ${nome} cadastrado. O e-mail com o link de senha sai para ${email.toLowerCase()} em até 30 minutos (dias úteis, 08h–18h).`;
+       st.textContent=`✅ ${nome} cadastrado. O e-mail com o link de senha sai para ${email.toLowerCase()} em até 15 minutos (dias úteis, 08h–18h).`;
        $('fEmail').value=''; $('fNome').value=''; $('fObs').value=''; }
   catch(e){ st.className='status err'; st.textContent='Não cadastrado: '+e.message; }
   $('fSalvar').disabled=false;
 };
 async function remover(email){
   const x=LISTA.find(y=>y.email===email); if(!x) return;
-  if(!confirm(`Remover o acesso de ${x.nome} (${email})?\n\nEle deixa de entrar no app em até 30 minutos.`)) return;
+  if(!confirm(`Remover o acesso de ${x.nome} (${email})?\n\nEle deixa de entrar no app em até 15 minutos.`)) return;
   const r=await SB.rpc('rep_remover',{p_email:email}); if(r.error) return alert('Não removido: '+r.error.message); carrega();
 }
 async function reativar(email){
   const x=LISTA.find(y=>y.email===email); if(!x) return;
-  if(!confirm(`Reativar o acesso de ${x.nome} (${email})?\n\nEle recebe um novo e-mail com o link de senha em até 30 minutos.`)) return;
+  if(!confirm(`Reativar o acesso de ${x.nome} (${email})?\n\nEle recebe um novo e-mail com o link de senha em até 15 minutos.`)) return;
   try{ await cadastra(email,x.nome,x.obs); }catch(e){ alert('Não reativado: '+e.message); }
 }
 document.addEventListener('papel-pronto',()=>{ carrega(); setInterval(carrega, 120000); });
