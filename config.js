@@ -13,7 +13,8 @@ async function guardaPagina(){
   } catch (e) { window.PAPEL = 'CONSULTA'; window.APPS = ['precos', 'dash']; }   // falha de leitura: o banco segue travando
   if (!window.APPS.includes('precos')) { semAcessoApp('o app de Preços'); return null; }
   // REPRESENTANTE (05/11/2026): vê o que o gerente vê, exceto margem — sem a página de Custos
-  if (window.PAPEL === 'REPRESENTANTE' && /custos(\.html)?$/.test(location.pathname)) { location.replace('tabelas.html'); return null; }
+  // 05/11/2026 (Silvio): representante vê SÓ o Simulador do app de Preços — Custos, Curva e Redes voltam para Tabelas
+  if (window.PAPEL === 'REPRESENTANTE' && /(custos|curva|redes)(\.html)?$/.test(location.pathname)) { location.replace('tabelas.html'); return null; }
   sessionStorage.setItem('perfil', window.PAPEL === 'ADM' ? 'adm' : 'consulta');
   window.USUARIO_EMAIL = session.user.email;
   window.USUARIO_NOME = (session.user.user_metadata && session.user.user_metadata.nome) || '';
