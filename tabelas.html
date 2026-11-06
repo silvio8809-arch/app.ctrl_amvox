@@ -1302,11 +1302,12 @@ table{width:100%;border-collapse:collapse}
   /* ⚠️ MARGEM (MC %) NÃO ENTRA em arquivo exportado — informação confidencial (Silvio 18/09).
      Ela aparece somente na TELA, para uso interno. */
   const COLS_SIM=[{t:'CÓDIGO',w:13,tipo:'s'},{t:'DESCRIÇÃO',w:40,tipo:'s'},{t:'QTD',w:8,tipo:'n'},{t:'ESTOQUE DISP.',w:12,tipo:'n'},
-    {t:'TABELA',w:13,tipo:'n'},{t:'% VPC',w:8,tipo:'p'},{t:'% VPC AD.',w:9,tipo:'p'},{t:'VPC',w:11,tipo:'n'},{t:'VPC ADIC.',w:11,tipo:'n'},
+    {t:'TABELA',w:13,tipo:'n'},{t:'VPC — R$ (%)',w:17,tipo:'s'},{t:'VPC ADIC. — R$ (%)',w:19,tipo:'s'},
     {t:'FRETE',w:11,tipo:'n'},{t:'IPI',w:8,tipo:'s'},{t:'SUGERIDO',w:14,tipo:'n'},{t:'NEGOCIADO',w:14,tipo:'n'},{t:'% DESC',w:8,tipo:'p'},
     {t:'DESC. SUFRAMA',w:14,tipo:'n'},{t:'% DESC. SUFRAMA',w:10,tipo:'p'},{t:'TOTAL LÍQ. NF (UN)',w:17,tipo:'n'},
     {t:'TOTAL',w:15,tipo:'n'},{t:'TOTAL NF',w:15,tipo:'n'}];
-  function linhaXLS(r){ return [r.cod,r.desc,r.qtd,(r.est==null?'':r.est),r.base,r.pvpc,r.pvad,r.vpcR,r.vadR,r.freR,'ISENTO',r.J,r.N,
+  const rsPct=(v,p)=>fmt(v)+' ('+(p*100).toLocaleString('pt-BR',{maximumFractionDigits:2})+'%)';   // v0.44: VPC % e R$ juntos no Excel
+  function linhaXLS(r){ return [r.cod,r.desc,r.qtd,(r.est==null?'':r.est),r.base,rsPct(r.vpcR,r.pvpc),rsPct(r.vadR,r.pvad),r.freR,'ISENTO',r.J,r.N,
     (r.negEdit?r.pdesc:0), r.dsuf?-r.dsuf:0, r.pdsuf, r.liq, r.N*r.qtd, r.liq*r.qtd]; }
   document.getElementById('simXls').onclick = function(){
     const itens = itensValidos();
@@ -1339,6 +1340,9 @@ document.addEventListener('papel-pronto', ()=>{
   /* GERENTE vê todas as abas de consulta (decisão Silvio 17/09); Parâmetros/Auditoria seguem
      só do ADM (bloco abaixo). Mantido: abre direto no Simulador, sua ferramenta principal. */
   document.body.classList.toggle('rep', window.PAPEL === 'REPRESENTANTE');
+  /* 05/11/2026 (Silvio): representante vê SÓ o Simulador (por cliente e por tabela) — somem Consulta, Suframa e Clientes e redes */
+  if (window.PAPEL === 'REPRESENTANTE') for (const t of ['consulta','suframa','clientes']){
+    const b=document.querySelector('nav button[data-tela="'+t+'"]'); if(b) b.style.display='none'; }
   if (window.PAPEL === 'GERENTE' || window.PAPEL === 'REPRESENTANTE'){
     const bs=document.querySelector('nav button[data-tela="simulador"]');
     if(bs) bs.click();
