@@ -1,0 +1,139 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>html{visibility:hidden}</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script>guardaPagina();</script>
+<title>Representantes — liberação de acesso</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&display=swap">
+<style>
+  /* REPRESENTANTES (Silvio 05/11/2026): gerentes e o comercial ADM cadastram o e-mail do representante; a rotina da
+     Controladoria (a cada 30 min, dias úteis 08h–18h) cria o acesso (perfil REPRESENTANTE, app de Preços) e envia o e-mail
+     com o link para criar a senha. Quem cadastra também remove o acesso. Regras no banco (migração 040). */
+  :root{
+    --ink:#17181A; --muted:#6B7076; --line:#E6E5E2; --ground:#F7F6F4; --panel:#FFFFFF; --topo:#121214; --accent:#D71920;
+    --sans:'Archivo',-apple-system,'Segoe UI',Roboto,sans-serif; --body:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    --ok:#0F6B3E; --ok-bg:#DFF3E7; --av:#9A5B00; --av-bg:#FEF0C7; --ru:#B42318; --ru-bg:#FEE4E2; --in:#1D4F91; --in-bg:#E3EEFB; --ne:#5B6478; --ne-bg:#EEF1F6;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--ground);color:var(--ink);font:14px/1.5 var(--body);margin:0}
+  header{background:var(--topo);color:#fff;padding:14px 20px;display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;border-bottom:3px solid var(--accent)}
+  .marca{font:800 20px var(--sans);letter-spacing:.06em} .marca b{color:var(--accent)}
+  header h1{font:600 15px var(--sans);margin:0;letter-spacing:.02em;color:#E8E8E6}
+  header .data{margin-left:auto;font:500 11px var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#9A9A97}
+  main{padding:18px 20px 60px;max-width:1280px;margin:0 auto}
+  .aviso{background:#FFF7ED;border:1px solid #F6D9B5;color:#7A4A0B;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px}
+  .painel{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:14px}
+  .painel h2{font:700 12px var(--sans);letter-spacing:.07em;text-transform:uppercase;margin:0;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .corpo{padding:14px 16px}
+  .form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .form label{display:block;font:600 11px var(--sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+  .form input{padding:9px 10px;border:1px solid var(--line);border-radius:6px;font:14px var(--body);background:var(--panel);color:var(--ink)}
+  .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 12px var(--sans);padding:8px 13px;border-radius:6px;cursor:pointer}
+  .btn:hover{border-color:var(--ink)} .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff} .btn:disabled{opacity:.45;cursor:not-allowed}
+  .status{font-size:13px;margin-top:8px} .status.ok{color:var(--ok)} .status.err{color:var(--ru)}
+  .cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+  .kpi{flex:1;min-width:150px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer}
+  .kpi.sel{border-color:var(--accent);box-shadow:0 0 0 2px #F2C9CB inset}
+  .kpi .t{font:600 10px var(--sans);letter-spacing:.07em;text-transform:uppercase;color:var(--muted)} .kpi .v{font:700 20px var(--sans)} .kpi .nota{font-size:11.5px;color:var(--muted)}
+  .tbl-wrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;min-width:900px}
+  th{background:var(--ink);color:#fff;font:600 10.5px var(--sans);letter-spacing:.06em;text-transform:uppercase;padding:9px 10px;text-align:left;white-space:nowrap}
+  td{padding:8px 10px;border-top:1px solid var(--line);vertical-align:top}
+  .chip{display:inline-block;font:700 10.5px var(--sans);letter-spacing:.04em;padding:3px 8px;border-radius:99px;white-space:nowrap}
+  .c-ok{background:var(--ok-bg);color:var(--ok)} .c-av{background:var(--av-bg);color:var(--av)} .c-ru{background:var(--ru-bg);color:var(--ru)}
+  .c-in{background:var(--in-bg);color:var(--in)} .c-ne{background:var(--ne-bg);color:var(--ne)}
+  .nota{font-size:12px;color:var(--muted)}
+  #semAcesso{display:none}
+  @media (max-width:640px){ main{padding:14px 12px 40px} header{padding:12px 14px} }
+</style>
+</head><body>
+<header>
+  <span class="marca">AMVO<b>X</b></span><h1>Representantes — liberação de acesso</h1>
+  <span class="data" id="quemlog"></span>
+</header>
+<main>
+  <div id="semAcesso" class="painel"><div class="corpo">Seu usuário não pode cadastrar representantes. Esta área é dos gerentes e do comercial ADM; se precisar, fale com a Controladoria.
+    <div style="margin-top:12px"><a href="index.html">Voltar ao início</a></div></div></div>
+  <div id="area">
+    <div class="aviso">Cadastre o <b>e-mail</b> e o <b>nome</b> do representante. Em até <b>30 minutos</b> (dias úteis, das 08h às 18h) ele recebe um e-mail com o link para <b>criar a senha</b> e acessar o <b>App de Preços</b> no perfil Representante — vê preços, simulador e tabelas, <b>sem margem</b>. Se não entrar, um link novo é enviado às 09h e às 14h dos dias úteis. Para tirar o acesso, use <b>Remover acesso</b>.</div>
+    <div class="painel"><h2>Novo representante</h2><div class="corpo">
+      <div class="form">
+        <div><label for="fEmail">E-mail *</label><input id="fEmail" type="email" placeholder="nome@empresa.com.br" style="width:280px" autocomplete="off"></div>
+        <div><label for="fNome">Nome *</label><input id="fNome" placeholder="Nome e sobrenome" style="width:240px" autocomplete="off"></div>
+        <div style="flex:1;min-width:200px"><label for="fObs">Observação</label><input id="fObs" placeholder="Empresa, região ou carteira (opcional)" style="width:100%" autocomplete="off"></div>
+        <div><button class="btn pri" id="fSalvar">Liberar acesso</button></div>
+      </div>
+      <div class="status" id="fSt"></div>
+    </div></div>
+    <div class="cards" id="cards"></div>
+    <div class="painel"><h2>Representantes cadastrados</h2>
+      <div class="tbl-wrap"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Observação</th><th>Situação</th><th>Cadastrado por</th><th>Último acesso</th><th></th></tr></thead>
+      <tbody id="tLista"><tr><td colspan="7" class="nota">Carregando…</td></tr></tbody></table></div>
+    </div>
+    <div class="nota"><a href="index.html">← Voltar ao início</a> · <a href="#" onclick="sair();return false">Sair</a></div>
+  </div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fdh=t=>{ if(!t) return ''; const d=new Date(t), p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+let LISTA=[], CARD='';
+/* situação exibida (a tabela guarda PENDENTE/CRIADO/REMOVER/REMOVIDO/ERRO; "ativo" = já entrou) */
+function sit(x){
+  if(x.situacao==='PENDENTE') return {k:'PEND', t:'Aguardando liberação', c:'c-av', d:'o e-mail sai em até 30 min (dias úteis, 08h–18h)'};
+  if(x.situacao==='CRIADO' && !x.ultimo_acesso) return {k:'LIB', t:'Liberado — aguardando 1º acesso', c:'c-in', d:'link de senha enviado; reenvio às 09h e 14h até entrar'};
+  if(x.situacao==='CRIADO') return {k:'ATIVO', t:'Ativo', c:'c-ok', d:''};
+  if(x.situacao==='REMOVER') return {k:'REM', t:'Removendo', c:'c-ne', d:'o acesso é retirado em até 30 min'};
+  if(x.situacao==='REMOVIDO') return {k:'REM', t:'Removido', c:'c-ne', d:x.removido_por?`por ${x.removido_por} em ${fdh(x.removido_em)}`:''};
+  return {k:'ERRO', t:'Erro — fale com a Controladoria', c:'c-ru', d:x.erro||''};
+}
+const GRUPOS=[['','Todos'],['PEND','Aguardando liberação'],['LIB','Aguardando 1º acesso'],['ATIVO','Ativos'],['REM','Removidos'],['ERRO','Com erro']];
+function pinta(){
+  const tot=LISTA.length||1;
+  $('cards').innerHTML=GRUPOS.map(([k,t])=>{ const n=k?LISTA.filter(x=>sit(x).k===k).length:LISTA.length;
+    return `<div class="kpi ${CARD===k?'sel':''}" data-k="${k}"><div class="t">${t}</div><div class="v">${n}</div><div class="nota">${(n/tot*100).toLocaleString('pt-BR',{maximumFractionDigits:0})}% do total</div></div>`; }).join('');
+  $('cards').querySelectorAll('.kpi').forEach(e=>e.onclick=()=>{ CARD=CARD===e.dataset.k?'':e.dataset.k; pinta(); });
+  const l=LISTA.filter(x=>!CARD||sit(x).k===CARD);
+  $('tLista').innerHTML=l.map(x=>{ const s=sit(x);
+    const acao = ['PENDENTE','CRIADO'].includes(x.situacao) ? `<button class="btn" data-rem="${esc(x.email)}">Remover acesso</button>`
+               : ['REMOVIDO','ERRO'].includes(x.situacao) ? `<button class="btn" data-reat="${esc(x.email)}">Reativar</button>` : '';
+    return `<tr><td><b>${esc(x.nome)}</b></td><td>${esc(x.email)}</td><td>${esc(x.obs||'')}</td>
+      <td><span class="chip ${s.c}" title="${esc(s.d)}">${s.t}</span>${s.d?`<div class="nota">${esc(s.d)}</div>`:''}</td>
+      <td>${esc(x.solicitado_por)}<div class="nota">${fdh(x.solicitado_em)}</div></td><td>${x.ultimo_acesso?fdh(x.ultimo_acesso):'<span class="nota">—</span>'}</td><td>${acao}</td></tr>`; }).join('')
+    || `<tr><td colspan="7" class="nota">${LISTA.length?'Nenhum representante nesta situação.':'Nenhum representante cadastrado ainda.'}</td></tr>`;
+  $('tLista').querySelectorAll('[data-rem]').forEach(b=>b.onclick=()=>remover(b.dataset.rem));
+  $('tLista').querySelectorAll('[data-reat]').forEach(b=>b.onclick=()=>reativar(b.dataset.reat));
+}
+async function carrega(){
+  const r=await SB.rpc('rep_lista');
+  if(r.error){ $('area').style.display='none'; $('semAcesso').style.display='block'; return; }
+  LISTA=r.data||[]; pinta();
+}
+async function cadastra(email,nome,obs){
+  const r=await SB.rpc('rep_cadastrar',{p_email:email,p_nome:nome,p_obs:obs||null});
+  if(r.error) throw new Error(r.error.message); await carrega();
+}
+$('fSalvar').onclick=async()=>{
+  const email=$('fEmail').value.trim(), nome=$('fNome').value.trim(), obs=$('fObs').value.trim(), st=$('fSt');
+  st.className='status'; if(!email||!nome){ st.className='status err'; st.textContent='Informe o e-mail e o nome.'; return; }
+  $('fSalvar').disabled=true; st.textContent='Cadastrando…';
+  try{ await cadastra(email,nome,obs); st.className='status ok';
+       st.textContent=`✅ ${nome} cadastrado. O e-mail com o link de senha sai para ${email.toLowerCase()} em até 30 minutos (dias úteis, 08h–18h).`;
+       $('fEmail').value=''; $('fNome').value=''; $('fObs').value=''; }
+  catch(e){ st.className='status err'; st.textContent='Não cadastrado: '+e.message; }
+  $('fSalvar').disabled=false;
+};
+async function remover(email){
+  const x=LISTA.find(y=>y.email===email); if(!x) return;
+  if(!confirm(`Remover o acesso de ${x.nome} (${email})?\n\nEle deixa de entrar no app em até 30 minutos.`)) return;
+  const r=await SB.rpc('rep_remover',{p_email:email}); if(r.error) return alert('Não removido: '+r.error.message); carrega();
+}
+async function reativar(email){
+  const x=LISTA.find(y=>y.email===email); if(!x) return;
+  if(!confirm(`Reativar o acesso de ${x.nome} (${email})?\n\nEle recebe um novo e-mail com o link de senha em até 30 minutos.`)) return;
+  try{ await cadastra(email,x.nome,x.obs); }catch(e){ alert('Não reativado: '+e.message); }
+}
+document.addEventListener('papel-pronto',()=>{ carrega(); setInterval(carrega, 120000); });
+</script>
+</body></html>
