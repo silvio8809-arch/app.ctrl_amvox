@@ -120,6 +120,18 @@ tr.exp td{background:var(--surface2); padding:16px 18px; white-space:normal}
 .expgrid .cell .l{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink2)}
 .expgrid .cell .r{font-size:14px; margin-top:2px; font-variant-numeric:tabular-nums}
 .src{margin-top:12px; font:400 12px/1.6 "IBM Plex Mono",monospace; color:var(--ink2)}
+.cadbtns{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center}
+.btn.pri{background:var(--brand); color:#fff; border-color:var(--brand)}
+.btn.pri:hover{background:var(--brand-ink)}
+.btn.sm{padding:4px 10px; font-size:12px}
+#v-cadsku .fgrid{align-items:start}
+.cadprev{margin-top:12px; font-size:13px; color:var(--ink2)}
+.cadprev b{color:var(--ink)}
+.cadmsg{font-size:13px; font-weight:600}
+.cadmsg.ok{color:var(--ok)} .cadmsg.err{color:var(--brand)}
+.cadtbl td,.cadtbl th{white-space:nowrap}
+.cadtbl td.acoes{display:flex; gap:6px}
+.req{color:var(--brand)}
 .note{font-size:12.5px; color:var(--ink2); margin-top:10px; max-width:82ch}
 .legendline{display:flex; flex-wrap:wrap; gap:16px; align-items:center; font-size:12.5px; color:var(--ink2); margin:12px 2px 10px}
 .legendline .sw{display:inline-block; width:10px; height:10px; border-radius:3px; vertical-align:-1px; margin-right:5px}
@@ -280,6 +292,7 @@ details.simparams .inner{padding:2px 18px 16px}
       <button class="on" data-v="sim">Simulador</button>
       <button data-v="comp">Visão Comparativa</button>
       <button data-v="frete">Frete real × projetado</button>
+      <button class="adm" data-v="cadsku">Cadastro de SKUs</button>
       <button class="adm" data-v="central">Visão Central</button>
       <button class="adm" data-v="params">Parâmetros</button>
       <button class="adm" data-v="fontes">Fontes &amp; Status</button>
@@ -576,6 +589,49 @@ details.simparams .inner{padding:2px 18px 16px}
     </section>
 
     <!-- ================= ACESSO ================= -->
+    <!-- ================= CADASTRO DE SKU (v0.20 · 11/11/2026) ================= -->
+    <section class="view" id="v-cadsku">
+      <div class="crumb">Administração · Itens novos</div>
+      <h1>Cadastro de SKUs</h1>
+      <p class="lede">Cadastre aqui o SKU novo que ainda não tem processo no EIC, com as particularidades dele.
+      Depois de salvo, ele aparece no Simulador, na Visão Comparativa e no Frete (grupo <b>Cadastrados no app</b>).
+      Campo opcional em branco = usa o parâmetro geral do app.</p>
+      <div class="formcard">
+        <div class="fh" id="cadtit">Novo SKU</div>
+        <div class="fgrid">
+          <div class="fld" style="grid-column:span 2; min-width:220px"><label for="cad-sku">SKU / descrição <span class="req">*</span></label>
+            <input id="cad-sku" maxlength="80" placeholder="ex.: ACA 999 NOVO MODELO"><div class="fh2">nome que aparece na lista do simulador</div></div>
+          <div class="fld"><label for="cad-cod">Código Protheus</label><input id="cad-cod" maxlength="20"><div class="fh2">se já existir</div></div>
+          <div class="fld"><label for="cad-ncm">NCM</label><input id="cad-ncm" maxlength="12" inputmode="numeric"><div class="fh2">informativo (pauta SYD)</div></div>
+          <div class="fld"><label for="cad-linha">Linha <span class="req">*</span></label>
+            <select id="cad-linha"><option value="AUDIO">Áudio · MC 30%</option><option value="LAR">Lar · MC 20%</option><option value="OUTRA">Outra · MC 20%</option></select></div>
+          <div class="fld"><label for="cad-q">Qtd por contêiner <span class="req">*</span></label><input id="cad-q" inputmode="numeric"><div class="fh2">contêiner dedicado</div></div>
+          <div class="fld"><label for="cad-usd">FOB US$ / unidade <span class="req">*</span></label><input id="cad-usd" inputmode="decimal"><div class="fh2">cotação / proforma</div></div>
+          <div class="fld"><label for="cad-frete">Frete marítimo US$/ctr</label><input id="cad-frete" inputmode="decimal"><div class="fh2" id="cad-frete-h"></div></div>
+          <div class="fld"><label for="cad-adic">Adicional de frete (333) R$/ctr</label><input id="cad-adic" inputmode="decimal"><div class="fh2" id="cad-adic-h"></div></div>
+          <div class="fld"><label for="cad-ii">II % (s/ CIF)</label><input id="cad-ii" inputmode="decimal"><div class="fh2" id="cad-ii-h"></div></div>
+          <div class="fld"><label for="cad-ipi">IPI de saída %</label><input id="cad-ipi" inputmode="decimal"><div class="fh2">em branco = 16,25%</div></div>
+          <div class="fld" style="grid-column:span 2; min-width:220px"><label for="cad-obs">Fonte / observação</label><input id="cad-obs" maxlength="300" placeholder="ex.: proforma fornecedor 10/11/2026"></div>
+        </div>
+        <div class="cadprev" id="cadprev"></div>
+        <div class="cadbtns">
+          <button class="btn pri" id="cad-salvar" type="button">Salvar SKU</button>
+          <button class="btn" id="cad-limpar" type="button">Limpar / novo</button>
+          <span class="cadmsg" id="cadmsg" role="status"></span>
+        </div>
+      </div>
+      <h2>SKUs cadastrados no app</h2>
+      <div class="card"><div class="tblwrap">
+        <table class="cadtbl" id="cadtbl">
+          <thead><tr><th>SKU</th><th>Linha</th><th>Qtd/ctr</th><th>FOB US$</th><th>Frete US$/ctr</th><th>333 R$/ctr</th><th>II %</th><th>IPI saída %</th><th>Custo (CT)</th><th>Cadastrado por</th><th>Ações</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+      <p class="note">O custo usa a mesma fórmula do Simulador (modelo 2026, por contêiner, dólar do parâmetro). SKU desativado sai das
+      listas, mas fica no histórico (nada é apagado; toda inclusão e alteração fica registrada com usuário e data).
+      Quando o item chegar no EIC, o retrato automático passa a valer — aí é só desativar o cadastro manual.</p>
+    </section>
+
     <section class="view" id="v-acesso">
       <div class="crumb">Administração</div>
       <h1>Acesso de Usuários</h1>
@@ -593,7 +649,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.19 · refresh 11/11/2026";
+const VERSAO = "v0.20 · refresh 11/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -659,9 +715,10 @@ const PMETA = [
  ["dmaqMC","Despesa fixa MC Estimativa (s/ venda)","Parâmetro editável. Convive com o 27% até revisão.",false],
 ];
 const fixos = modo => P.transp+P.despacho+P.bl+P.armaz+P.capataz+P.descons + (modo==="25" ? P.siscomex : 0);
+const iiS = s => (s && s.ii!=null) ? s.ii : P.ii;   /* II do SKU cadastrado ou o parâmetro (v0.20) */
 const adic = (s,modo) => modo==="26" ? (s && s.adic!=null ? s.adic : P.adic333) : 0;
 function custoM(usd, frete, q, modo, s){
-  return (usd + frete/q)*(1+P.seg)*P.dolar*(1+P.ii)
+  return (usd + frete/q)*(1+P.seg)*P.dolar*(1+iiS(s))
        + (frete*P.afrmm*P.dolar)/q + usd*P.magic*P.dolar
        + (frete*P.dolar*P.courr)/q + (fixos(modo)+adic(s,modo))/q;
 }
@@ -767,6 +824,8 @@ function render(){
 }
 /* ===== SIMULADOR (custo + preço) ===== */
 const ALL = SKUS.concat(EXTRAS.map(x=>({...x, usd25:null, semLista:true})));
+const N_BASE = ALL.length;   /* depois disso vêm os SKUs cadastrados no app (v0.20) */
+const ipiPad = () => { const s = ALL[SIM.i]; return (s && s.ipiS!=null) ? s.ipiS : 16.25; };
 /* estado da simulação: SKU corrente + campos editados pelo usuário (null = padrão) */
 /* Defaults por definição do Silvio: VPC inicia ZERO (toggle desligado E % zerado; 8,5% é o
    típico do cadastro, digitar quando aplicável) · meta EBITDA 9% */
@@ -778,17 +837,21 @@ const dmaqRotulo = () => SIM.dmaq==="25" ? " (Modelo 2025)" : (SIM.dmaq==="26" ?
    Régua do guia (05/11/2026): deduções 24% e base 18% sobre o preço COM IPI → divisor(m) = (1 − 0,24·(1+IPI)) − (1 − 0,18·(1+IPI))·m
    (áudio, IPI 15%: 0,724 − 0,793·m → 0,486/0,446/0,407 p/ 30/35/40; sem IPI volta a 0,760 − 0,82·m). */
 const mcMin = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.30 : 0.20;
-const ipiGuia = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.15 : (SIM.ipi ?? 16.25)/100;   /* áudio = B1_IPI 15% (mesmo do guia) */
+const ipiGuia = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.15 : (SIM.ipi ?? ipiPad())/100;   /* áudio = B1_IPI 15% (mesmo do guia) */
 const fcGuia = ipi => 1 - 0.24*(1+ipi), fbGuia = ipi => 1 - 0.18*(1+ipi);
 const divMC = (m, ipi=0.15) => fcGuia(ipi) - fbGuia(ipi)*m;
 const precoMC = (ct, m, ipi=0.15) => ct*1.01/divMC(m, ipi);
 const kv = (l,r,cls="") => `<div class="kv ${cls}"><span class="l">${l}</span><span class="r">${r}</span></div>`;
 const R$ = v => "R$ "+fmt(v);
 function renderSimOptions(){
-  const opts = ALL.map((s,i)=>`<option value="${i}">${s.sku}</option>`).join("");
+  const op = (s,i)=>`<option value="${i}">${esc(s.sku)}</option>`;
+  const cad = ALL.slice(N_BASE);
+  const opts = ALL.slice(0, N_BASE).map(op).join("")
+    + (cad.length ? `<optgroup label="Cadastrados no app">${cad.map((s,k)=>op(s, N_BASE+k)).join("")}</optgroup>` : "");
   document.getElementById("simsku").innerHTML = opts;
   document.getElementById("compsku").innerHTML = opts;
   document.getElementById("fretesku").innerHTML = opts;
+  ["simsku","compsku","fretesku"].forEach(id=>{ const el=document.getElementById(id); if(el && SIM.i < ALL.length) el.value=String(SIM.i); });
 }
 /* SKU GLOBAL: selecionar em qualquer tela sincroniza as demais — a análise segue o mesmo produto */
 function setSku(i){
@@ -806,7 +869,7 @@ function simCalc(){
   const freteR = (f/q)*P.dolar;
   const segR = (usd+f/q)*P.seg*P.dolar;
   const cifR = fobR+freteR+segR;
-  const ii = cifR*P.ii;
+  const ii = cifR*iiS(s);
   const afrmm = f*P.afrmm*P.dolar/q;
   const magic = usd*P.magic*P.dolar;
   const courr = f*P.dolar*P.courr/q;
@@ -821,7 +884,7 @@ function simCalc(){
   const ipiG = ipiGuia(s);
   const pisoDef = precoMC(ct, mcAlvo, ipiG);
   const price = SIM.price ?? Math.round(pisoDef*100)/100;
-  const ipiS = (SIM.ipi ?? 16.25)/100;
+  const ipiS = (SIM.ipi ?? ipiPad())/100;
   const vpc = SIM.vpcOn ? price*SIM.vpcPct/100 : 0;
   const impS = price*(SIM.pisS+SIM.cofS+SIM.icmsS)/100;
   const dmaqPct = dmaqAtual();
@@ -855,7 +918,7 @@ function renderSim(){
   /* inputs refletem estado */
   document.getElementById("simqty").value = fmt(d.qty,0);
   document.getElementById("simprec").value = fmt(d.price);
-  document.getElementById("simipi").value = fmt((SIM.ipi ?? 16.25),2);
+  document.getElementById("simipi").value = fmt((SIM.ipi ?? ipiPad()),2);
   document.getElementById("sp-dolar").value = fmt(P.dolar,2);
   document.getElementById("simprechint").textContent =
     `padrão = preço projetado p/ MC ${Math.round(d.mcAlvo*100)}% (mínimo da linha ${ (d.s.linha||"ÁUDIO") }): R$ ${fmt(d.pisoDef)}`;
@@ -867,7 +930,7 @@ function renderSim(){
     `<div class="kpi" ${kcol("var(--ink3)")}><div class="k">Custo Produto (CT)</div><div class="v">${Rk(d.ct)}<span class="pc">${pct0(d.ct/d.price)}</span></div><div class="d">% do preço s/ IPI</div></div>`
    +`<div class="kpi" ${kcol("var(--amber)")}><div class="k">Custo Venda (CV)</div><div class="v">${Rk(d.cv)}<span class="pc">${pct0(d.cv/d.price)}</span></div><div class="d">CT + VPC + desp. máquina · % do preço</div></div>`
    +`<div class="kpi" ${kcol("var(--brand)")}><div class="k">Preço venda s/ IPI</div><div class="v">${Rk(d.price)}<span class="pc">100%</span></div><div class="d">editável — ou arraste a barra de margem</div></div>`
-   +`<div class="kpi" ${kcol("var(--brand)")}><div class="k">Preço venda c/ IPI</div><div class="v">${Rk(d.price*(1+d.ipiS))}<span class="pc">+${fmt(SIM.ipi ?? 16.25,2)}%</span></div><div class="d">IPI de saída</div></div>`
+   +`<div class="kpi" ${kcol("var(--brand)")}><div class="k">Preço venda c/ IPI</div><div class="v">${Rk(d.price*(1+d.ipiS))}<span class="pc">+${fmt(SIM.ipi ?? ipiPad(),2)}%</span></div><div class="d">IPI de saída</div></div>`
    +`<div class="kpi" ${kcol(d.mcGuia>=d.mcAlvo?"var(--ok)":"var(--up)")}><div class="k">Margem Ctb. Bruta (MC)</div><div class="v"><span style="color:${d.mcGuia>=d.mcAlvo?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.mcGuia,-9.99))}</span><span class="pc">mín ${Math.round(d.mcAlvo*100)}%</span></div><div class="d">régua do guia de bolso — auditável</div></div>`
    +`<div class="kpi" ${kcol(d.marg>=SIM.meta/100?"var(--ok)":"var(--up)")}><div class="k">EBITDA</div><div class="v"><span style="color:${d.marg>=SIM.meta/100?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.marg,-9.99))}</span><span class="pc">${(d.marg*100-SIM.meta)>=0?"+":""}${fmt(d.marg*100-SIM.meta,1)} p.p.</span></div><div class="d">gerencial (desconta desp. máquina) · meta ${fmt(SIM.meta,1)}%</div></div>`;
   /* ① formação do custo — grupos como no excel */
@@ -884,7 +947,7 @@ function renderSim(){
       ${kv("Adicional de frete (333)", R$(d.adicUn))}
       ${kv("TOTAL IMPORTAÇÃO (ex-II)", R$(d.ct-d.ii), "tot")}</div>
     <div class="grp"><h4>Impostos da importação</h4>
-      ${kv("I.I. "+pct0(P.ii)+" s/ CIF", R$(d.ii))}
+      ${kv("I.I. "+pct0(iiS(s))+" s/ CIF", R$(d.ii))}
       ${kv("IPI 16,25%", R$(d.ipiImp))}
       ${kv("PIS 2,10%", R$(d.pisImp))}
       ${kv("COFINS 9,65%", R$(d.cofImp))}
@@ -899,13 +962,15 @@ function renderSim(){
       ${kv("Impostos recuperáveis (líquido)", "R$ 0,00")}
       ${kv("CUSTO TOTAL PRODUTO (CT)", R$(d.ct), "tot")}
       ${ADM && d.c25!=null ? kv("Modelo 2025 (premissas planilha)", `${R$(d.c25)} · <span class="${d.ct>d.c25?'delta-up':'delta-down'}">${pct(d.ct/d.c25-1)}</span>`, "hl") : ""}</div>`;
-  document.getElementById("simfonte").innerHTML = s.hawb
+  document.getElementById("simfonte").innerHTML = s.cad
+    ? `<span>SKU cadastrado no app por ${esc(s.criadoPor||"—")}${s.obs?" · fonte: "+esc(s.obs):""}</span><span>qtd/ctr ${fmt(s.q,0)} · II ${pct0(iiS(s))}</span><span>${s.frete!=null?"frete informado":"frete = mediana dos vivos ("+fmt(FRETE_FALLBACK,0)+")"} · ${s.adic!=null?"333 informado":"333 = média 2026"}</span>`
+    : s.hawb
     ? `<span>fonte: SW8/SWD 102·333 · ${s.hawb} · ${s.dt}</span><span>qtd/ctr ${fmt(s.q,0)}${s.qeic?" (EIC, ctr dedicado)":" (lista do time)"}</span><span>${s.adic!=null?"333 real do processo":"333 = média 2026"}</span>`
     : `<span>sem processo EIC completo em 2026 — FOB da lista · frete = mediana dos vivos (${fmt(FRETE_FALLBACK,0)})</span>`;
   /* ② formação do preço */
   document.getElementById("simpreco").innerHTML =
     kv("Preço de venda s/ IPI", R$(d.price))
-   +kv("IPI de saída "+fmt(SIM.ipi ?? 16.25,2)+"%", R$(d.price*d.ipiS))
+   +kv("IPI de saída "+fmt(SIM.ipi ?? ipiPad(),2)+"%", R$(d.price*d.ipiS))
    +kv("Preço de venda c/ IPI", R$(d.price*(1+d.ipiS)), "sub")
    +kv("(−) Impostos de saída (PIS "+fmt(SIM.pisS,2)+"% + COFINS "+fmt(SIM.cofS,2)+"% + ICMS "+fmt(SIM.icmsS,2)+"%)", R$(d.impS))
    +kv("(−) VPC "+(SIM.vpcOn? fmt(SIM.vpcPct,2)+"%":"(desligado)"), R$(d.vpc))
@@ -1022,7 +1087,7 @@ function renderComp(){
   const seg = (u,f) => (fob(u)+f)*P.seg;      /* US$ */
   const cifU = (u,f) => fob(u)+f+seg(u,f);    /* US$ */
   const cifR = (u,f) => cifU(u,f)*D;          /* R$ */
-  const ii  = (u,f) => cifR(u,f)*P.ii;
+  const ii  = (u,f) => cifR(u,f)*iiS(s);
   const ipiI = (u,f) => (cifR(u,f)+ii(u,f))*0.1625, pisI = (u,f)=>cifR(u,f)*0.021, cofI=(u,f)=>cifR(u,f)*0.0965;
   const rows = [
     ["FOB (qtd × US$)", fob(u25), fob(u26), "US$"],
@@ -1031,7 +1096,7 @@ function renderComp(){
     ["= CIF", cifU(u25,f25), cifU(u26,f26), "US$", "sec"],
     ["Taxa dólar", D, D, "x"],
     ["= CIF em R$", cifR(u25,f25), cifR(u26,f26), "R$", "sec"],
-    ["Imposto de Importação "+pct0(P.ii)+" s/ CIF", ii(u25,f25), ii(u26,f26), "R$"],
+    ["Imposto de Importação "+pct0(iiS(s))+" s/ CIF", ii(u25,f25), ii(u26,f26), "R$"],
     ["IPI importação 16,25% (creditado)", ipiI(u25,f25), ipiI(u26,f26), "R$"],
     ["PIS importação 2,10% (creditado)", pisI(u25,f25), pisI(u26,f26), "R$"],
     ["COFINS importação 9,65% (creditado)", cofI(u25,f25), cofI(u26,f26), "R$"],
@@ -1071,7 +1136,9 @@ function renderComp(){
       <td class="num">${un==="x"?fmt(b):((un==="US$"?"US$ ":"R$ ")+fmt(b))}</td>
       <td>${dTxt}</td><td style="text-align:left">${bar}</td></tr>`;
   }).join("");
-  document.getElementById("compfonte").textContent = s.hawb
+  document.getElementById("compfonte").textContent = s.cad
+    ? "SKU cadastrado no app — 2026 usa o FOB e o frete informados no cadastro (frete em branco = mediana dos vivos)"
+    : s.hawb
     ? `2026 automático do EIC: processo ${s.hawb} (${s.dt})${s.usd25==null?" · SKU fora da planilha 2025 (coluna 2025 usa o FOB vivo com as premissas antigas)":""}`
     : "sem processo EIC completo — 2026 usa FOB da lista e frete pela mediana dos vivos";
   /* ===== VEREDITO EXECUTIVO — decompõe o delta projetado × realizado por motor ===== */
@@ -1256,6 +1323,130 @@ document.getElementById("nav").addEventListener("click", ev=>{
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on", v.id==="v-"+b.dataset.v));
 });
 renderSimOptions(); wireSim(); renderParams(); render();
+
+/* ===== CADASTRO DE SKUs NO APP (v0.20 · Silvio 11/11/2026) — tabela custos_sku_cadastro (só ADM grava; RLS) ===== */
+function esc(x){ return String(x??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+const CAD = {linhas:[], editId:null, erro:null};
+const numBR = v => { const t=String(v??"").trim().replace(/\s/g,""); if(!t) return null;
+  const n = parseFloat(t.includes(",") ? t.replace(/\./g,"").replace(",",".") : t); return isFinite(n) ? n : NaN; };
+const cadParaSku = r => ({sku:r.sku, cod:r.cod||"—", q:r.qtd_ctr, usd25:null, usd26:+r.fob_usd,
+  frete: r.frete_usd_ctr==null ? null : +r.frete_usd_ctr, adic: r.adic_rs_ctr==null ? null : +r.adic_rs_ctr,
+  hawb:null, dt:"—", st: r.frete_usd_ctr==null ? "sem" : "cad", linha:r.linha,
+  ii: r.ii_pct==null ? null : r.ii_pct/100, ipiS: r.ipi_saida_pct==null ? null : +r.ipi_saida_pct,
+  cad:true, id:r.id, ncm:r.ncm, obs:r.obs, criadoPor:r.criado_por, criadoEm:r.criado_em});
+async function carregaCadSku(manterId){
+  const atual = ALL[SIM.i];
+  const { data, error } = await SB.from("custos_sku_cadastro").select("*").eq("ativo", true).order("sku");
+  CAD.erro = error ? (error.message || String(error)) : null;
+  CAD.linhas = error ? [] : (data || []);
+  ALL.length = N_BASE;
+  CAD.linhas.forEach(r => ALL.push(cadParaSku(r)));
+  /* mantém o SKU que estava na tela (ou vai para o recém-salvo) */
+  let alvo = SIM.i;
+  const procId = manterId ?? (atual && atual.cad ? atual.id : null);
+  if (procId != null){ const k = ALL.findIndex(s=>s.cad && s.id===procId); alvo = k>=0 ? k : 0; }
+  else if (SIM.i >= ALL.length) alvo = 0;
+  SIM.i = alvo;
+  renderSimOptions(); renderCadLista();
+  if (alvo !== SIM.i || (atual && atual.cad)) setSku(alvo); else { renderSim(); renderComp(); renderFrete(); renderFreteMargem(); }
+}
+const CAMPOS = ["sku","cod","ncm","linha","q","usd","frete","adic","ii","ipi","obs"];
+const cv = id => document.getElementById("cad-"+id);
+function lerForm(){
+  const f = {sku:cv("sku").value.trim(), cod:cv("cod").value.trim()||null, ncm:cv("ncm").value.trim()||null,
+    linha:cv("linha").value, q:numBR(cv("q").value), usd:numBR(cv("usd").value), frete:numBR(cv("frete").value),
+    adic:numBR(cv("adic").value), ii:numBR(cv("ii").value), ipi:numBR(cv("ipi").value), obs:cv("obs").value.trim()||null};
+  const e = [];
+  if (f.sku.length < 3) e.push("informe o SKU / descrição");
+  if (!(f.q > 0) || !Number.isInteger(f.q)) e.push("qtd por contêiner (número inteiro > 0)");
+  if (!(f.usd > 0)) e.push("FOB US$ por unidade (> 0)");
+  [["frete","frete"],["adic","adicional 333"]].forEach(([k,n])=>{ if (Number.isNaN(f[k]) || (f[k]!=null && f[k]<0)) e.push(n+" inválido"); });
+  [["ii","II %"],["ipi","IPI de saída %"]].forEach(([k,n])=>{ if (Number.isNaN(f[k]) || (f[k]!=null && (f[k]<0 || f[k]>100))) e.push(n+" entre 0 e 100"); });
+  const nome = f.sku.toLowerCase();
+  if (f.sku && ALL.some(s => s.sku.toLowerCase().replace(/\s*†$/,"") === nome.replace(/\s*†$/,"") && !(s.cad && s.id===CAD.editId)))
+    e.push("já existe um SKU com este nome na lista");
+  return {f, e};
+}
+function skuDoForm(f){ return {q:f.q, usd26:f.usd, frete:f.frete, adic:f.adic, linha:f.linha,
+  ii: f.ii==null ? null : f.ii/100, ipiS:f.ipi}; }
+function custoCad(s){ return custoM(s.usd26, s.frete ?? FRETE_FALLBACK, s.q, "26", s); }
+function previaCad(){
+  cv("frete-h").textContent = `em branco = mediana dos vivos (${fmt(FRETE_FALLBACK,0)})`;
+  cv("adic-h").textContent = `em branco = média 2026 (${fmt(P.adic333,0)})`;
+  cv("ii-h").textContent = `em branco = parâmetro (${pct0(P.ii)})`;
+  const {f, e} = lerForm(), el = document.getElementById("cadprev");
+  if (!(f.q > 0) || !(f.usd > 0) || [f.frete,f.adic,f.ii,f.ipi].some(Number.isNaN)){ el.innerHTML = "Preencha qtd/ctr e FOB para ver o custo projetado."; return; }
+  const s = skuDoForm(f), ct = custoCad(s);
+  const ipiG = (f.linha==="AUDIO") ? 0.15 : (f.ipi ?? 16.25)/100, m = f.linha==="AUDIO" ? 0.30 : 0.20;
+  el.innerHTML = `Prévia: custo projetado (CT) <b>R$ ${fmt(ct)}</b> por unidade · preço s/ IPI para a MC mínima da linha (${Math.round(m*100)}%) <b>R$ ${fmt(precoMC(ct, m, ipiG))}</b>`
+    + (e.length ? ` · <span style="color:var(--brand)">falta: ${esc(e.join("; "))}</span>` : "");
+}
+function preencheForm(r){
+  CAD.editId = r ? r.id : null;
+  const v = x => x==null ? "" : String(x).replace(".", ",");
+  cv("sku").value = r ? r.sku : ""; cv("cod").value = r ? (r.cod||"") : ""; cv("ncm").value = r ? (r.ncm||"") : "";
+  cv("linha").value = r ? r.linha : "AUDIO"; cv("q").value = r ? r.qtd_ctr : ""; cv("usd").value = r ? v(+r.fob_usd) : "";
+  cv("frete").value = r ? v(r.frete_usd_ctr) : ""; cv("adic").value = r ? v(r.adic_rs_ctr) : "";
+  cv("ii").value = r ? v(r.ii_pct) : ""; cv("ipi").value = r ? v(r.ipi_saida_pct) : ""; cv("obs").value = r ? (r.obs||"") : "";
+  document.getElementById("cadtit").textContent = r ? `Editando: ${r.sku}` : "Novo SKU";
+  document.getElementById("cad-salvar").textContent = r ? "Salvar alterações" : "Salvar SKU";
+  previaCad();
+}
+function msgCad(t, ok){ const m=document.getElementById("cadmsg"); m.textContent=t; m.className="cadmsg "+(ok?"ok":"err"); }
+async function salvaCad(){
+  const {f, e} = lerForm();
+  if (e.length){ msgCad("Corrija: "+e.join("; "), false); return; }
+  const linha = {sku:f.sku, cod:f.cod, ncm:f.ncm, linha:f.linha, qtd_ctr:f.q, fob_usd:f.usd, frete_usd_ctr:f.frete,
+                 adic_rs_ctr:f.adic, ii_pct:f.ii, ipi_saida_pct:f.ipi, obs:f.obs};
+  const b = document.getElementById("cad-salvar"); b.disabled = true; msgCad("Salvando…", true);
+  const q = CAD.editId ? SB.from("custos_sku_cadastro").update(linha).eq("id", CAD.editId).select()
+                       : SB.from("custos_sku_cadastro").insert(linha).select();
+  const { data, error } = await q; b.disabled = false;
+  if (error || !data || !data.length){ msgCad("Não salvou: " + (error ? (error.code==="23505" ? "já existe um SKU ativo com este nome" : error.message) : "sem permissão (só ADM grava)"), false); return; }
+  const id = data[0].id;
+  msgCad(CAD.editId ? "Alterações salvas." : "SKU cadastrado — já está no Simulador.", true);
+  preencheForm(null);
+  await carregaCadSku(id);
+}
+async function desativaCad(id){
+  const r = CAD.linhas.find(x=>x.id===id); if(!r) return;
+  if (!confirm(`Desativar "${r.sku}"? Ele sai das listas do app (o histórico fica guardado).`)) return;
+  const { data, error } = await SB.from("custos_sku_cadastro").update({ativo:false}).eq("id", id).select();
+  if (error || !data || !data.length){ msgCad("Não desativou: " + (error ? error.message : "sem permissão"), false); return; }
+  if (CAD.editId === id) preencheForm(null);
+  msgCad(`"${r.sku}" desativado.`, true);
+  const atual = ALL[SIM.i]; if (atual && atual.cad && atual.id===id) SIM.i = 0;
+  await carregaCadSku();
+}
+function renderCadLista(){
+  const tb = document.querySelector("#cadtbl tbody"); if(!tb) return;
+  if (CAD.erro){ tb.innerHTML = `<tr><td colspan="11" style="color:var(--brand)">Cadastro indisponível: ${esc(CAD.erro)}</td></tr>`; return; }
+  if (!CAD.linhas.length){ tb.innerHTML = `<tr><td colspan="11" style="color:var(--ink2)">Nenhum SKU cadastrado ainda.</td></tr>`; return; }
+  const nomeL = {AUDIO:"Áudio", LAR:"Lar", OUTRA:"Outra"};
+  tb.innerHTML = CAD.linhas.map(r=>{ const s = cadParaSku(r); const k = ALL.findIndex(x=>x.cad && x.id===r.id);
+    const dt = r.criado_em ? new Date(r.criado_em).toLocaleDateString("pt-BR") : "";
+    return `<tr><td><b>${esc(r.sku)}</b>${r.cod?`<div class="mono" style="font-size:11px;color:var(--ink2)">${esc(r.cod)}${r.ncm?" · NCM "+esc(r.ncm):""}</div>`:(r.ncm?`<div class="mono" style="font-size:11px;color:var(--ink2)">NCM ${esc(r.ncm)}</div>`:"")}</td>
+      <td>${nomeL[r.linha]||r.linha}</td><td class="num">${fmt(r.qtd_ctr,0)}</td><td class="num">${fmt(+r.fob_usd)}</td>
+      <td class="num">${r.frete_usd_ctr==null?'<span style="color:var(--ink3)">mediana</span>':fmt(+r.frete_usd_ctr,0)}</td>
+      <td class="num">${r.adic_rs_ctr==null?'<span style="color:var(--ink3)">média</span>':fmt(+r.adic_rs_ctr,0)}</td>
+      <td class="num">${r.ii_pct==null?'<span style="color:var(--ink3)">'+pct0(P.ii)+'</span>':fmt(+r.ii_pct)}</td>
+      <td class="num">${r.ipi_saida_pct==null?'<span style="color:var(--ink3)">16,25</span>':fmt(+r.ipi_saida_pct)}</td>
+      <td class="num"><b>${fmt(custoCad(s))}</b></td>
+      <td style="font-size:12px;color:var(--ink2)">${esc(r.criado_por||"—")}<br>${dt}${r.alterado_em?" · alt. "+new Date(r.alterado_em).toLocaleDateString("pt-BR"):""}</td>
+      <td class="acoes"><button class="btn sm" data-sim="${k}">Simular</button><button class="btn sm" data-ed="${r.id}">Editar</button><button class="btn sm" data-off="${r.id}">Desativar</button></td></tr>`; }).join("");
+}
+document.getElementById("cadtbl").addEventListener("click", ev=>{
+  const b = ev.target.closest("button"); if(!b) return;
+  if (b.dataset.sim){ setSku(+b.dataset.sim); document.querySelector('#nav button[data-v="sim"]').click(); }
+  else if (b.dataset.ed){ preencheForm(CAD.linhas.find(x=>x.id===+b.dataset.ed)); cv("sku").focus(); window.scrollTo({top:0,behavior:"smooth"}); }
+  else if (b.dataset.off){ desativaCad(+b.dataset.off); }
+});
+CAMPOS.forEach(k=>{ cv(k).addEventListener("input", previaCad); cv(k).addEventListener("change", previaCad); });
+document.getElementById("cad-salvar").addEventListener("click", salvaCad);
+document.getElementById("cad-limpar").addEventListener("click", ()=>{ preencheForm(null); msgCad("", true); });
+document.getElementById("nav").addEventListener("click", ev=>{ const b=ev.target.closest("button"); if(b && b.dataset.v==="cadsku"){ previaCad(); renderCadLista(); } });
+preencheForm(null);
+carregaCadSku();
 </script>
 
 
