@@ -125,6 +125,9 @@ tr.exp td{background:var(--surface2); padding:16px 18px; white-space:normal}
 .btn.pri:hover{background:var(--brand-ink)}
 .btn.sm{padding:4px 10px; font-size:12px}
 #v-cadsku .fgrid{align-items:start}
+.premhd{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin:20px 0 4px; padding-top:14px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink2)}
+.premsub{font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink3); font-weight:600; margin:12px 0 2px}
+.fgrid .fld input.mudou{border-color:var(--amber); background:var(--amber-bg)}
 .cadprev{margin-top:12px; font-size:13px; color:var(--ink2)}
 .cadprev b{color:var(--ink)}
 .cadmsg{font-size:13px; font-weight:600}
@@ -595,24 +598,26 @@ details.simparams .inner{padding:2px 18px 16px}
       <h1>Cadastro de SKUs</h1>
       <p class="lede">Cadastre aqui o SKU novo que ainda não tem processo no EIC, com as particularidades dele.
       Depois de salvo, ele aparece no Simulador, na Visão Comparativa e no Frete (grupo <b>Cadastrados no app</b>).
-      Campo opcional em branco = usa o parâmetro geral do app.</p>
+      As premissas de importação já vêm preenchidas com os parâmetros vigentes — é só revisar; o que for alterado fica em destaque.</p>
       <div class="formcard">
         <div class="fh" id="cadtit">Novo SKU</div>
         <div class="fgrid">
           <div class="fld" style="grid-column:span 2; min-width:220px"><label for="cad-sku">SKU / descrição <span class="req">*</span></label>
             <input id="cad-sku" maxlength="80" placeholder="ex.: ACA 999 NOVO MODELO"><div class="fh2">nome que aparece na lista do simulador</div></div>
           <div class="fld"><label for="cad-cod">Código Protheus</label><input id="cad-cod" maxlength="20"><div class="fh2">se já existir</div></div>
-          <div class="fld"><label for="cad-ncm">NCM</label><input id="cad-ncm" maxlength="12" inputmode="numeric"><div class="fh2">informativo (pauta SYD)</div></div>
+          <div class="fld"><label for="cad-ncm">NCM</label><input id="cad-ncm" maxlength="12" inputmode="numeric"><div class="fh2">confira o II da pauta deste NCM</div></div>
           <div class="fld"><label for="cad-linha">Linha <span class="req">*</span></label>
             <select id="cad-linha"><option value="AUDIO">Áudio · MC 30%</option><option value="LAR">Lar · MC 20%</option><option value="OUTRA">Outra · MC 20%</option></select></div>
           <div class="fld"><label for="cad-q">Qtd por contêiner <span class="req">*</span></label><input id="cad-q" inputmode="numeric"><div class="fh2">contêiner dedicado</div></div>
           <div class="fld"><label for="cad-usd">FOB US$ / unidade <span class="req">*</span></label><input id="cad-usd" inputmode="decimal"><div class="fh2">cotação / proforma</div></div>
-          <div class="fld"><label for="cad-frete">Frete marítimo US$/ctr</label><input id="cad-frete" inputmode="decimal"><div class="fh2" id="cad-frete-h"></div></div>
-          <div class="fld"><label for="cad-adic">Adicional de frete (333) R$/ctr</label><input id="cad-adic" inputmode="decimal"><div class="fh2" id="cad-adic-h"></div></div>
-          <div class="fld"><label for="cad-ii">II % (s/ CIF)</label><input id="cad-ii" inputmode="decimal"><div class="fh2" id="cad-ii-h"></div></div>
-          <div class="fld"><label for="cad-ipi">IPI de saída %</label><input id="cad-ipi" inputmode="decimal"><div class="fh2">em branco = 16,25%</div></div>
           <div class="fld" style="grid-column:span 2; min-width:220px"><label for="cad-obs">Fonte / observação</label><input id="cad-obs" maxlength="300" placeholder="ex.: proforma fornecedor 10/11/2026"></div>
         </div>
+        <div class="premhd"><span>Premissas de importação — já preenchidas com os parâmetros vigentes; revise e ajuste só o que for diferente neste SKU</span>
+          <button class="btn sm" id="cad-restaura" type="button">Restaurar parâmetros vigentes</button></div>
+        <div class="premsub">Frete e despesas</div>
+        <div class="fgrid" id="cad-prem-custo"></div>
+        <div class="premsub">Impostos</div>
+        <div class="fgrid" id="cad-prem-imp"></div>
         <div class="cadprev" id="cadprev"></div>
         <div class="cadbtns">
           <button class="btn pri" id="cad-salvar" type="button">Salvar SKU</button>
@@ -623,7 +628,7 @@ details.simparams .inner{padding:2px 18px 16px}
       <h2>SKUs cadastrados no app</h2>
       <div class="card"><div class="tblwrap">
         <table class="cadtbl" id="cadtbl">
-          <thead><tr><th>SKU</th><th>Linha</th><th>Qtd/ctr</th><th>FOB US$</th><th>Frete US$/ctr</th><th>333 R$/ctr</th><th>II %</th><th>IPI saída %</th><th>Custo (CT)</th><th>Cadastrado por</th><th>Ações</th></tr></thead>
+          <thead><tr><th>SKU</th><th>Linha</th><th>Qtd/ctr</th><th>FOB US$</th><th>Frete US$/ctr</th><th>333 R$/ctr</th><th>II %</th><th>IPI saída %</th><th>Custo (CT)</th><th>Premissas alteradas</th><th>Cadastrado por</th><th>Ações</th></tr></thead>
           <tbody></tbody>
         </table>
       </div></div>
@@ -649,7 +654,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.20 · refresh 11/11/2026";
+const VERSAO = "v0.21 · refresh 11/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -693,7 +698,8 @@ aplicaPerfil();
 
 const DEFAULTS = {dolar:5.75, freteProj:5000, seg:0.0008, afrmm:0.08, magic:0.01, courr:0.06,
   transp:1642, despacho:600, siscomex:154, bl:580, armaz:1100, capataz:1590, descons:250,
-  adic333:2554, ii:0.18, dmaq25:0.27, dmaqMC:0.16};
+  adic333:2554, ii:0.18, dmaq25:0.27, dmaqMC:0.16,
+  ipiImp:0.1625, pisImp:0.021, cofImp:0.0965};
 let P = {...DEFAULTS};
 const PMETA = [
  ["dolar","Taxa dólar","Padrão FIXO 5,75 (definição 26/08) — editável para simular cenário; Restaurar padrão volta a 5,75. Igual nos dois modelos.",false],
@@ -714,13 +720,16 @@ const PMETA = [
  ["dmaq25","Despesa da máquina 2025 (s/ venda)","Parâmetro editável (decisão da retomada). Não entra no custo de aquisição.",false],
  ["dmaqMC","Despesa fixa MC Estimativa (s/ venda)","Parâmetro editável. Convive com o 27% até revisão.",false],
 ];
-const fixos = modo => P.transp+P.despacho+P.bl+P.armaz+P.capataz+P.descons + (modo==="25" ? P.siscomex : 0);
+/* premissas de importação do SKU cadastrado (v0.21) sobre os parâmetros globais; dólar e Siscomex seguem globais */
+const PQ = s => (s && s.prem) ? {...P, ...s.prem, dolar:P.dolar, siscomex:P.siscomex} : P;
+const fixos = (modo, s) => { const Q = PQ(s); return Q.transp+Q.despacho+Q.bl+Q.armaz+Q.capataz+Q.descons + (modo==="25" ? Q.siscomex : 0); };
 const iiS = s => (s && s.ii!=null) ? s.ii : P.ii;   /* II do SKU cadastrado ou o parâmetro (v0.20) */
 const adic = (s,modo) => modo==="26" ? (s && s.adic!=null ? s.adic : P.adic333) : 0;
 function custoM(usd, frete, q, modo, s){
-  return (usd + frete/q)*(1+P.seg)*P.dolar*(1+iiS(s))
-       + (frete*P.afrmm*P.dolar)/q + usd*P.magic*P.dolar
-       + (frete*P.dolar*P.courr)/q + (fixos(modo)+adic(s,modo))/q;
+  const Q = PQ(s);
+  return (usd + frete/q)*(1+Q.seg)*Q.dolar*(1+iiS(s))
+       + (frete*Q.afrmm*Q.dolar)/q + usd*Q.magic*Q.dolar
+       + (frete*Q.dolar*Q.courr)/q + (fixos(modo,s)+adic(s,modo))/q;
 }
 const fmt = (v,d=2) => v==null ? "—" : v.toLocaleString("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d});
 const pct = v => (v>0?"+":"")+ (100*v).toLocaleString("pt-BR",{minimumFractionDigits:1,maximumFractionDigits:1})+"%";
@@ -867,17 +876,18 @@ function simCalc(){
   const usd = s.usd26 ?? s.usd25, f = s.frete ?? FRETE_FALLBACK, q = s.q;
   const fobR = usd*P.dolar;
   const freteR = (f/q)*P.dolar;
-  const segR = (usd+f/q)*P.seg*P.dolar;
+  const Q = PQ(s);
+  const segR = (usd+f/q)*Q.seg*P.dolar;
   const cifR = fobR+freteR+segR;
   const ii = cifR*iiS(s);
-  const afrmm = f*P.afrmm*P.dolar/q;
-  const magic = usd*P.magic*P.dolar;
-  const courr = f*P.dolar*P.courr/q;
-  const fixosUn = fixos("26")/q;
+  const afrmm = f*Q.afrmm*P.dolar/q;
+  const magic = usd*Q.magic*P.dolar;
+  const courr = f*P.dolar*Q.courr/q;
+  const fixosUn = fixos("26", s)/q;
   const adicUn = adic(s,"26")/q;
   const ct = cifR+ii+afrmm+magic+courr+fixosUn+adicUn; /* = custoM(...,"26") */
   /* impostos recuperáveis da importação (SYD NCM 85198190) — crédito espelho, líquido 0 */
-  const ipiImp = (cifR+ii)*0.1625, pisImp = cifR*0.021, cofImp = cifR*0.0965;
+  const ipiImp = (cifR+ii)*Q.ipiImp, pisImp = cifR*Q.pisImp, cofImp = cifR*Q.cofImp;
   const c25 = s.usd25!=null ? custoM(s.usd25, P.freteProj, q, "25", s) : null;
   /* preço padrão = preço projetado p/ a MC MÍNIMA da linha (ÁUDIO 30% · demais 20%) */
   const mcAlvo = mcMin(s);
@@ -895,7 +905,7 @@ function simCalc(){
      Auditável: digitar o piso MC30/35/40 devolve exatamente 30/35/40%. */
   const mcGuia = (fcGuia(ipiG) - 1.01*ct/price)/fbGuia(ipiG);
   const qty = SIM.qty ?? q;
-  return {s, usd, f, q, fobR, freteR, segR, cifR, ii, afrmm, magic, courr, fixosUn, adicUn, ct,
+  return {s, Q, usd, f, q, fobR, freteR, segR, cifR, ii, afrmm, magic, courr, fixosUn, adicUn, ct,
           ipiImp, pisImp, cofImp, c25, price, pisoDef, mcAlvo, ipiS, vpc, impS, dmaqPct, dmaqV, cv,
           lucroV, marg: lucroV/price, mcGuia, ipiG, qty};
 }
@@ -940,17 +950,17 @@ function renderSim(){
       ${kv("Frete marítimo (real EIC)", R$(d.freteR))}
       ${kv("Seguro / financeiro", R$(d.segR))}
       ${kv("= CIF", R$(d.cifR), "sub")}
-      ${kv("AFRMM "+pct0(P.afrmm)+" s/ frete", R$(d.afrmm))}
-      ${kv("Magic "+pct0(P.magic)+" s/ FOB", R$(d.magic))}
+      ${kv("AFRMM "+pct0(d.Q.afrmm)+" s/ frete", R$(d.afrmm))}
+      ${kv("Magic "+pct0(d.Q.magic)+" s/ FOB", R$(d.magic))}
       ${kv("Courrier / EBS", R$(d.courr))}
       ${kv("Fixos que agregam ÷ qtd", R$(d.fixosUn))}
       ${kv("Adicional de frete (333)", R$(d.adicUn))}
       ${kv("TOTAL IMPORTAÇÃO (ex-II)", R$(d.ct-d.ii), "tot")}</div>
     <div class="grp"><h4>Impostos da importação</h4>
       ${kv("I.I. "+pct0(iiS(s))+" s/ CIF", R$(d.ii))}
-      ${kv("IPI 16,25%", R$(d.ipiImp))}
-      ${kv("PIS 2,10%", R$(d.pisImp))}
-      ${kv("COFINS 9,65%", R$(d.cofImp))}
+      ${kv("IPI "+pct0(d.Q.ipiImp), R$(d.ipiImp))}
+      ${kv("PIS "+pct0(d.Q.pisImp), R$(d.pisImp))}
+      ${kv("COFINS "+pct0(d.Q.cofImp), R$(d.cofImp))}
       <h4>Créditos (recuperáveis)</h4>
       ${kv("(−) IPI", `<span class="neg">−${fmt(d.ipiImp)}</span>`)}
       ${kv("(−) PIS", `<span class="neg">−${fmt(d.pisImp)}</span>`)}
@@ -1081,18 +1091,18 @@ function renderComp(){
   const s = ALL[+sel.value || 0];
   const q = s.q, u25 = s.usd25 ?? s.usd26, u26 = s.usd26 ?? s.usd25;
   const f25 = P.freteProj, f26 = s.frete ?? FRETE_FALLBACK;
-  const D = P.dolar, a26 = adic(s,"26");
+  const D = P.dolar, a26 = adic(s,"26"), Q = PQ(s);
   /* helpers por contêiner */
   const fob = u => u*q;                       /* US$ */
-  const seg = (u,f) => (fob(u)+f)*P.seg;      /* US$ */
+  const seg = (u,f) => (fob(u)+f)*Q.seg;      /* US$ */
   const cifU = (u,f) => fob(u)+f+seg(u,f);    /* US$ */
   const cifR = (u,f) => cifU(u,f)*D;          /* R$ */
   const ii  = (u,f) => cifR(u,f)*iiS(s);
-  const ipiI = (u,f) => (cifR(u,f)+ii(u,f))*0.1625, pisI = (u,f)=>cifR(u,f)*0.021, cofI=(u,f)=>cifR(u,f)*0.0965;
+  const ipiI = (u,f) => (cifR(u,f)+ii(u,f))*Q.ipiImp, pisI = (u,f)=>cifR(u,f)*Q.pisImp, cofI=(u,f)=>cifR(u,f)*Q.cofImp;
   const rows = [
     ["FOB (qtd × US$)", fob(u25), fob(u26), "US$"],
     ["Frete marítimo — projetado × REAL EIC", f25, f26, "US$"],
-    ["Seguro / financeiro "+pct0(P.seg), seg(u25,f25), seg(u26,f26), "US$"],
+    ["Seguro / financeiro "+pct0(Q.seg), seg(u25,f25), seg(u26,f26), "US$"],
     ["= CIF", cifU(u25,f25), cifU(u26,f26), "US$", "sec"],
     ["Taxa dólar", D, D, "x"],
     ["= CIF em R$", cifR(u25,f25), cifR(u26,f26), "R$", "sec"],
@@ -1101,16 +1111,16 @@ function renderComp(){
     ["PIS importação 2,10% (creditado)", pisI(u25,f25), pisI(u26,f26), "R$"],
     ["COFINS importação 9,65% (creditado)", cofI(u25,f25), cofI(u26,f26), "R$"],
     ["(−) Créditos IPI/PIS/COFINS", -(ipiI(u25,f25)+pisI(u25,f25)+cofI(u25,f25)), -(ipiI(u26,f26)+pisI(u26,f26)+cofI(u26,f26)), "R$"],
-    ["AFRMM "+pct0(P.afrmm)+" s/ frete", f25*P.afrmm*D, f26*P.afrmm*D, "R$"],
-    ["Magic "+pct0(P.magic)+" s/ FOB", fob(u25)*P.magic*D, fob(u26)*P.magic*D, "R$"],
-    ["Courrier/IOF + EBS "+pct0(P.courr)+" s/ frete R$", f25*D*P.courr, f26*D*P.courr, "R$"],
-    ["Transporte porto → Amvox", P.transp, P.transp, "R$"],
-    ["Despachante", P.despacho, P.despacho, "R$"],
+    ["AFRMM "+pct0(Q.afrmm)+" s/ frete", f25*Q.afrmm*D, f26*Q.afrmm*D, "R$"],
+    ["Magic "+pct0(Q.magic)+" s/ FOB", fob(u25)*Q.magic*D, fob(u26)*Q.magic*D, "R$"],
+    ["Courrier/IOF + EBS "+pct0(Q.courr)+" s/ frete R$", f25*D*Q.courr, f26*D*Q.courr, "R$"],
+    ["Transporte porto → Amvox", Q.transp, Q.transp, "R$"],
+    ["Despachante", Q.despacho, Q.despacho, "R$"],
     ["Taxa Siscomex — 2026 NÃO agrega custo", P.siscomex, 0, "R$"],
-    ["Taxa liberação BL", P.bl, P.bl, "R$"],
-    ["Armazenagem portuária", P.armaz, P.armaz, "R$"],
-    ["Capatazia", P.capataz, P.capataz, "R$"],
-    ["Desconsolidação", P.descons, P.descons, "R$"],
+    ["Taxa liberação BL", Q.bl, Q.bl, "R$"],
+    ["Armazenagem portuária", Q.armaz, Q.armaz, "R$"],
+    ["Capatazia", Q.capataz, Q.capataz, "R$"],
+    ["Desconsolidação", Q.descons, Q.descons, "R$"],
     ["Adicional de frete (333) — linha esquecida no 2025", 0, a26, "R$"],
     ["Rateio INMETRO/ANATEL", 0, 0, "R$"],
   ];
@@ -1171,7 +1181,7 @@ function renderComp(){
       <div class="expl">${m.expl}</div></div></div>`;
   }).join("");
   /* sensibilidade ao dólar: tudo exceto fixos/adicional em R$ escala com a taxa */
-  const sensDolar = Math.abs((c26 - (fixos("26")+a26)/q)/P.dolar*0.10);
+  const sensDolar = Math.abs((c26 - (fixos("26", s)+a26)/q)/P.dolar*0.10);
   const sobe = dTot>=0;
   document.getElementById("compveredito").innerHTML =
     `<div class="ph" style="margin-bottom:2px"><span class="n">★</span><span class="t">Veredito executivo — ${s.sku}</span></div>
@@ -1333,7 +1343,7 @@ const cadParaSku = r => ({sku:r.sku, cod:r.cod||"—", q:r.qtd_ctr, usd25:null, 
   frete: r.frete_usd_ctr==null ? null : +r.frete_usd_ctr, adic: r.adic_rs_ctr==null ? null : +r.adic_rs_ctr,
   hawb:null, dt:"—", st: r.frete_usd_ctr==null ? "sem" : "cad", linha:r.linha,
   ii: r.ii_pct==null ? null : r.ii_pct/100, ipiS: r.ipi_saida_pct==null ? null : +r.ipi_saida_pct,
-  cad:true, id:r.id, ncm:r.ncm, obs:r.obs, criadoPor:r.criado_por, criadoEm:r.criado_em});
+  prem: r.premissas || null, cad:true, id:r.id, ncm:r.ncm, obs:r.obs, criadoPor:r.criado_por, criadoEm:r.criado_em});
 async function carregaCadSku(manterId){
   const atual = ALL[SIM.i];
   const { data, error } = await SB.from("custos_sku_cadastro").select("*").eq("ativo", true).order("sku");
@@ -1350,44 +1360,85 @@ async function carregaCadSku(manterId){
   renderSimOptions(); renderCadLista();
   if (alvo !== SIM.i || (atual && atual.cad)) setSku(alvo); else { renderSim(); renderComp(); renderFrete(); renderFreteMargem(); }
 }
-const CAMPOS = ["sku","cod","ncm","linha","q","usd","frete","adic","ii","ipi","obs"];
+/* premissas de importação do cadastro (v0.21): [chave, rótulo, unidade, grupo, padrão vigente] — % mostrados em pontos percentuais */
+const PREM = [
+ ["frete","Frete marítimo US$/ctr","US$","custo", ()=>FRETE_FALLBACK, "mediana dos processos vivos"],
+ ["seg","Seguro % s/ (FOB+frete)","%","custo", ()=>P.seg],
+ ["afrmm","AFRMM % s/ frete","%","custo", ()=>P.afrmm],
+ ["magic","Magic % s/ FOB","%","custo", ()=>P.magic],
+ ["courr","Courrier/IOF + EBS % s/ frete","%","custo", ()=>P.courr],
+ ["adic","Adicional de frete (333) R$/ctr","R$","custo", ()=>P.adic333, "média dos embarques 2026"],
+ ["transp","Transporte porto→Amvox R$/ctr","R$","custo", ()=>P.transp],
+ ["despacho","Despachante R$/ctr","R$","custo", ()=>P.despacho],
+ ["bl","Liberação BL R$/ctr","R$","custo", ()=>P.bl],
+ ["armaz","Armazenagem portuária R$/ctr","R$","custo", ()=>P.armaz],
+ ["capataz","Capatazia R$/ctr","R$","custo", ()=>P.capataz],
+ ["descons","Desconsolidação R$/ctr","R$","custo", ()=>P.descons],
+ ["ii","II % s/ CIF (não recuperável)","%","imp", ()=>P.ii, "pauta SYD"],
+ ["ipiImp","IPI importação % (crédito)","%","imp", ()=>P.ipiImp],
+ ["pisImp","PIS importação % (crédito)","%","imp", ()=>P.pisImp],
+ ["cofImp","COFINS importação % (crédito)","%","imp", ()=>P.cofImp],
+ ["ipi","IPI de saída %","%","imp", ()=>0.1625, "pauta do NCM"],
+];
+const PREM_JSON = ["seg","afrmm","magic","courr","transp","despacho","bl","armaz","capataz","descons","ipiImp","pisImp","cofImp"];
+const premFmt = (c, v) => c[2]==="%" ? fmt(v*100, 4).replace(/0+$/,"").replace(/,$/,"") : fmt(v, c[2]==="US$" ? 2 : 2);
+const CAMPOS = ["sku","cod","ncm","linha","q","usd","obs"].concat(PREM.map(c=>c[0]));
 const cv = id => document.getElementById("cad-"+id);
+function montaPrem(){
+  const html = g => PREM.filter(c=>c[3]===g).map(c=>`<div class="fld"><label for="cad-${c[0]}">${c[1]} <span class="req">*</span></label>
+    <input id="cad-${c[0]}" inputmode="decimal"><div class="fh2" id="cad-${c[0]}-h"></div></div>`).join("");
+  document.getElementById("cad-prem-custo").innerHTML = html("custo");
+  document.getElementById("cad-prem-imp").innerHTML = html("imp");
+}
+montaPrem();
 function lerForm(){
   const f = {sku:cv("sku").value.trim(), cod:cv("cod").value.trim()||null, ncm:cv("ncm").value.trim()||null,
-    linha:cv("linha").value, q:numBR(cv("q").value), usd:numBR(cv("usd").value), frete:numBR(cv("frete").value),
-    adic:numBR(cv("adic").value), ii:numBR(cv("ii").value), ipi:numBR(cv("ipi").value), obs:cv("obs").value.trim()||null};
+    linha:cv("linha").value, q:numBR(cv("q").value), usd:numBR(cv("usd").value), obs:cv("obs").value.trim()||null, prem:{}};
   const e = [];
   if (f.sku.length < 3) e.push("informe o SKU / descrição");
   if (!(f.q > 0) || !Number.isInteger(f.q)) e.push("qtd por contêiner (número inteiro > 0)");
   if (!(f.usd > 0)) e.push("FOB US$ por unidade (> 0)");
-  [["frete","frete"],["adic","adicional 333"]].forEach(([k,n])=>{ if (Number.isNaN(f[k]) || (f[k]!=null && f[k]<0)) e.push(n+" inválido"); });
-  [["ii","II %"],["ipi","IPI de saída %"]].forEach(([k,n])=>{ if (Number.isNaN(f[k]) || (f[k]!=null && (f[k]<0 || f[k]>100))) e.push(n+" entre 0 e 100"); });
+  PREM.forEach(c=>{ const v = numBR(cv(c[0]).value);
+    if (v==null || Number.isNaN(v) || v<0 || (c[2]==="%" && v>100)) { e.push(c[1]+" inválido"); f.prem[c[0]] = NaN; }
+    else f.prem[c[0]] = c[2]==="%" ? v/100 : v; });
   const nome = f.sku.toLowerCase();
   if (f.sku && ALL.some(s => s.sku.toLowerCase().replace(/\s*†$/,"") === nome.replace(/\s*†$/,"") && !(s.cad && s.id===CAD.editId)))
     e.push("já existe um SKU com este nome na lista");
   return {f, e};
 }
-function skuDoForm(f){ return {q:f.q, usd26:f.usd, frete:f.frete, adic:f.adic, linha:f.linha,
-  ii: f.ii==null ? null : f.ii/100, ipiS:f.ipi}; }
+function skuDoForm(f){ const prem = {}; PREM_JSON.forEach(k=>prem[k]=f.prem[k]);
+  return {q:f.q, usd26:f.usd, frete:f.prem.frete, adic:f.prem.adic, linha:f.linha, ii:f.prem.ii, ipiS:f.prem.ipi*100, prem}; }
 function custoCad(s){ return custoM(s.usd26, s.frete ?? FRETE_FALLBACK, s.q, "26", s); }
+function marcaMudou(){
+  PREM.forEach(c=>{ const el = cv(c[0]), v = numBR(el.value), pad = c[4]();
+    const vv = v==null || Number.isNaN(v) ? null : (c[2]==="%" ? v/100 : v);
+    const mud = vv!=null && Math.abs(vv - pad) > 1e-9;
+    el.classList.toggle("mudou", mud);
+    cv(c[0]+"-h").textContent = (mud ? "alterado · vigente " : "vigente ") + premFmt(c, pad) + (c[2]==="%" ? "%" : "") + (c[5] ? " · "+c[5] : ""); });
+}
 function previaCad(){
-  cv("frete-h").textContent = `em branco = mediana dos vivos (${fmt(FRETE_FALLBACK,0)})`;
-  cv("adic-h").textContent = `em branco = média 2026 (${fmt(P.adic333,0)})`;
-  cv("ii-h").textContent = `em branco = parâmetro (${pct0(P.ii)})`;
+  marcaMudou();
   const {f, e} = lerForm(), el = document.getElementById("cadprev");
-  if (!(f.q > 0) || !(f.usd > 0) || [f.frete,f.adic,f.ii,f.ipi].some(Number.isNaN)){ el.innerHTML = "Preencha qtd/ctr e FOB para ver o custo projetado."; return; }
+  if (!(f.q > 0) || !(f.usd > 0) || Object.values(f.prem).some(Number.isNaN)){ el.innerHTML = "Preencha qtd/ctr e FOB (e confira as premissas) para ver o custo projetado."
+    + (e.length && f.q>0 && f.usd>0 ? ` · <span style="color:var(--brand)">falta: ${esc(e.join("; "))}</span>` : ""); return; }
   const s = skuDoForm(f), ct = custoCad(s);
-  const ipiG = (f.linha==="AUDIO") ? 0.15 : (f.ipi ?? 16.25)/100, m = f.linha==="AUDIO" ? 0.30 : 0.20;
+  const ipiG = (f.linha==="AUDIO") ? 0.15 : f.prem.ipi, m = f.linha==="AUDIO" ? 0.30 : 0.20;
   el.innerHTML = `Prévia: custo projetado (CT) <b>R$ ${fmt(ct)}</b> por unidade · preço s/ IPI para a MC mínima da linha (${Math.round(m*100)}%) <b>R$ ${fmt(precoMC(ct, m, ipiG))}</b>`
     + (e.length ? ` · <span style="color:var(--brand)">falta: ${esc(e.join("; "))}</span>` : "");
+}
+function preenchePrem(r){
+  const pr = (r && r.premissas) || {};
+  const val = {frete: r && r.frete_usd_ctr!=null ? +r.frete_usd_ctr : null, adic: r && r.adic_rs_ctr!=null ? +r.adic_rs_ctr : null,
+               ii: r && r.ii_pct!=null ? r.ii_pct/100 : null, ipi: r && r.ipi_saida_pct!=null ? r.ipi_saida_pct/100 : null};
+  PREM.forEach(c=>{ const v = val[c[0]] ?? pr[c[0]] ?? c[4](); cv(c[0]).value = premFmt(c, v); });
 }
 function preencheForm(r){
   CAD.editId = r ? r.id : null;
   const v = x => x==null ? "" : String(x).replace(".", ",");
   cv("sku").value = r ? r.sku : ""; cv("cod").value = r ? (r.cod||"") : ""; cv("ncm").value = r ? (r.ncm||"") : "";
   cv("linha").value = r ? r.linha : "AUDIO"; cv("q").value = r ? r.qtd_ctr : ""; cv("usd").value = r ? v(+r.fob_usd) : "";
-  cv("frete").value = r ? v(r.frete_usd_ctr) : ""; cv("adic").value = r ? v(r.adic_rs_ctr) : "";
-  cv("ii").value = r ? v(r.ii_pct) : ""; cv("ipi").value = r ? v(r.ipi_saida_pct) : ""; cv("obs").value = r ? (r.obs||"") : "";
+  cv("obs").value = r ? (r.obs||"") : "";
+  preenchePrem(r);
   document.getElementById("cadtit").textContent = r ? `Editando: ${r.sku}` : "Novo SKU";
   document.getElementById("cad-salvar").textContent = r ? "Salvar alterações" : "Salvar SKU";
   previaCad();
@@ -1396,8 +1447,9 @@ function msgCad(t, ok){ const m=document.getElementById("cadmsg"); m.textContent
 async function salvaCad(){
   const {f, e} = lerForm();
   if (e.length){ msgCad("Corrija: "+e.join("; "), false); return; }
-  const linha = {sku:f.sku, cod:f.cod, ncm:f.ncm, linha:f.linha, qtd_ctr:f.q, fob_usd:f.usd, frete_usd_ctr:f.frete,
-                 adic_rs_ctr:f.adic, ii_pct:f.ii, ipi_saida_pct:f.ipi, obs:f.obs};
+  const prem = {}; PREM_JSON.forEach(k=>prem[k]=+f.prem[k].toFixed(6));
+  const linha = {sku:f.sku, cod:f.cod, ncm:f.ncm, linha:f.linha, qtd_ctr:f.q, fob_usd:f.usd, frete_usd_ctr:f.prem.frete,
+                 adic_rs_ctr:f.prem.adic, ii_pct:+(f.prem.ii*100).toFixed(2), ipi_saida_pct:+(f.prem.ipi*100).toFixed(2), obs:f.obs, premissas:prem};
   const b = document.getElementById("cad-salvar"); b.disabled = true; msgCad("Salvando…", true);
   const q = CAD.editId ? SB.from("custos_sku_cadastro").update(linha).eq("id", CAD.editId).select()
                        : SB.from("custos_sku_cadastro").insert(linha).select();
@@ -1418,10 +1470,17 @@ async function desativaCad(id){
   const atual = ALL[SIM.i]; if (atual && atual.cad && atual.id===id) SIM.i = 0;
   await carregaCadSku();
 }
+function premAlteradas(r){
+  const pr = r.premissas || {}, val = {frete:r.frete_usd_ctr==null?null:+r.frete_usd_ctr, adic:r.adic_rs_ctr==null?null:+r.adic_rs_ctr,
+    ii:r.ii_pct==null?null:r.ii_pct/100, ipi:r.ipi_saida_pct==null?null:r.ipi_saida_pct/100};
+  const m = PREM.filter(c=>{ const v = val[c[0]] ?? pr[c[0]]; return v!=null && Math.abs(v - c[4]()) > 1e-6; })
+    .map(c=>esc(c[1].replace(/ (R\$|US\$)\/ctr| %.*$/,""))+": "+premFmt(c, val[c[0]] ?? pr[c[0]])+(c[2]==="%"?"%":""));
+  return m.length ? m.join("<br>") : "nenhuma (todas as vigentes)";
+}
 function renderCadLista(){
   const tb = document.querySelector("#cadtbl tbody"); if(!tb) return;
-  if (CAD.erro){ tb.innerHTML = `<tr><td colspan="11" style="color:var(--brand)">Cadastro indisponível: ${esc(CAD.erro)}</td></tr>`; return; }
-  if (!CAD.linhas.length){ tb.innerHTML = `<tr><td colspan="11" style="color:var(--ink2)">Nenhum SKU cadastrado ainda.</td></tr>`; return; }
+  if (CAD.erro){ tb.innerHTML = `<tr><td colspan="12" style="color:var(--brand)">Cadastro indisponível: ${esc(CAD.erro)}</td></tr>`; return; }
+  if (!CAD.linhas.length){ tb.innerHTML = `<tr><td colspan="12" style="color:var(--ink2)">Nenhum SKU cadastrado ainda.</td></tr>`; return; }
   const nomeL = {AUDIO:"Áudio", LAR:"Lar", OUTRA:"Outra"};
   tb.innerHTML = CAD.linhas.map(r=>{ const s = cadParaSku(r); const k = ALL.findIndex(x=>x.cad && x.id===r.id);
     const dt = r.criado_em ? new Date(r.criado_em).toLocaleDateString("pt-BR") : "";
@@ -1432,6 +1491,7 @@ function renderCadLista(){
       <td class="num">${r.ii_pct==null?'<span style="color:var(--ink3)">'+pct0(P.ii)+'</span>':fmt(+r.ii_pct)}</td>
       <td class="num">${r.ipi_saida_pct==null?'<span style="color:var(--ink3)">16,25</span>':fmt(+r.ipi_saida_pct)}</td>
       <td class="num"><b>${fmt(custoCad(s))}</b></td>
+      <td style="font-size:12px;color:var(--ink2);white-space:normal;min-width:140px">${premAlteradas(r)}</td>
       <td style="font-size:12px;color:var(--ink2)">${esc(r.criado_por||"—")}<br>${dt}${r.alterado_em?" · alt. "+new Date(r.alterado_em).toLocaleDateString("pt-BR"):""}</td>
       <td class="acoes"><button class="btn sm" data-sim="${k}">Simular</button><button class="btn sm" data-ed="${r.id}">Editar</button><button class="btn sm" data-off="${r.id}">Desativar</button></td></tr>`; }).join("");
 }
@@ -1444,6 +1504,7 @@ document.getElementById("cadtbl").addEventListener("click", ev=>{
 CAMPOS.forEach(k=>{ cv(k).addEventListener("input", previaCad); cv(k).addEventListener("change", previaCad); });
 document.getElementById("cad-salvar").addEventListener("click", salvaCad);
 document.getElementById("cad-limpar").addEventListener("click", ()=>{ preencheForm(null); msgCad("", true); });
+document.getElementById("cad-restaura").addEventListener("click", ()=>{ preenchePrem(null); previaCad(); });
 document.getElementById("nav").addEventListener("click", ev=>{ const b=ev.target.closest("button"); if(b && b.dataset.v==="cadsku"){ previaCad(); renderCadLista(); } });
 preencheForm(null);
 carregaCadSku();
