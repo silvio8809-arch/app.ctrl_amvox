@@ -244,7 +244,7 @@ async function inicia(){
   try {
     if (window.RH_FONTE_LOCAL) D = await (await fetch(window.RH_FONTE_LOCAL, { cache:'no-store' })).json();   // só na prévia local
     else {
-      const { data, error } = await SB.from('rh_bloco').select('nome,dados').neq('nome', 'verbas').order('ordem');   // verbas = sob demanda
+      const { data, error } = await SB.from('rh_bloco').select('nome,dados').not('nome', 'like', 'verbas%').order('ordem');   // verbas = sob demanda (em partes)
       if (error) throw error;
       if (!data || !data.length) throw new Error('base vazia ou sem permissão');
       D = {}; data.forEach(b => D[b.nome] = b.dados);
@@ -494,7 +494,8 @@ async function carregaVerbas(){
   $('listaVerbas').innerHTML = '<div class="vazio">Carregando as verbas da base (sob demanda)…</div>';
   try {
     if (window.RH_FONTE_LOCAL) D.verbas = (await (await fetch(window.RH_FONTE_LOCAL, { cache:'no-store' })).json()).verbas;
-    else { const { data, error } = await SB.from('rh_bloco').select('dados').eq('nome', 'verbas').single(); if (error) throw error; D.verbas = data.dados; }
+    else { const { data, error } = await SB.from('rh_bloco').select('nome,dados').like('nome', 'verbas_%').order('ordem'); if (error) throw error;
+           if (!data || !data.length) throw new Error('verbas não encontradas'); D.verbas = [].concat(...data.map(b => b.dados)); }
   } catch (e) { $('listaVerbas').innerHTML = '<div class="vazio" style="color:var(--accent)">Não foi possível carregar as verbas (' + esc(e.message || e) + ').</div>'; }
   carregandoVerbas = false; if (D.verbas) desenhaVerbas();
 }
