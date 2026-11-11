@@ -76,7 +76,18 @@
     padding:10px 20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .fglobal input[type=search]{flex:1 1 260px;max-width:380px;padding:8px 11px;border:1px solid var(--line);border-radius:6px;font:13px var(--body)}
   .fglobal input[type=search]:focus{outline:2px solid var(--accent);outline-offset:0}
-  .fglobal select{max-width:240px}
+  .ms{position:relative}
+  .msb{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 12px var(--sans);padding:8px 11px;border-radius:6px;cursor:pointer;max-width:300px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .msb.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+  .msp{position:absolute;z-index:60;top:calc(100% + 4px);left:0;width:340px;max-width:90vw;background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:0 10px 26px rgba(0,0,0,.16);padding:8px}
+  .msp input[type=search]{width:100%;max-width:none;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font:13px var(--body)}
+  .msa{display:flex;gap:6px;margin:6px 0}
+  .msa button{border:1px solid var(--line);background:#F7F6F4;border-radius:5px;font:600 11px var(--sans);padding:4px 8px;cursor:pointer}
+  .msl{max-height:300px;overflow-y:auto}
+  .msl label{display:flex;gap:8px;align-items:baseline;padding:5px 4px;font-size:13px;cursor:pointer;border-top:1px solid #F4F3F0}
+  .msl label:hover{background:#FAF9F7} .msl small{color:var(--muted);font-size:11.5px}
   .fglobal .conta{font:600 12px var(--sans);color:var(--muted);margin-left:auto}
   .fglobal .conta b{color:var(--accent)}
   .fglobal.ativo{background:#FFFBEB}
@@ -99,8 +110,9 @@
 </nav>
 <div class="fglobal" id="fglobal">
   <input type="search" id="fq" placeholder="Nome (ou parte) ou matrícula do colaborador…" aria-label="Pesquisar colaborador por nome ou matrícula" autocomplete="off">
-  <select id="fdep" aria-label="Departamento"></select>
-  <select id="ffun" aria-label="Função"></select>
+  <div id="msArea"></div>
+  <div id="msDep"></div>
+  <div id="msFun"></div>
   <div class="chips" id="chipsFil"></div>
   <button class="x" id="flimpa" type="button">Limpar filtros</button>
   <span class="conta" id="fconta"></span>
@@ -116,6 +128,7 @@
     <div class="cards" id="cardsMes"></div>
     <div class="painel" id="listaMes"></div>
     <div class="grade2">
+      <div class="painel" id="porArea"></div>
       <div class="painel" id="porSecao"></div>
       <div class="painel" id="porFilial"></div>
       <div class="painel" id="porCasa"></div>
@@ -205,12 +218,49 @@ const TESTES = {
 };
 let D = null;            // base inteira
 let F = [];              // linhas de folha decodificadas
-const est = { comp:null, fil:'', q:'', dep:'', fun:'', card:'hc', sit:'ativos', anoA:'', sev:'', testeA:'', vTipo:'MENSAL', vBase:'0', ordem:{} };
+const est = { comp:null, fil:new Set(), q:'', area:new Set(), dep:new Set(), fun:new Set(), card:'hc', sit:'ativos', anoA:'', sev:'', testeA:'', vTipo:'MENSAL', vBase:'0', ordem:{} };
 const NORM = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
 let PM = null;           // pessoas que casam com a busca digitada (null = sem busca)
 // filtro GLOBAL de uma linha da folha: busca (nome/matrícula) + departamento + função + filial
-const passa = l => (!PM || PM.has(l.p)) && (!est.dep || l.secao === est.dep) && (!est.fun || l.funcao === est.fun) && (!est.fil || l.fil === est.fil);
-const filtroAtivo = () => !!(PM || est.dep || est.fun || est.fil);
+const passa = l => (!PM || PM.has(l.p)) && (!est.area.size || est.area.has(l.area)) && (!est.dep.size || est.dep.has(l.secao)) &&
+                   (!est.fun.size || est.fun.has(l.funcao)) && (!est.fil.size || est.fil.has(l.fil));
+const filtroAtivo = () => !!(PM || est.area.size || est.dep.size || est.fun.size || est.fil.size);
+let tmrD = null; const desenhaDepois = () => { clearTimeout(tmrD); tmrD = setTimeout(desenha, 200); };
+// seleção MÚLTIPLA com busca na lista (Silvio 11/11/2026) — ops = [[valor, rótulo, complemento]]
+function multi(el, rotulo, ops, chave){
+  const box = $(el), sel = est[chave]; box.className = 'ms';
+  const txt = () => sel.size === 0 ? rotulo + ': todos' : sel.size === 1 ? rotulo + ': ' + ((ops.find(o => o[0] === [...sel][0]) || [])[1] || '') : rotulo + ': ' + sel.size + ' selecionados';
+  box.innerHTML = `<button type="button" class="msb${sel.size ? ' on' : ''}" aria-haspopup="true"></button><div class="msp" hidden><input type="search" placeholder="Procurar na lista…" aria-label="Procurar ${esc(rotulo)}">
+    <div class="msa"><button type="button" data-a="todos">Marcar os visíveis</button><button type="button" data-a="limpar">Limpar</button></div><div class="msl"></div></div>`;
+  const btn = box.querySelector('.msb'), pop = box.querySelector('.msp'), inp = pop.querySelector('input'), lst = pop.querySelector('.msl');
+  btn.textContent = txt() + ' ▾';
+  const lista = () => { const q = NORM(inp.value);
+    const vis = ops.filter(o => !q || NORM(o[1] + ' ' + (o[2] || '')).includes(q));
+    lst.innerHTML = vis.map(o => `<label><input type="checkbox" value="${esc(o[0])}"${sel.has(o[0]) ? ' checked' : ''}><span>${esc(o[1])}${o[2] ? ` <small>${esc(o[2])}</small>` : ''}</span></label>`).join('') || '<div class="vazio">Nada encontrado</div>'; };
+  const muda = () => { btn.textContent = txt() + ' ▾'; btn.classList.toggle('on', sel.size > 0); desenhaDepois(); };
+  btn.onclick = e => { e.stopPropagation(); const abrir = pop.hidden; document.querySelectorAll('.msp').forEach(x => x.hidden = true); pop.hidden = !abrir;
+    if (abrir) { inp.value = ''; lista();
+      // mantém a lista dentro da tela (celular/painel estreito): alinha à direita do botão se passar da borda
+      pop.style.left = '0'; pop.style.right = 'auto'; const rc = pop.getBoundingClientRect();
+      if (rc.right > innerWidth - 8) { const sobra = box.getBoundingClientRect().right - rc.width; pop.style.left = Math.max(8 - box.getBoundingClientRect().left, sobra - box.getBoundingClientRect().left) + 'px'; }
+      inp.focus(); } };
+  pop.onclick = e => e.stopPropagation();
+  inp.oninput = lista;
+  lst.onchange = e => { const v = e.target.value; e.target.checked ? sel.add(v) : sel.delete(v); muda(); };
+  pop.querySelector('.msa').onclick = e => { const a = e.target.dataset.a; if (!a) return;
+    if (a === 'limpar') sel.clear(); else lst.querySelectorAll('input[type=checkbox]').forEach(i => sel.add(i.value)); lista(); muda(); };
+}
+document.addEventListener('click', () => document.querySelectorAll('.msp').forEach(x => x.hidden = true));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.msp').forEach(x => x.hidden = true); });
+// filial: chips de seleção múltipla ("Todas" limpa)
+function chipsFilial(filiais){
+  const el = $('chipsFil');
+  el.innerHTML = [['', 'Todas as filiais'], ...filiais.map(f => [f, NOMES_FIL[f] || f])].map(([v, tx]) =>
+    `<button class="chip${(v === '' ? !est.fil.size : est.fil.has(v)) ? ' on' : ''}" data-v="${v}" type="button">${esc(tx)}</button>`).join('');
+  el.onclick = e => { const b = e.target.closest('.chip'); if (!b) return; const v = b.dataset.v;
+    if (!v) est.fil.clear(); else est.fil.has(v) ? est.fil.delete(v) : est.fil.add(v);
+    chipsFilial(filiais); desenha(); };
+}
 // alerta passa se a pessoa passa na competência do alerta (sem linha na competência → qualquer linha dela)
 function alertaPassa(a){
   if (!filtroAtivo()) return true;
@@ -261,7 +311,7 @@ async function inicia(){
 function prepara(){
   const dic = D.meta.dic, comps = D.meta.comps;
   F = D.folha.map(r => ({ comp:comps[r[0]], p:r[1], nome:dic.pessoa[r[1]], fil:dic.filial[r[2]], tipo:dic.tipo[r[3]], funcao:dic.funcao[r[4]],
-    secao:dic.secao[r[5]] || '(sem seção)', sit:dic.sit[r[6]], sal:r[7], prov:r[8], liq:r[9], he:r[10], resc:r[11], chapa:r[12], adm:r[13] }));
+    secao:dic.secao[r[5]] || '(sem seção)', sit:dic.sit[r[6]], sal:r[7], prov:r[8], liq:r[9], he:r[10], resc:r[11], chapa:r[12], adm:r[13], area:dic.area[r[14]] }));
   // por pessoa: linhas mensais em ordem
   D.porPessoa = {};
   F.forEach(l => (D.porPessoa[l.p] ||= []).push(l));
@@ -295,17 +345,19 @@ function montaFiltros(){
   $('selComp').innerHTML = comps.slice().reverse().map(c => `<option value="${c}">${MC(c)}</option>`).join('');
   $('selComp').onchange = e => { est.comp = e.target.value; desenhaMes(); };
   // ----- barra GLOBAL (vale para todas as abas)
-  const opFil = [['', 'Todas as filiais'], ...filiais.map(f => [f, NOMES_FIL[f] || f])];
-  chips('chipsFil', opFil, 'fil', desenha);
-  const secoes = [...new Set(F.map(l => l.secao))].sort(), funcoes = [...new Set(F.map(l => l.funcao))].filter(Boolean).sort();
-  $('fdep').innerHTML = '<option value="">Todos os departamentos</option>' + secoes.map(s => `<option>${esc(s)}</option>`).join('');
-  $('ffun').innerHTML = '<option value="">Todas as funções</option>' + funcoes.map(s => `<option>${esc(s)}</option>`).join('');
-  $('fdep').onchange = e => { est.dep = e.target.value; desenha(); };
-  $('ffun').onchange = e => { est.fun = e.target.value; desenha(); };
+  chipsFilial(filiais);
+  const conta = k => { const m = {}; F.forEach(l => (m[l[k]] ||= new Set()).add(l.p)); return m; };
+  const cA = conta('area'), cD = conta('secao'), cF = conta('funcao'), G = D.meta.gestores || {};
+  const montaMultis = () => {
+    multi('msArea', 'Área', Object.keys(cA).sort().map(a => [a, a, [G[a], cA[a].size + ' pessoas'].filter(Boolean).join(' · ')]), 'area');
+    multi('msDep', 'Departamento', Object.keys(cD).sort().map(s => [s, s, cD[s].size + ' pessoas']), 'dep');
+    multi('msFun', 'Função', Object.keys(cF).filter(Boolean).sort().map(s => [s, s, cF[s].size + ' pessoas']), 'fun');
+  };
+  montaMultis();
   let tmr = null;
   $('fq').oninput = e => { clearTimeout(tmr); tmr = setTimeout(() => { est.q = e.target.value; aplicaBusca(); desenha(); }, 250); };
-  $('flimpa').onclick = () => { est.q = est.dep = est.fun = est.fil = ''; PM = null; $('fq').value = ''; $('fdep').value = ''; $('ffun').value = '';
-    chips('chipsFil', opFil, 'fil', desenha); desenha(); };
+  $('flimpa').onclick = () => { est.q = ''; PM = null; $('fq').value = ''; ['area', 'dep', 'fun', 'fil'].forEach(k => est[k].clear());
+    chipsFilial(filiais); montaMultis(); desenha(); };
   chips('chipsSit', [['ativos', 'Ativos na última folha'], ['desligados', 'Desligados'], ['todos', 'Todos']], 'sit', desenhaPessoas);
   const anos = [...new Set(D.alertas.map(a => a.comp.slice(0, 4)))].sort().reverse();
   chips('chipsAnoA', [['', 'Todos'], ...anos.map(a => [a, a])], 'anoA', desenhaAudit);
@@ -370,7 +422,7 @@ function desenhaMes(){
   $('cardsMes').innerHTML = cards.map(([k, t, v, s]) => `<button class="kpi${k === 'alertas' ? ' alerta' : ''}${est.card === k ? ' sel' : ''}" data-k="${k}"><div class="t">${t}</div><div class="v">${v}</div><div class="s">${esc(s)}</div></button>`).join('');
   $('cardsMes').onclick = e => { const b = e.target.closest('.kpi'); if (!b) return; est.card = b.dataset.k; desenhaMes(); };
   // lista do card escolhido (card = filtro)
-  const pessoaLinha = l => [l.nome, l.chapa, l.funcao, l.secao, NOMES_FIL[l.fil] || l.fil, l.sit, l.sal, l.prov, l.liq, D.alertasPorPessoa[l.p] ? TRI : '', l.p];
+  const pessoaLinha = l => [l.nome, l.chapa, l.funcao, l.area + ' · ' + l.secao, NOMES_FIL[l.fil] || l.fil, l.sit, l.sal, l.prov, l.liq, D.alertasPorPessoa[l.p] ? TRI : '', l.p];
   const colsP = [{t:'Colaborador'}, {t:'Matrícula'}, {t:'Função'}, {t:'Departamento'}, {t:'Filial'}, {t:'Situação'}, {t:'Salário', n:1}, {t:'Proventos', n:1}, {t:'Líquido', n:1}, {t:'', f:v => v}];
   const abre = l => { document.querySelector('#abas [data-t=pessoas]').click(); abreFicha(l[10]); };
   const c = est.card;
@@ -394,6 +446,7 @@ function desenhaMes(){
     tabela(el, titulo, [{t:chave === null ? '' : 'Grupo'}, {t:'Pessoas', n:1, f:R0}, {t:'%', f:(v, l) => P(l[1], tot)}, {t:'Salário médio', n:1}, {t:'Folha bruta', n:1}, {t:'%', f:(v, l) => P(l[4], totB)}],
       Object.entries(g).map(([k, x]) => [k, x[0], '', x[1] / x[0], x[2], '']).sort((a, b) => b[1] - a[1]), { total:['Total', R0(tot), '100,0%', R(salMed), R(totB), '100,0%'] });
   };
+  agrupa(l => l.area + (D.meta.gestores && D.meta.gestores[l.area] ? ' — ' + D.meta.gestores[l.area] : ''), 'Por área (gestor) <small>de-para departamento → área do Orçamento 2027</small>', 'porArea');
   agrupa(l => l.secao, 'Por departamento <small>ativos · folha bruta dos ativos</small>', 'porSecao');
   agrupa(l => NOMES_FIL[l.fil] || l.fil, 'Por filial', 'porFilial');
   const casa = l => { if (!l.adm) return '(sem admissão)'; const m = (+comp.slice(0, 4) - +l.adm.slice(0, 4)) * 12 + (+comp.slice(4) - +l.adm.slice(5, 7));
@@ -440,9 +493,9 @@ function desenhaPessoas(){
   const L = Object.entries(D.porPessoa).map(([p, l]) => {
     const m = l.filter(x => x.tipo === 'MENSAL'); const u = m[m.length - 1] || l[l.length - 1];
     const ativo = u.comp === ult && u.sit !== 'Demitido';
-    return [u.nome, u.chapa, u.funcao, u.secao, NOMES_FIL[u.fil] || u.fil, BR(u.adm), ativo ? u.sit : 'Desligado ' + MC(u.comp), u.sal, (D.alertasPorPessoa[p] || []).length, +p, ativo, passa(u)];
+    return [u.nome, u.chapa, u.funcao, u.area + ' · ' + u.secao, NOMES_FIL[u.fil] || u.fil, BR(u.adm), ativo ? u.sit : 'Desligado ' + MC(u.comp), u.sal, (D.alertasPorPessoa[p] || []).length, +p, ativo, passa(u)];
   }).filter(l => (est.sit === 'todos' || (est.sit === 'ativos') === l[10]) && l[11]);
-  tabela('listaPessoas', 'Colaboradores', [{t:'Nome'}, {t:'Matrícula'}, {t:'Função'}, {t:'Departamento'}, {t:'Filial'}, {t:'Admissão'}, {t:'Situação'}, {t:'Último salário', n:1}, {t:'⚠️', n:1, f:v => v ? TRI + ' ' + v : ''}],
+  tabela('listaPessoas', 'Colaboradores', [{t:'Nome'}, {t:'Matrícula'}, {t:'Função'}, {t:'Área · departamento'}, {t:'Filial'}, {t:'Admissão'}, {t:'Situação'}, {t:'Último salário', n:1}, {t:'⚠️', n:1, f:v => v ? TRI + ' ' + v : ''}],
     L.sort((a, b) => a[0].localeCompare(b[0])), { clic: l => abreFicha(l[9]), sub: R0(L.length) + ' pessoas · clique para abrir a ficha', limite:800 });
 }
 function abreFicha(p){
@@ -519,13 +572,14 @@ function desenhaVerbas(){
 function desenhaPJ(){
   const C0 = D.cadastro || {}; if (!C0.data) { $('cardsPJ').innerHTML = '<div class="vazio">Sem cadastro do DP carregado.</div>'; return; }
   // filtro global no cadastro: nome (busca), departamento/setor e função por semelhança de texto, filial pelo nº da filial
-  const qn = NORM(est.q), dn = NORM(est.dep), fn = NORM(est.fun), filn = est.fil ? 'FILIAL ' + est.fil.slice(-2) : '';
-  const okNome = n => !qn || /^\d+$/.test(qn) ? !qn : qn.split(' ').every(tk => NORM(n).includes(tk));
-  const okTxt = (v, f) => !f || NORM(v).includes(f) || (NORM(v) && f.includes(NORM(v)));
+  const qn = NORM(est.q), dn = [...est.dep].map(NORM), fn = [...est.fun].map(NORM), filn = [...est.fil].map(f => 'FILIAL ' + f.slice(-2));
+  const okNome = n => !qn || (/^\d+$/.test(qn) ? false : qn.split(' ').every(tk => NORM(n).includes(tk)));
+  const okTxt = (v, fs) => !fs.length || fs.some(f => NORM(v) === f || NORM(v).includes(f) || (NORM(v) && f.includes(NORM(v))));
+  const okArea = a => !est.area.size || est.area.has(a);
   const C = { ...C0,
-    clt: C0.clt.filter(r => okNome(r[0]) && okTxt(r[2], dn) && okTxt(r[3], fn) && (!filn || NORM(r[1]).includes(filn))),
-    pj: C0.pj.filter(r => okNome(r[0]) && okTxt(r[3], dn) && okTxt(r[2], fn) && !filn),
-    aux: (C0.aux || []).filter(r => okNome(r[0]) && okTxt(r[2], dn) && okTxt(r[3], fn)) };
+    clt: C0.clt.filter(r => okNome(r[0]) && okArea(r[7]) && okTxt(r[2], dn) && okTxt(r[3], fn) && (!filn.length || filn.some(f => NORM(r[1]).includes(f)))),
+    pj: C0.pj.filter(r => okNome(r[0]) && okArea(r[5]) && okTxt(r[3], dn) && okTxt(r[2], fn) && !filn.length),
+    aux: (C0.aux || []).filter(r => okNome(r[0]) && okArea(r[8]) && okTxt(r[2], dn) && okTxt(r[3], fn)) };
   const totPJ = C.pj.reduce((s, r) => s + (r[4] || 0), 0);
   const brutoCLT = F.filter(l => l.comp === C.comp && l.tipo === 'MENSAL' && passa(l)).reduce((s, l) => s + l.prov, 0);
   const ben = {}; C.clt.forEach(r => Object.entries(r[6] || {}).forEach(([k, v]) => { const x = ben[k] ||= [0, 0]; x[0]++; x[1] += v; }));
@@ -533,8 +587,8 @@ function desenhaPJ(){
   $('cardsPJ').innerHTML = [['PJ (prestadores)', R0(C.pj.length), 'R$ ' + R0(totPJ) + '/mês'], ['CLT no cadastro', R0(C.clt.length), 'foto de ' + BR(C.data)],
     ['Folha mensal CLT ' + MC(C.comp), 'R$ ' + R0(brutoCLT), 'PJ = ' + P(totPJ, brutoCLT + totPJ) + ' do total CLT+PJ'], ['Benefícios (cadastro)', 'R$ ' + R0(totBen), 'valores mensais informados pelo DP']]
     .map(([t, v, s]) => `<div class="kpi" style="cursor:default"><div class="t">${esc(t)}</div><div class="v">${v}</div><div class="s">${esc(s)}</div></div>`).join('');
-  tabela('listaPJ', 'Prestadores PJ <small>fora da folha — cadastro do DP de ' + BR(C.data) + '</small>', [{t:'Nome'}, {t:'Razão social'}, {t:'Função'}, {t:'Setor'}, {t:'Valor mensal', n:1}, {t:'%', f:(v, l) => P(l[4], totPJ)}],
-    C.pj.map(r => [r[0], r[1], r[2], r[3], r[4] || 0, '']).sort((a, b) => b[4] - a[4]), { total:['Total', '', '', '', R(totPJ), '100,0%'] });
+  tabela('listaPJ', 'Prestadores PJ <small>fora da folha — cadastro do DP de ' + BR(C.data) + '</small>', [{t:'Nome'}, {t:'Razão social'}, {t:'Função'}, {t:'Setor · área'}, {t:'Valor mensal', n:1}, {t:'%', f:(v, l) => P(l[4], totPJ)}],
+    C.pj.map(r => [r[0], r[1], r[2], r[3] + ' · ' + r[5], r[4] || 0, '']).sort((a, b) => b[4] - a[4]), { total:['Total', '', '', '', R(totPJ), '100,0%'] });
   tabela('listaBen', 'Benefícios por tipo <small>organograma e benefícios de ' + BR(C.data) + ' (valor mensal por colaborador, como enviado pelo DP)</small>', [{t:'Benefício'}, {t:'Colaboradores', n:1, f:R0}, {t:'% do quadro', f:(v, l) => P(l[1], C.clt.length)}, {t:'Valor mensal', n:1}, {t:'%', f:(v, l) => P(l[3], totBen)}],
     Object.entries(ben).map(([k, x]) => [k, x[0], '', x[1], '']).sort((a, b) => b[3] - a[3]), { total:['Total', '', '', R(totBen), '100,0%'] });
   const totAux = (C.aux || []).reduce((s, r) => s + (r[7] || 0), 0);
@@ -545,9 +599,11 @@ function desenhaPJ(){
 // ---------------------------------------------------------------- FONTES
 function desenhaFontes(){
   $('lacunas').innerHTML = '<h2>Lacunas conhecidas da base</h2>' + D.meta.lacunas.map(t => `<p class="nota">${TRI} ${esc(t)}</p>`).join('') +
+    `<p class="nota"><b>Área</b> = de-para departamento da folha → área do Orçamento 2027 (${esc(D.meta.pt_orcamento || 'PT de orçamento')}, aba SETORES — gestor) · arquivo <i>dados/folha/de_para_secao_area.csv</i>; ` +
+    `${(D.meta.de_para_area || []).filter(x => x[2] !== 'OK').length} departamentos A VALIDAR: ${esc((D.meta.de_para_area || []).filter(x => x[2] !== 'OK').map(x => x[0] + ' → ' + x[1]).join(' · '))}.</p>` +
     '<p class="nota">Base montada a partir dos PDFs da folha analítica (TOTVS RM) — cada PDF conferido contra o TOTAL GERAL do próprio PDF — e do cadastro enviado pelo DP. Atualiza todo mês com a conciliação da folha.</p>';
   tabela('listaFontes', 'Arquivos da folha na base', [{t:'Competência', f:MC}, {t:'Filial', f:v => esc(NOMES_FIL[v] || v)}, {t:'Folha', f:v => esc(NOMES_TIPO[v] || v)}, {t:'Funcionários', n:1, f:R0}, {t:'Conferência', f:v => v === 'OK' ? 'OK ✓' : TRI + ' ' + esc(v)}],
-    D.meta.fontes.filter(f => !est.fil || f[1] === est.fil).slice().reverse(), { limite:400, sub: filtroAtivo() ? 'aqui só o filtro de filial se aplica (arquivos, não pessoas)' : '' });
+    D.meta.fontes.filter(f => !est.fil.size || est.fil.has(f[1])).slice().reverse(), { limite:400, sub: filtroAtivo() ? 'aqui só o filtro de filial se aplica (arquivos, não pessoas)' : '' });
 }
 
 inicia();
