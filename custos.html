@@ -126,6 +126,20 @@ tr.exp td{background:var(--surface2); padding:16px 18px; white-space:normal}
 .btn.sm{padding:4px 10px; font-size:12px}
 #v-cadsku .fgrid{align-items:start}
 .premhd{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin:20px 0 4px; padding-top:14px; border-top:1px solid var(--line); font-size:12.5px; color:var(--ink2)}
+.premcols{display:grid; grid-template-columns:repeat(auto-fit,minmax(330px,1fr)); gap:0 34px}
+.premcols .grp h4 .n{display:inline-grid; place-items:center; width:18px; height:18px; border-radius:99px; background:var(--brand); color:#fff; font-size:10px; margin-right:6px; letter-spacing:0}
+.pr{display:grid; grid-template-columns:minmax(0,1fr) 96px 92px; gap:8px; align-items:center; padding:3px 0; font-size:13.5px; font-variant-numeric:tabular-nums}
+.pr .l{color:var(--ink2)} .pr .l .u{font-size:11px; color:var(--ink3)}
+.pr .r{text-align:right; font-weight:500; white-space:nowrap}
+.pr.ind .l{padding-left:14px; font-size:12.5px} .pr.ind .r{font-size:12.5px; color:var(--ink2)}
+.pr input{width:100%; box-sizing:border-box; padding:5px 7px; border:1px solid var(--line2); border-radius:6px; background:var(--ground); color:var(--ink);
+  font:600 13px "IBM Plex Sans",sans-serif; text-align:right; font-variant-numeric:tabular-nums}
+.pr input:focus-visible{outline:2px solid var(--brand); outline-offset:1px}
+.pr input.mudou{border-color:var(--amber); background:var(--amber-bg)}
+.pr .h{grid-column:1 / -1; font-size:10.5px; color:var(--amber); margin:-2px 0 2px; text-align:right}
+.pr.sub{border-top:1px solid var(--line); margin-top:3px; padding-top:6px} .pr.sub .l,.pr.sub .r{font-weight:600; color:var(--ink)}
+.pr.tot{background:var(--surface2); border-radius:7px; padding:8px 10px; margin-top:8px} .pr.tot .l,.pr.tot .r{font-weight:700; color:var(--ink)}
+.pr .neg{color:var(--down); font-weight:600}
 .premsub{font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink3); font-weight:600; margin:12px 0 2px}
 .fgrid .fld input.mudou{border-color:var(--amber); background:var(--amber-bg)}
 .cadprev{margin-top:12px; font-size:13px; color:var(--ink2)}
@@ -610,14 +624,16 @@ details.simparams .inner{padding:2px 18px 16px}
             <select id="cad-linha"><option value="AUDIO">Áudio · MC 30%</option><option value="LAR">Lar · MC 20%</option><option value="OUTRA">Outra · MC 20%</option></select></div>
           <div class="fld"><label for="cad-q">Qtd por contêiner <span class="req">*</span></label><input id="cad-q" inputmode="numeric"><div class="fh2">contêiner dedicado</div></div>
           <div class="fld"><label for="cad-usd">FOB US$ / unidade <span class="req">*</span></label><input id="cad-usd" inputmode="decimal"><div class="fh2">cotação / proforma</div></div>
+          <div class="fld"><label for="cad-ipi">IPI de saída % <span class="req">*</span></label><input id="cad-ipi" inputmode="decimal"><div class="fh2" id="cad-ipi-h"></div></div>
           <div class="fld" style="grid-column:span 2; min-width:220px"><label for="cad-obs">Fonte / observação</label><input id="cad-obs" maxlength="300" placeholder="ex.: proforma fornecedor 10/11/2026"></div>
         </div>
-        <div class="premhd"><span>Premissas de importação — já preenchidas com os parâmetros vigentes; revise e ajuste só o que for diferente neste SKU</span>
+        <div class="premhd"><span><b>Formação do custo</b> — premissas já preenchidas com os parâmetros vigentes; revise linha a linha
+          (o que for alterado fica em laranja). Valores em R$ por unidade.</span>
           <button class="btn sm" id="cad-restaura" type="button">Restaurar parâmetros vigentes</button></div>
-        <div class="premsub">Frete e despesas</div>
-        <div class="fgrid" id="cad-prem-custo"></div>
-        <div class="premsub">Impostos</div>
-        <div class="fgrid" id="cad-prem-imp"></div>
+        <div class="premcols">
+          <div class="grp" id="cad-bloco1"></div>
+          <div class="grp" id="cad-bloco2"></div>
+        </div>
         <div class="cadprev" id="cadprev"></div>
         <div class="cadbtns">
           <button class="btn pri" id="cad-salvar" type="button">Salvar SKU</button>
@@ -654,7 +670,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.21 · refresh 11/11/2026";
+const VERSAO = "v0.22 · refresh 11/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -1338,7 +1354,8 @@ renderSimOptions(); wireSim(); renderParams(); render();
 function esc(x){ return String(x??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 const CAD = {linhas:[], editId:null, erro:null};
 const numBR = v => { const t=String(v??"").trim().replace(/\s/g,""); if(!t) return null;
-  const n = parseFloat(t.includes(",") ? t.replace(/\./g,"").replace(",",".") : t); return isFinite(n) ? n : NaN; };
+  /* 1.234,56 · 1.234 (milhar) · 28,9 · 28.9 */
+  const n = parseFloat(t.includes(",") || /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g,"").replace(",",".") : t); return isFinite(n) ? n : NaN; };
 const cadParaSku = r => ({sku:r.sku, cod:r.cod||"—", q:r.qtd_ctr, usd25:null, usd26:+r.fob_usd,
   frete: r.frete_usd_ctr==null ? null : +r.frete_usd_ctr, adic: r.adic_rs_ctr==null ? null : +r.adic_rs_ctr,
   hawb:null, dt:"—", st: r.frete_usd_ctr==null ? "sem" : "cad", linha:r.linha,
@@ -1384,11 +1401,68 @@ const PREM_JSON = ["seg","afrmm","magic","courr","transp","despacho","bl","armaz
 const premFmt = (c, v) => c[2]==="%" ? fmt(v*100, 4).replace(/0+$/,"").replace(/,$/,"") : fmt(v, c[2]==="US$" ? 2 : 2);
 const CAMPOS = ["sku","cod","ncm","linha","q","usd","obs"].concat(PREM.map(c=>c[0]));
 const cv = id => document.getElementById("cad-"+id);
+/* blocos 1 e 2 do cadastro = mesma estrutura da "Formação do custo" do Simulador (v0.22, Silvio 11/11/2026) */
+const PC = Object.fromEntries(PREM.map(c=>[c[0], c]));
+function linhaPrem(k, rot, unid, ind){
+  return `<div class="pr${ind?" ind":""}"><label class="l" for="cad-${k}">${rot} <span class="u">${unid}</span></label>
+    <input id="cad-${k}" inputmode="decimal" aria-label="${PC[k][1]}"><span class="r" id="cad-${k}-v">—</span><div class="h" id="cad-${k}-h" hidden></div></div>`;
+}
+const linhaVal = (id, rot, cls="") => `<div class="pr ${cls}"><span class="l">${rot}</span><span></span><span class="r" id="${id}">—</span></div>`;
 function montaPrem(){
-  const html = g => PREM.filter(c=>c[3]===g).map(c=>`<div class="fld"><label for="cad-${c[0]}">${c[1]} <span class="req">*</span></label>
-    <input id="cad-${c[0]}" inputmode="decimal"><div class="fh2" id="cad-${c[0]}-h"></div></div>`).join("");
-  document.getElementById("cad-prem-custo").innerHTML = html("custo");
-  document.getElementById("cad-prem-imp").innerHTML = html("imp");
+  document.getElementById("cad-bloco1").innerHTML = `<h4><span class="n">1</span>Importação (por unidade)</h4>`
+    + linhaVal("cad-v-fob", 'FOB <span class="u" id="cad-v-fobu"></span>')
+    + linhaPrem("frete","Frete marítimo","US$/ctr")
+    + linhaPrem("seg","Seguro / financeiro","% s/ FOB+frete")
+    + linhaVal("cad-v-cif","= CIF","sub")
+    + linhaPrem("afrmm","AFRMM","% s/ frete")
+    + linhaPrem("magic","Magic","% s/ FOB")
+    + linhaPrem("courr","Courrier / EBS","% s/ frete")
+    + linhaVal("cad-v-fixos","Fixos que agregam ÷ qtd")
+    + linhaPrem("transp","Transporte porto→Amvox","R$/ctr",1)
+    + linhaPrem("despacho","Despachante","R$/ctr",1)
+    + linhaPrem("bl","Liberação BL","R$/ctr",1)
+    + linhaPrem("armaz","Armazenagem portuária","R$/ctr",1)
+    + linhaPrem("capataz","Capatazia","R$/ctr",1)
+    + linhaPrem("descons","Desconsolidação","R$/ctr",1)
+    + linhaPrem("adic","Adicional de frete (333)","R$/ctr")
+    + linhaVal("cad-v-totimp","TOTAL IMPORTAÇÃO (ex-II)","tot");
+  document.getElementById("cad-bloco2").innerHTML = `<h4><span class="n">2</span>Impostos da importação</h4>`
+    + linhaPrem("ii","I.I.","% s/ CIF")
+    + linhaPrem("ipiImp","IPI","% s/ CIF+II")
+    + linhaPrem("pisImp","PIS","% s/ CIF")
+    + linhaPrem("cofImp","COFINS","% s/ CIF")
+    + `<h4>Créditos (recuperáveis)</h4>`
+    + linhaVal("cad-v-cipi","(−) IPI") + linhaVal("cad-v-cpis","(−) PIS") + linhaVal("cad-v-ccof","(−) COFINS")
+    + linhaVal("cad-v-impliq","IMPOSTOS LÍQUIDOS (só II fica)","tot")
+    + `<h4>Resumo do custo</h4>`
+    + linhaVal("cad-v-r1","Total importação (ex-II)") + linhaVal("cad-v-r2","I.I. (não recuperável)")
+    + linhaVal("cad-v-r3","Impostos recuperáveis (líquido)")
+    + linhaVal("cad-v-ct","CUSTO TOTAL PRODUTO (CT)","tot");
+}
+/* R$ por unidade de cada linha — mesma conta do simCalc/custoM (modelo 2026) */
+function calcBlocos(f){
+  const q = f.q, u = f.usd, pr = f.prem, D = P.dolar, fr = pr.frete;
+  const fob = u*D, frete = fr/q*D, seg = (u+fr/q)*pr.seg*D, cif = fob+frete+seg, ii = cif*pr.ii;
+  const afrmm = fr*pr.afrmm*D/q, magic = u*pr.magic*D, courr = fr*D*pr.courr/q;
+  const fx = {}; ["transp","despacho","bl","armaz","capataz","descons"].forEach(k=>fx[k]=pr[k]/q);
+  const fixos = Object.values(fx).reduce((a,b)=>a+b,0), adic = pr.adic/q;
+  const totImp = cif+afrmm+magic+courr+fixos+adic;
+  return {fob, frete, seg, cif, afrmm, magic, courr, fx, fixos, adic, totImp, ii,
+          ipiI:(cif+ii)*pr.ipiImp, pisI:cif*pr.pisImp, cofI:cif*pr.cofImp, ct: totImp+ii};
+}
+function mostraBlocos(f){
+  const ok = f.q>0 && f.usd>0 && !Object.values(f.prem).some(Number.isNaN);
+  const put = (id, v, neg) => { const el = document.getElementById(id); if (el) el.innerHTML = !ok ? "—" : (neg ? `<span class="neg">−${fmt(v)}</span>` : R$(v)); };
+  const b = ok ? calcBlocos(f) : {fx:{}};
+  document.getElementById("cad-v-fobu").textContent = ok ? `(US$ ${fmt(f.usd)} × ${fmt(P.dolar)})` : "";
+  put("cad-v-fob", b.fob); put("cad-frete-v", b.frete); put("cad-seg-v", b.seg); put("cad-v-cif", b.cif);
+  put("cad-afrmm-v", b.afrmm); put("cad-magic-v", b.magic); put("cad-courr-v", b.courr); put("cad-v-fixos", b.fixos);
+  ["transp","despacho","bl","armaz","capataz","descons"].forEach(k=>put(`cad-${k}-v`, b.fx[k]));
+  put("cad-adic-v", b.adic); put("cad-v-totimp", b.totImp);
+  put("cad-ii-v", b.ii); put("cad-ipiImp-v", b.ipiI); put("cad-pisImp-v", b.pisI); put("cad-cofImp-v", b.cofI);
+  put("cad-v-cipi", b.ipiI, 1); put("cad-v-cpis", b.pisI, 1); put("cad-v-ccof", b.cofI, 1); put("cad-v-impliq", b.ii);
+  put("cad-v-r1", b.totImp); put("cad-v-r2", b.ii); const r3 = document.getElementById("cad-v-r3"); if (r3) r3.textContent = ok ? "R$ 0,00" : "—";
+  put("cad-v-ct", b.ct);
 }
 montaPrem();
 function lerForm(){
@@ -1414,11 +1488,13 @@ function marcaMudou(){
     const vv = v==null || Number.isNaN(v) ? null : (c[2]==="%" ? v/100 : v);
     const mud = vv!=null && Math.abs(vv - pad) > 1e-9;
     el.classList.toggle("mudou", mud);
-    cv(c[0]+"-h").textContent = (mud ? "alterado · vigente " : "vigente ") + premFmt(c, pad) + (c[2]==="%" ? "%" : "") + (c[5] ? " · "+c[5] : ""); });
+    const h = cv(c[0]+"-h"), txt = (mud ? "alterado · vigente " : "vigente ") + premFmt(c, pad) + (c[2]==="%" ? "%" : "") + (c[5] ? " · "+c[5] : "");
+    if (h.classList.contains("h")){ h.hidden = !mud; h.textContent = txt; } else h.textContent = txt; });
 }
 function previaCad(){
   marcaMudou();
   const {f, e} = lerForm(), el = document.getElementById("cadprev");
+  mostraBlocos(f);
   if (!(f.q > 0) || !(f.usd > 0) || Object.values(f.prem).some(Number.isNaN)){ el.innerHTML = "Preencha qtd/ctr e FOB (e confira as premissas) para ver o custo projetado."
     + (e.length && f.q>0 && f.usd>0 ? ` · <span style="color:var(--brand)">falta: ${esc(e.join("; "))}</span>` : ""); return; }
   const s = skuDoForm(f), ct = custoCad(s);
