@@ -71,6 +71,15 @@
   .legenda{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-top:4px}
   .legenda i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
   .status{font:500 13px var(--sans);color:var(--muted);margin:30px 2px;text-align:center}
+  /* barra de filtros GLOBAL (Silvio 11/11/2026: "em todas as telas, na área superior") */
+  .fglobal{position:sticky;top:0;z-index:30;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.05);
+    padding:10px 20px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .fglobal input[type=search]{flex:1 1 260px;max-width:380px;padding:8px 11px;border:1px solid var(--line);border-radius:6px;font:13px var(--body)}
+  .fglobal input[type=search]:focus{outline:2px solid var(--accent);outline-offset:0}
+  .fglobal select{max-width:240px}
+  .fglobal .conta{font:600 12px var(--sans);color:var(--muted);margin-left:auto}
+  .fglobal .conta b{color:var(--accent)}
+  .fglobal.ativo{background:#FFFBEB}
   .fixos{position:fixed;right:14px;bottom:14px;z-index:99}
   .fixos button{cursor:pointer;border:1px solid #444;background:#141414;color:#eee;font:600 12px -apple-system,sans-serif;padding:7px 14px;border-radius:99px;box-shadow:0 2px 8px rgba(0,0,0,.3);margin-left:8px}
   @media (max-width:640px){ main{padding:14px 12px 70px} .grade2{grid-template-columns:1fr} .kpi .v{font-size:20px} }
@@ -88,6 +97,14 @@
   <button data-t="pj">PJ &amp; benefícios</button>
   <button data-t="fontes">Fontes &amp; lacunas</button>
 </nav>
+<div class="fglobal" id="fglobal">
+  <input type="search" id="fq" placeholder="Nome (ou parte) ou matrícula do colaborador…" aria-label="Pesquisar colaborador por nome ou matrícula" autocomplete="off">
+  <select id="fdep" aria-label="Departamento"></select>
+  <select id="ffun" aria-label="Função"></select>
+  <div class="chips" id="chipsFil"></div>
+  <button class="x" id="flimpa" type="button">Limpar filtros</button>
+  <span class="conta" id="fconta"></span>
+</div>
 <main>
   <div class="status" id="status">Carregando a base da folha…</div>
 
@@ -95,7 +112,6 @@
   <section class="tela on" id="t-mes" hidden>
     <div class="filtros">
       <span class="rot">Competência</span><select id="selComp"></select>
-      <span class="rot">Filial</span><div class="chips" id="chipsFil"></div>
     </div>
     <div class="cards" id="cardsMes"></div>
     <div class="painel" id="listaMes"></div>
@@ -109,7 +125,6 @@
 
   <!-- ===================== EVOLUÇÃO ===================== -->
   <section class="tela" id="t-evol">
-    <div class="filtros"><span class="rot">Filial</span><div class="chips" id="chipsFilEvol"></div></div>
     <div class="painel"><h2>Quadro ativo e folha bruta por mês <small>barras = pessoas ativas · linha = folha bruta (todos os tipos de folha)</small></h2>
       <div id="graf"></div>
       <div class="legenda"><span><i style="background:var(--bar)"></i>Quadro ativo</span><span><i style="background:var(--bar2)"></i>Folha bruta (R$)</span></div></div>
@@ -121,8 +136,7 @@
   <section class="tela" id="t-pessoas">
     <div class="filtros">
       <span class="rot">Situação</span><div class="chips" id="chipsSit"></div>
-      <span class="rot">Departamento</span><select id="selSecao"></select>
-      <span class="rot">Colaborador</span><select id="selPessoa"></select>
+      <span class="nota" style="margin:0">Departamento, função e filial = situação na última folha da pessoa</span>
     </div>
     <div class="ficha" id="ficha"></div>
     <div class="painel rolar" id="listaPessoas"></div>
@@ -144,7 +158,6 @@
   <section class="tela" id="t-verbas">
     <div class="filtros">
       <span class="rot">De</span><select id="vDe"></select><span class="rot">Até</span><select id="vAte"></select>
-      <span class="rot">Filial</span><div class="chips" id="chipsFilV"></div>
       <span class="rot">Folha</span><div class="chips" id="chipsTipoV"></div>
       <span class="rot">Bases</span><div class="chips" id="chipsBase"></div>
     </div>
@@ -192,7 +205,28 @@ const TESTES = {
 };
 let D = null;            // base inteira
 let F = [];              // linhas de folha decodificadas
-const est = { comp:null, fil:'', card:'hc', filEvol:'', sit:'ativos', secao:'', anoA:'', sev:'', testeA:'', vFil:'', vTipo:'MENSAL', vBase:'0', ordem:{} };
+const est = { comp:null, fil:'', q:'', dep:'', fun:'', card:'hc', sit:'ativos', anoA:'', sev:'', testeA:'', vTipo:'MENSAL', vBase:'0', ordem:{} };
+const NORM = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g, ' ').trim();
+let PM = null;           // pessoas que casam com a busca digitada (null = sem busca)
+// filtro GLOBAL de uma linha da folha: busca (nome/matrícula) + departamento + função + filial
+const passa = l => (!PM || PM.has(l.p)) && (!est.dep || l.secao === est.dep) && (!est.fun || l.funcao === est.fun) && (!est.fil || l.fil === est.fil);
+const filtroAtivo = () => !!(PM || est.dep || est.fun || est.fil);
+// alerta passa se a pessoa passa na competência do alerta (sem linha na competência → qualquer linha dela)
+function alertaPassa(a){
+  if (!filtroAtivo()) return true;
+  const l = D.porPessoa[a.p] || []; const doMes = l.filter(x => x.comp === a.comp);
+  return (doMes.length ? doMes : l).some(passa);
+}
+function aplicaBusca(){
+  const q = NORM(est.q);
+  if (!q) { PM = null; return; }
+  const dig = q.replace(/\D/g, ''), soNum = /^\d+$/.test(q.replace(/\s/g, '')), tokens = q.split(' ');
+  PM = new Set();
+  Object.entries(D.porPessoa).forEach(([p, l]) => {
+    const nome = D.nomeNorm[p];
+    if ((soNum && l.some(x => x.chapa.includes(dig))) || tokens.every(tk => nome.includes(tk)) || l.some(x => x.chapa === q)) PM.add(+p);
+  });
+}
 
 // ---------------------------------------------------------------- acesso + carga
 async function inicia(){
@@ -210,7 +244,7 @@ async function inicia(){
   try {
     if (window.RH_FONTE_LOCAL) D = await (await fetch(window.RH_FONTE_LOCAL, { cache:'no-store' })).json();   // só na prévia local
     else {
-      const { data, error } = await SB.from('rh_bloco').select('nome,dados').order('ordem');
+      const { data, error } = await SB.from('rh_bloco').select('nome,dados').neq('nome', 'verbas').order('ordem');   // verbas = sob demanda
       if (error) throw error;
       if (!data || !data.length) throw new Error('base vazia ou sem permissão');
       D = {}; data.forEach(b => D[b.nome] = b.dados);
@@ -243,6 +277,7 @@ function prepara(){
       antDem = dem;
     });
   });
+  D.nomeNorm = D.meta.dic.pessoa.map(NORM);
   D.alertasPorPessoa = {};
   D.alertas.forEach(a => (D.alertasPorPessoa[a.p] ||= []).push(a));
   $('baseInfo').innerHTML = 'Base: folha analítica ' + MC(comps[0]) + ' a ' + MC(comps[comps.length - 1]) +
@@ -259,17 +294,19 @@ function montaFiltros(){
   est.comp = comps[comps.length - 1];
   $('selComp').innerHTML = comps.slice().reverse().map(c => `<option value="${c}">${MC(c)}</option>`).join('');
   $('selComp').onchange = e => { est.comp = e.target.value; desenhaMes(); };
-  const opFil = [['', 'Todas'], ...filiais.map(f => [f, NOMES_FIL[f] || f])];
-  chips('chipsFil', opFil, 'fil', desenhaMes);
-  chips('chipsFilEvol', opFil, 'filEvol', desenhaEvol);
-  chips('chipsFilV', opFil, 'vFil', desenhaVerbas);
+  // ----- barra GLOBAL (vale para todas as abas)
+  const opFil = [['', 'Todas as filiais'], ...filiais.map(f => [f, NOMES_FIL[f] || f])];
+  chips('chipsFil', opFil, 'fil', desenha);
+  const secoes = [...new Set(F.map(l => l.secao))].sort(), funcoes = [...new Set(F.map(l => l.funcao))].filter(Boolean).sort();
+  $('fdep').innerHTML = '<option value="">Todos os departamentos</option>' + secoes.map(s => `<option>${esc(s)}</option>`).join('');
+  $('ffun').innerHTML = '<option value="">Todas as funções</option>' + funcoes.map(s => `<option>${esc(s)}</option>`).join('');
+  $('fdep').onchange = e => { est.dep = e.target.value; desenha(); };
+  $('ffun').onchange = e => { est.fun = e.target.value; desenha(); };
+  let tmr = null;
+  $('fq').oninput = e => { clearTimeout(tmr); tmr = setTimeout(() => { est.q = e.target.value; aplicaBusca(); desenha(); }, 250); };
+  $('flimpa').onclick = () => { est.q = est.dep = est.fun = est.fil = ''; PM = null; $('fq').value = ''; $('fdep').value = ''; $('ffun').value = '';
+    chips('chipsFil', opFil, 'fil', desenha); desenha(); };
   chips('chipsSit', [['ativos', 'Ativos na última folha'], ['desligados', 'Desligados'], ['todos', 'Todos']], 'sit', desenhaPessoas);
-  const secoes = [...new Set(F.map(l => l.secao))].sort();
-  $('selSecao').innerHTML = '<option value="">Todos</option>' + secoes.map(s => `<option>${esc(s)}</option>`).join('');
-  $('selSecao').onchange = e => { est.secao = e.target.value; desenhaPessoas(); };
-  const pessoas = D.meta.dic.pessoa.map((n, i) => [i, n]).sort((a, b) => a[1].localeCompare(b[1]));
-  $('selPessoa').innerHTML = '<option value="">— escolha para ver a ficha —</option>' + pessoas.map(([i, n]) => `<option value="${i}">${esc(n)}</option>`).join('');
-  $('selPessoa').onchange = e => e.target.value !== '' && abreFicha(+e.target.value);
   const anos = [...new Set(D.alertas.map(a => a.comp.slice(0, 4)))].sort().reverse();
   chips('chipsAnoA', [['', 'Todos'], ...anos.map(a => [a, a])], 'anoA', desenhaAudit);
   chips('chipsSev', [['', 'Todas'], ['alta', 'Alta'], ['media', 'Média'], ['baixa', 'Baixa']], 'sev', desenhaAudit);
@@ -281,9 +318,17 @@ function montaFiltros(){
   chips('chipsBase', [['0', 'Ocultar bases'], ['1', 'Mostrar bases']], 'vBase', desenhaVerbas);
   $('abas').onclick = e => { const b = e.target.closest('button'); if (!b) return;
     document.querySelectorAll('#abas button').forEach(x => x.classList.toggle('on', x === b));
-    document.querySelectorAll('.tela').forEach(s => s.classList.toggle('on', s.id === 't-' + b.dataset.t)); };
+    document.querySelectorAll('.tela').forEach(s => s.classList.toggle('on', s.id === 't-' + b.dataset.t));
+    if (b.dataset.t === 'verbas') desenhaVerbas(); };
 }
-function desenha(){ desenhaMes(); desenhaEvol(); desenhaPessoas(); desenhaAudit(); desenhaVerbas(); desenhaPJ(); desenhaFontes(); }
+function desenha(){
+  // contador da barra global
+  const ativo = filtroAtivo(); $('fglobal').classList.toggle('ativo', ativo);
+  if (ativo) { const ps = new Set(F.filter(passa).map(l => l.p));
+    $('fconta').innerHTML = `Filtro ativo: <b>${R0(ps.size)}</b> colaborador(es) · vale para todas as abas`; }
+  else $('fconta').textContent = R0(D.meta.dic.pessoa.length) + ' colaboradores na base';
+  desenhaMes(); desenhaEvol(); desenhaPessoas(); desenhaAudit(); if ($('t-verbas').classList.contains('on')) desenhaVerbas(); desenhaPJ(); desenhaFontes();
+}
 
 // tabela genérica com ordenação por clique no cabeçalho
 function tabela(el, titulo, cols, linhas, opc = {}){
@@ -302,9 +347,8 @@ function tabela(el, titulo, cols, linhas, opc = {}){
 }
 
 // ---------------------------------------------------------------- VISÃO DO MÊS
-function linhasMes(comp, fil){ return F.filter(l => l.comp === comp && (!fil || l.fil === fil)); }
 function desenhaMes(){
-  const comp = est.comp, fil = est.fil, L = linhasMes(comp, fil);
+  const comp = est.comp, fil = est.fil, L = F.filter(l => l.comp === comp && passa(l));
   const mens = L.filter(l => l.tipo === 'MENSAL');
   const ativos = mens.filter(l => l.sit !== 'Demitido');
   const pAtivos = new Set(ativos.map(l => l.p));
@@ -312,7 +356,7 @@ function desenhaMes(){
   const desl = [...(D.desl[comp] || [])].filter(p => mens.some(l => l.p === p));
   const bruto = L.reduce((s, l) => s + l.prov, 0), liq = L.reduce((s, l) => s + l.liq, 0);
   const salMed = ativos.length ? ativos.reduce((s, l) => s + l.sal, 0) / ativos.length : 0;
-  const alertas = D.alertas.filter(a => a.comp === comp && (!fil || (D.porPessoa[a.p] || []).some(l => l.comp === comp && l.fil === fil)));
+  const alertas = D.alertas.filter(a => a.comp === comp && alertaPassa(a));
   const tiposMes = [...new Set(L.map(l => l.tipo))].map(t => NOMES_TIPO[t] || t).join(' · ');
   const cards = [
     ['hc', 'Quadro ativo', R0(pAtivos.size), 'pessoas na folha mensal (exceto Demitido)'],
@@ -326,9 +370,9 @@ function desenhaMes(){
   $('cardsMes').innerHTML = cards.map(([k, t, v, s]) => `<button class="kpi${k === 'alertas' ? ' alerta' : ''}${est.card === k ? ' sel' : ''}" data-k="${k}"><div class="t">${t}</div><div class="v">${v}</div><div class="s">${esc(s)}</div></button>`).join('');
   $('cardsMes').onclick = e => { const b = e.target.closest('.kpi'); if (!b) return; est.card = b.dataset.k; desenhaMes(); };
   // lista do card escolhido (card = filtro)
-  const pessoaLinha = l => [l.nome, l.funcao, l.secao, NOMES_FIL[l.fil] || l.fil, l.sit, l.sal, l.prov, l.liq, D.alertasPorPessoa[l.p] ? TRI : '', l.p];
-  const colsP = [{t:'Colaborador'}, {t:'Função'}, {t:'Departamento'}, {t:'Filial'}, {t:'Situação'}, {t:'Salário', n:1}, {t:'Proventos', n:1}, {t:'Líquido', n:1}, {t:'', f:v => v}];
-  const abre = l => { document.querySelector('#abas [data-t=pessoas]').click(); abreFicha(l[9]); };
+  const pessoaLinha = l => [l.nome, l.chapa, l.funcao, l.secao, NOMES_FIL[l.fil] || l.fil, l.sit, l.sal, l.prov, l.liq, D.alertasPorPessoa[l.p] ? TRI : '', l.p];
+  const colsP = [{t:'Colaborador'}, {t:'Matrícula'}, {t:'Função'}, {t:'Departamento'}, {t:'Filial'}, {t:'Situação'}, {t:'Salário', n:1}, {t:'Proventos', n:1}, {t:'Líquido', n:1}, {t:'', f:v => v}];
+  const abre = l => { document.querySelector('#abas [data-t=pessoas]').click(); abreFicha(l[10]); };
   const c = est.card;
   if (c === 'alertas') {
     tabela('listaMes', '⚠️ Alertas da competência ' + MC(comp), [{t:'', f:v => TRI}, {t:'Severidade', f:v => `<span class="sev ${v}">${v}</span>`}, {t:'Teste'}, {t:'Colaborador'}, {t:'O que chamou atenção'}, {t:'Valor', n:1, f:v => v == null ? '' : R(v)}],
@@ -340,7 +384,7 @@ function desenhaMes(){
   } else {
     let sel = c === 'adm' ? mens.filter(l => adm.includes(l.p)) : c === 'desl' ? mens.filter(l => desl.includes(l.p)) : ativos;
     const tit = {hc:'Quadro ativo', adm:'Admissões', desl:'Desligamentos', sal:'Quadro ativo — salário contratual'}[c];
-    tabela('listaMes', tit + ' · ' + MC(comp) + (fil ? ' · filial ' + (NOMES_FIL[fil] || fil) : ''), colsP, sel.map(pessoaLinha), { clic: abre, sub: R0(sel.length) + ' pessoas · clique para abrir a ficha' });
+    tabela('listaMes', tit + ' · ' + MC(comp) + (filtroAtivo() ? ' · com filtro' : ''), colsP, sel.map(pessoaLinha), { clic: abre, sub: R0(sel.length) + ' pessoas · clique para abrir a ficha' });
   }
   // quadros resumo (valor sempre com % de participação)
   const agrupa = (chave, titulo, el) => {
@@ -360,16 +404,16 @@ function desenhaMes(){
 }
 
 // ---------------------------------------------------------------- EVOLUÇÃO
-function serie(fil){
+function serie(){
   return D.meta.comps.map(c => {
-    const L = F.filter(l => l.comp === c && (!fil || l.fil === fil)), m = L.filter(l => l.tipo === 'MENSAL');
+    const L = F.filter(l => l.comp === c && passa(l)), m = L.filter(l => l.tipo === 'MENSAL');
     const hc = new Set(m.filter(l => l.sit !== 'Demitido').map(l => l.p)).size;
     const adm = [...(D.adm[c] || [])].filter(p => m.some(l => l.p === p)).length, desl = [...(D.desl[c] || [])].filter(p => m.some(l => l.p === p)).length;
     return { c, hc, adm, desl, bruto:L.reduce((s, l) => s + l.prov, 0), liq:L.reduce((s, l) => s + l.liq, 0), he:m.reduce((s, l) => s + l.he, 0) };
   });
 }
 function desenhaEvol(){
-  const S = serie(est.filEvol), W = Math.max(720, S.length * 22), H = 240, pad = 34;
+  const S = serie(), W = Math.max(720, S.length * 22), H = 240, pad = 34;
   const mxH = Math.max(...S.map(s => s.hc), 1), mxB = Math.max(...S.map(s => s.bruto), 1), bw = (W - pad * 2) / S.length;
   let svg = `<svg viewBox="0 0 ${W} ${H + 30}" width="100%" style="min-width:${Math.min(W, 900)}px" role="img" aria-label="Quadro ativo e folha bruta por mês">`;
   S.forEach((s, i) => { const h = s.hc / mxH * (H - 30), x = pad + i * bw;
@@ -396,15 +440,14 @@ function desenhaPessoas(){
   const L = Object.entries(D.porPessoa).map(([p, l]) => {
     const m = l.filter(x => x.tipo === 'MENSAL'); const u = m[m.length - 1] || l[l.length - 1];
     const ativo = u.comp === ult && u.sit !== 'Demitido';
-    return [u.nome, u.funcao, u.secao, NOMES_FIL[u.fil] || u.fil, BR(u.adm), ativo ? u.sit : 'Desligado ' + MC(u.comp), u.sal, (D.alertasPorPessoa[p] || []).length, +p, ativo];
-  }).filter(l => (est.sit === 'todos' || (est.sit === 'ativos') === l[9]) && (!est.secao || l[2] === est.secao));
-  tabela('listaPessoas', 'Colaboradores', [{t:'Nome'}, {t:'Função'}, {t:'Departamento'}, {t:'Filial'}, {t:'Admissão'}, {t:'Situação'}, {t:'Último salário', n:1}, {t:'⚠️', n:1, f:v => v ? TRI + ' ' + v : ''}],
-    L.sort((a, b) => a[0].localeCompare(b[0])), { clic: l => abreFicha(l[8]), sub: R0(L.length) + ' pessoas · clique para abrir a ficha', limite:800 });
+    return [u.nome, u.chapa, u.funcao, u.secao, NOMES_FIL[u.fil] || u.fil, BR(u.adm), ativo ? u.sit : 'Desligado ' + MC(u.comp), u.sal, (D.alertasPorPessoa[p] || []).length, +p, ativo, passa(u)];
+  }).filter(l => (est.sit === 'todos' || (est.sit === 'ativos') === l[10]) && l[11]);
+  tabela('listaPessoas', 'Colaboradores', [{t:'Nome'}, {t:'Matrícula'}, {t:'Função'}, {t:'Departamento'}, {t:'Filial'}, {t:'Admissão'}, {t:'Situação'}, {t:'Último salário', n:1}, {t:'⚠️', n:1, f:v => v ? TRI + ' ' + v : ''}],
+    L.sort((a, b) => a[0].localeCompare(b[0])), { clic: l => abreFicha(l[9]), sub: R0(L.length) + ' pessoas · clique para abrir a ficha', limite:800 });
 }
 function abreFicha(p){
   const l = D.porPessoa[p] || [], m = l.filter(x => x.tipo === 'MENSAL'), u = m[m.length - 1] || l[l.length - 1];
   if (!u) return;
-  $('selPessoa').value = p;
   // histórico: muda salário, função, seção ou filial
   const hist = []; let ant = null;
   m.forEach(x => { if (!ant || x.sal !== ant.sal || x.funcao !== ant.funcao || x.secao !== ant.secao || x.fil !== ant.fil || x.sit !== ant.sit) hist.push(x); ant = x; });
@@ -425,7 +468,7 @@ function abreFicha(p){
 
 // ---------------------------------------------------------------- AUDITORIA
 function desenhaAudit(){
-  const base = D.alertas.filter(a => (!est.anoA || a.comp.startsWith(est.anoA)) && (!est.sev || a.s === est.sev));
+  const base = D.alertas.filter(a => (!est.anoA || a.comp.startsWith(est.anoA)) && (!est.sev || a.s === est.sev) && alertaPassa(a));
   const cont = {}; base.forEach(a => cont[a.c] = (cont[a.c] || 0) + 1);
   $('cardsAudit').innerHTML = [['', 'Todos os testes', base.length]].concat(Object.keys(TESTES).map(k => [k, TESTES[k][0], cont[k] || 0]))
     .map(([k, t, n]) => `<button class="kpi alerta${est.testeA === k ? ' sel' : ''}" data-k="${k}"><div class="t">${esc(t)}</div><div class="v">${n ? '⚠️ ' : ''}${R0(n)}</div></button>`).join('');
@@ -435,35 +478,55 @@ function desenhaAudit(){
     'Reajustes coletivos detectados (não alertados quando a pessoa acompanhou o %): ' +
     Object.entries(col).sort().map(([c, p]) => `<b>${MC(c)}</b> ${p.toLocaleString('pt-BR')}%`).join(' · ') + '.';
   const sel = base.filter(a => !est.testeA || a.c === est.testeA).sort((a, b) => b.comp.localeCompare(a.comp) || ({alta:0, media:1, baixa:2}[a.s] - {alta:0, media:1, baixa:2}[b.s]));
+  const chapaDe = a => { const l = D.porPessoa[a.p] || []; const x = l.find(y => y.comp === a.comp && y.tipo === 'MENSAL') || l.find(y => y.comp === a.comp) || l[l.length - 1]; return x ? x.chapa : ''; };
   tabela('listaAudit', est.testeA ? TESTES[est.testeA][0] : 'Todos os alertas', [{t:'', f:v => TRI}, {t:'Competência', f:MC}, {t:'Severidade', f:v => `<span class="sev ${v}">${v}</span>`}, {t:'Teste'},
-    {t:'Colaborador'}, {t:'O que chamou atenção', f:(v, l) => (l[8] === 'promocao' ? '<span class="tag">promoção</span>' : '') + esc(v)}, {t:'Valor', n:1, f:v => v == null ? '' : R(v)}],
-    sel.map(a => ['', a.comp, a.s, TESTES[a.c][0], D.meta.dic.pessoa[a.p], a.t, a.v, a.p, a.x]),
-    { clic: l => { document.querySelector('#abas [data-t=pessoas]').click(); abreFicha(l[7]); }, sub: R0(sel.length) + ' alertas · clique para abrir a ficha', limite:600 });
+    {t:'Colaborador'}, {t:'Matrícula'}, {t:'O que chamou atenção', f:(v, l) => (l[9] === 'promocao' ? '<span class="tag">promoção</span>' : '') + esc(v)}, {t:'Valor', n:1, f:v => v == null ? '' : R(v)}],
+    sel.map(a => ['', a.comp, a.s, TESTES[a.c][0], D.meta.dic.pessoa[a.p], chapaDe(a), a.t, a.v, a.p, a.x]),
+    { clic: l => { document.querySelector('#abas [data-t=pessoas]').click(); abreFicha(l[8]); }, sub: R0(sel.length) + ' alertas · clique para abrir a ficha', limite:600 });
   $('testes').innerHTML = '<h2>Como cada teste funciona</h2>' + Object.entries(TESTES).map(([k, [t, d]]) => `<p class="nota"><b>${esc(t)}</b> — ${esc(d)}</p>`).join('') +
     '<p class="nota"><b>Ainda sem fonte</b> — funcionário-fantasma por CPF/conta bancária/endereço repetido e perfil por sexo/idade aguardam o relatório de cadastro do TOTVS RM; alteração salarial ainda não é confrontada com a autorização (e-mail/aprovação).</p>';
 }
 
 // ---------------------------------------------------------------- VERBAS
+let carregandoVerbas = false;
+async function carregaVerbas(){
+  if (D.verbas || carregandoVerbas) return; carregandoVerbas = true;
+  $('listaVerbas').innerHTML = '<div class="vazio">Carregando as verbas da base (sob demanda)…</div>';
+  try {
+    if (window.RH_FONTE_LOCAL) D.verbas = (await (await fetch(window.RH_FONTE_LOCAL, { cache:'no-store' })).json()).verbas;
+    else { const { data, error } = await SB.from('rh_bloco').select('dados').eq('nome', 'verbas').single(); if (error) throw error; D.verbas = data.dados; }
+  } catch (e) { $('listaVerbas').innerHTML = '<div class="vazio" style="color:var(--accent)">Não foi possível carregar as verbas (' + esc(e.message || e) + ').</div>'; }
+  carregandoVerbas = false; if (D.verbas) desenhaVerbas();
+}
 function desenhaVerbas(){
+  if (!D.verbas) { carregaVerbas(); return; }
   let de = $('vDe').value, ate = $('vAte').value; if (de > ate) [de, ate] = [ate, de];
-  const comps = D.meta.comps, dic = D.meta.dic, g = {};
-  D.verbas.forEach(([ci, fi, ti, cod, base, v, n]) => {
-    const c = comps[ci]; if (c < de || c > ate) return;
-    if (est.vFil && dic.filial[fi] !== est.vFil) return;
-    if (est.vTipo && dic.tipo[ti] !== est.vTipo) return;
+  const g = {};
+  D.verbas.forEach(([li, cod, v, base]) => {
+    const l = F[li]; if (!l || l.comp < de || l.comp > ate) return;
+    if (est.vTipo && l.tipo !== est.vTipo) return;
     if (est.vBase === '0' && base) return;
-    const x = g[cod] ||= [0, 0, new Set(), base]; x[0] += v; x[1] += n; x[2].add(c);
+    if (!passa(l)) return;
+    const x = g[cod] ||= [0, 0, new Set(), base, new Set()]; x[0] += v; x[1]++; x[2].add(l.comp); x[4].add(l.p);
   });
-  const L = Object.entries(g).map(([cod, x]) => [cod, D.meta.verba_desc[cod] || '', x[3] ? 'base' : '', x[0], x[1], x[2].size]);
-  tabela('listaVerbas', 'Verbas acumuladas ' + MC(de) + ' a ' + MC(ate), [{t:'Código'}, {t:'Descrição'}, {t:'Natureza', f:v => v ? '<span class="tag">base</span>' : ''}, {t:'Valor', n:1}, {t:'Lançamentos', n:1, f:R0}, {t:'Meses', n:1, f:R0}],
+  const L = Object.entries(g).map(([cod, x]) => [cod, D.meta.verba_desc[cod] || '', x[3] ? 'base' : '', x[0], x[1], x[4].size, x[2].size]);
+  tabela('listaVerbas', 'Verbas acumuladas ' + MC(de) + ' a ' + MC(ate) + (filtroAtivo() ? ' · com filtro' : ''), [{t:'Código'}, {t:'Descrição'}, {t:'Natureza', f:v => v ? '<span class="tag">base</span>' : ''}, {t:'Valor', n:1}, {t:'Lançamentos', n:1, f:R0}, {t:'Colaboradores', n:1, f:R0}, {t:'Meses', n:1, f:R0}],
     L.sort((a, b) => b[3] - a[3]), { sub:'o PDF da folha não separa provento × desconto — leia pela descrição; "base" = base de cálculo (FGTS, INSS…), não é pagamento', limite:500 });
 }
 
 // ---------------------------------------------------------------- PJ & BENEFÍCIOS
 function desenhaPJ(){
-  const C = D.cadastro || {}; if (!C.data) { $('cardsPJ').innerHTML = '<div class="vazio">Sem cadastro do DP carregado.</div>'; return; }
+  const C0 = D.cadastro || {}; if (!C0.data) { $('cardsPJ').innerHTML = '<div class="vazio">Sem cadastro do DP carregado.</div>'; return; }
+  // filtro global no cadastro: nome (busca), departamento/setor e função por semelhança de texto, filial pelo nº da filial
+  const qn = NORM(est.q), dn = NORM(est.dep), fn = NORM(est.fun), filn = est.fil ? 'FILIAL ' + est.fil.slice(-2) : '';
+  const okNome = n => !qn || /^\d+$/.test(qn) ? !qn : qn.split(' ').every(tk => NORM(n).includes(tk));
+  const okTxt = (v, f) => !f || NORM(v).includes(f) || (NORM(v) && f.includes(NORM(v)));
+  const C = { ...C0,
+    clt: C0.clt.filter(r => okNome(r[0]) && okTxt(r[2], dn) && okTxt(r[3], fn) && (!filn || NORM(r[1]).includes(filn))),
+    pj: C0.pj.filter(r => okNome(r[0]) && okTxt(r[3], dn) && okTxt(r[2], fn) && !filn),
+    aux: (C0.aux || []).filter(r => okNome(r[0]) && okTxt(r[2], dn) && okTxt(r[3], fn)) };
   const totPJ = C.pj.reduce((s, r) => s + (r[4] || 0), 0);
-  const ult = D.meta.comps[D.meta.comps.length - 1], brutoCLT = F.filter(l => l.comp === C.comp && l.tipo === 'MENSAL').reduce((s, l) => s + l.prov, 0);
+  const brutoCLT = F.filter(l => l.comp === C.comp && l.tipo === 'MENSAL' && passa(l)).reduce((s, l) => s + l.prov, 0);
   const ben = {}; C.clt.forEach(r => Object.entries(r[6] || {}).forEach(([k, v]) => { const x = ben[k] ||= [0, 0]; x[0]++; x[1] += v; }));
   const totBen = Object.values(ben).reduce((s, x) => s + x[1], 0);
   $('cardsPJ').innerHTML = [['PJ (prestadores)', R0(C.pj.length), 'R$ ' + R0(totPJ) + '/mês'], ['CLT no cadastro', R0(C.clt.length), 'foto de ' + BR(C.data)],
@@ -483,7 +546,7 @@ function desenhaFontes(){
   $('lacunas').innerHTML = '<h2>Lacunas conhecidas da base</h2>' + D.meta.lacunas.map(t => `<p class="nota">${TRI} ${esc(t)}</p>`).join('') +
     '<p class="nota">Base montada a partir dos PDFs da folha analítica (TOTVS RM) — cada PDF conferido contra o TOTAL GERAL do próprio PDF — e do cadastro enviado pelo DP. Atualiza todo mês com a conciliação da folha.</p>';
   tabela('listaFontes', 'Arquivos da folha na base', [{t:'Competência', f:MC}, {t:'Filial', f:v => esc(NOMES_FIL[v] || v)}, {t:'Folha', f:v => esc(NOMES_TIPO[v] || v)}, {t:'Funcionários', n:1, f:R0}, {t:'Conferência', f:v => v === 'OK' ? 'OK ✓' : TRI + ' ' + esc(v)}],
-    D.meta.fontes.slice().reverse(), { limite:400 });
+    D.meta.fontes.filter(f => !est.fil || f[1] === est.fil).slice().reverse(), { limite:400, sub: filtroAtivo() ? 'aqui só o filtro de filial se aplica (arquivos, não pessoas)' : '' });
 }
 
 inicia();
