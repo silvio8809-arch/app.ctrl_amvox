@@ -335,7 +335,10 @@ details.simparams .inner{padding:2px 18px 16px}
       e com os parâmetros vigentes. Automático é automático; parâmetro é parâmetro.</p>
 
       <div class="formcard">
-        <div class="fh">Dados do SKU / Produto</div>
+        <div class="fh" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">Dados do SKU / Produto
+          <span class="pdfbtns"><button class="btn sm" id="pdf-ctrl" type="button" title="Simulação completa com custo e margem — uso interno">PDF CTRL (interno)</button>
+          <button class="btn sm" id="pdf-com" type="button" title="Só produto e preço — sem custo nem margem, para enviar">PDF Comercial</button>
+          <span id="pdfmsg" style="font-size:11px;text-transform:none;letter-spacing:0;color:var(--ink2)"></span></span></div>
         <div class="fgrid">
           <div class="fld" style="grid-column:span 2; min-width:220px">
             <label for="simsku">SKU / Produto</label>
@@ -670,7 +673,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.22 · refresh 11/11/2026";
+const VERSAO = "v0.23 · refresh 11/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -1349,6 +1352,90 @@ document.getElementById("nav").addEventListener("click", ev=>{
   document.querySelectorAll(".view").forEach(v=>v.classList.toggle("on", v.id==="v-"+b.dataset.v));
 });
 renderSimOptions(); wireSim(); renderParams(); render();
+
+/* ===== PDF DA SIMULAÇÃO (v0.23 · Silvio 11/11/2026: "opção de gerar PDF para a simulação se quiser enviar para alguém") =====
+   Duas versões (decisão do Silvio): CTRL = completa (custo, preço, MC, EBITDA), carimbada CONFIDENCIAL — USO INTERNO
+   (exceção à regra "margem não sai em PDF", só para esta página, que é interna); COMERCIAL = produto e preço, SEM custo e SEM margem. */
+let _libPdfC = null;
+const carregaJsC = src => new Promise((ok, erro) => { const s = document.createElement("script"); s.src = src; s.onload = ok; s.onerror = () => erro(new Error("não carregou " + src)); document.head.appendChild(s); });
+function libPdfC(){
+  return _libPdfC || (_libPdfC = carregaJsC("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
+    .then(() => carregaJsC("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"))
+    .then(() => fetch("img/timbrado_a4.jpg").then(r => r.ok ? r.blob() : null).catch(() => null))
+    .then(b => b ? new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); }) : null));
+}
+const pdfT = s => String(s ?? "").replace(/≤/g,"<=").replace(/≥/g,">=").replace(/→/g,"->").replace(/[−—–]/g,"-").replace(/†/g,"*").replace(/[^\x00-\xFF—–‘’“”•…]/g, "");
+const nomeArqC = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
+function fundoC(doc, img){ doc.__f = doc.__f || new Set(); const n = doc.getCurrentPageInfo().pageNumber;
+  if (img && !doc.__f.has(n)) doc.addImage(img, "JPEG", 0, 0, 210, 297); doc.__f.add(n); }
+async function gerarPdfSim(versao){
+  const msg = document.getElementById("pdfmsg");
+  try {
+    msg.textContent = "gerando PDF…";
+    const img = await libPdfC();
+    const d = simCalc(), s = d.s, ctrl = versao === "CTRL";
+    const doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"}), W = 210, M = 18;
+    const op = {margin:{top:46, left:M, right:M, bottom:30}, willDrawPage:() => fundoC(doc, img)};
+    fundoC(doc, img);
+    let y = 46;
+    doc.setFont("helvetica","bold"); doc.setFontSize(13); doc.setTextColor(26,31,46);
+    doc.text(pdfT(ctrl ? "SIMULAÇÃO DE CUSTO E PREÇO" : "PROPOSTA DE PREÇO"), W/2, y, {align:"center"}); y += 5.5;
+    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(90);
+    const agora = new Date();
+    doc.text(pdfT(`${ctrl ? s.sku : s.sku.replace(/\s*†$/,"")} · emitido em ${agora.toLocaleDateString("pt-BR")} ${agora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}` + (ctrl && window.USUARIO_EMAIL ? ` por ${window.USUARIO_EMAIL}` : "")), W/2, y, {align:"center"}); y += 5;
+    if (ctrl){
+      doc.setFillColor(180,35,24); doc.roundedRect(M, y, W-2*M, 8, 1.5, 1.5, "F");
+      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.setTextColor(255);
+      doc.text(pdfT("CONFIDENCIAL — USO INTERNO DA CONTROLADORIA · contém custo e margem · não enviar a clientes"), W/2, y+5.4, {align:"center"}); y += 12;
+    } else y += 3;
+    const linha = s.linha==="LAR" ? "Lar" : s.linha==="OUTRA" ? "Outra" : "Áudio";
+    const uf = document.getElementById("simuf").value;
+    const kvT = (titulo, rows, cols) => {
+      doc.autoTable({...op, startY:y, theme:"grid", head:[[{content:pdfT(titulo), colSpan:2}]],
+        body: rows.map(r => r.map(pdfT)),
+        headStyles:{fillColor:[30,30,34], textColor:255, fontSize:8.2, halign:"left", cellPadding:1.3},
+        styles:{fontSize:7.9, cellPadding:1.05, textColor:30, lineColor:205},
+        columnStyles:{0:{cellWidth:118}, 1:{halign:"right", fontStyle:"bold"}},
+        didParseCell: c => { if (c.section==="body" && cols && cols.has(c.row.index)){ c.cell.styles.fillColor=[240,238,235]; c.cell.styles.fontStyle="bold"; } }});
+      y = doc.lastAutoTable.finalY + 3;
+    };
+    const R = v => "R$ " + fmt(v), PCT = v => pct0(v);
+    if (ctrl){
+      kvT("Produto", [["SKU / produto", s.sku], ["Código", s.cod || "—"], ["Linha (MC mínima)", `${linha} (${Math.round(d.mcAlvo*100)}%)`],
+        ["Qtd por contêiner", fmt(d.q,0)], ["FOB US$ / unidade", "US$ " + fmt(d.usd)], ["Frete marítimo US$/ctr", "US$ " + fmt(d.f,0)],
+        ["Origem dos dados", s.cad ? `cadastro no app (${s.criadoPor || "—"})${s.obs ? " · " + s.obs : ""}` : s.hawb ? `EIC processo ${s.hawb} (${s.dt})` : "sem processo EIC — FOB da lista, frete pela mediana"],
+        ["Taxa do dólar · UF destino", `${fmt(P.dolar)} · ${uf}`]]);
+      kvT("1 · Formação do custo (R$ por unidade)", [
+        ["FOB", R(d.fobR)], ["Frete marítimo", R(d.freteR)], ["Seguro / financeiro", R(d.segR)], ["= CIF", R(d.cifR)],
+        [`AFRMM ${PCT(d.Q.afrmm)} s/ frete`, R(d.afrmm)], [`Magic ${PCT(d.Q.magic)} s/ FOB`, R(d.magic)], ["Courrier / EBS", R(d.courr)],
+        ["Fixos que agregam ÷ qtd", R(d.fixosUn)], ["Adicional de frete (333)", R(d.adicUn)], ["TOTAL IMPORTAÇÃO (ex-II)", R(d.ct-d.ii)],
+        [`I.I. ${PCT(iiS(s))} s/ CIF (não recuperável)`, R(d.ii)],
+        [`IPI ${PCT(d.Q.ipiImp)} · PIS ${PCT(d.Q.pisImp)} · COFINS ${PCT(d.Q.cofImp)} da importação (100% créditos)`, "R$ 0,00 líquido"],
+        ["CUSTO TOTAL PRODUTO (CT)", R(d.ct)]], new Set([3,9,12]));
+      kvT("2 · Formação do preço (R$ por unidade)", [
+        ["Preço de venda s/ IPI", R(d.price)], [`IPI de saída ${fmt(SIM.ipi ?? ipiPad(),2)}%`, R(d.price*d.ipiS)], ["Preço de venda c/ IPI", R(d.price*(1+d.ipiS))],
+        [`(-) Impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(SIM.icmsS,2)}%)`, R(d.impS)],
+        [`(-) VPC ${SIM.vpcOn ? fmt(SIM.vpcPct,2)+"%" : "(desligado)"}`, R(d.vpc)],
+        [`(-) Despesa da máquina ${PCT(d.dmaqPct)}${dmaqRotulo()}`, R(d.dmaqV)], ["(-) Custo do produto (CT)", R(d.ct)],
+        ["CUSTO DA VENDA (CV = CT + VPC + desp. máquina)", R(d.cv)],
+        ["LUCRO · EBITDA", `${R(d.lucroV)} · ${PCT(d.marg)} (meta ${fmt(SIM.meta,1)}%)`],
+        ["Margem Ctb. Bruta (MC) pela régua do guia", `${PCT(d.mcGuia)} (mínimo ${Math.round(d.mcAlvo*100)}%) ${d.mcGuia>=d.mcAlvo-1e-4 ? "OK" : "ABAIXO DO MÍNIMO"}`]], new Set([2,7,8,9]));
+      doc.setFont("helvetica","normal"); doc.setFontSize(7.4); doc.setTextColor(110);
+      doc.text(doc.splitTextToSize(pdfT("Custo pelo modelo 2026 (por contêiner, dólar do parâmetro). Item sem nacionalização: custo projetado, sujeito ao custo real e aos complementos de importação até o fechamento do mês seguinte à NF. Gerado pelo app de Custos de Aquisição — AMVOX Controladoria."), W-2*M), M, y+2);
+    } else {
+      kvT("Identificação", [["Produto", s.sku.replace(/\s*†$/,"")], ["Código", s.cod && s.cod!=="—" ? s.cod : "a definir"], ["UF de destino", uf]]);
+      kvT("Preço (por unidade)", [["Preço de venda s/ IPI", R(d.price)], [`IPI ${fmt(SIM.ipi ?? ipiPad(),2)}%`, R(d.price*d.ipiS)],
+        ["Preço de venda c/ IPI", R(d.price*(1+d.ipiS))]].concat(SIM.vpcOn ? [[`VPC de contrato considerado`, fmt(SIM.vpcPct,2)+"%"]] : []), new Set([2]));
+      doc.setFont("helvetica","normal"); doc.setFontSize(7.6); doc.setTextColor(110);
+      doc.text(doc.splitTextToSize(pdfT("Valores por unidade, em reais. Preço sujeito a confirmação comercial, à disponibilidade do produto e à condição de pagamento. Impostos conforme a legislação vigente na data da emissão."), W-2*M), M, y+2);
+    }
+    const hoje = agora.toISOString().slice(0,10);
+    doc.save(`${ctrl ? "Simulacao_custo_CTRL" : "Proposta_preco"}_${nomeArqC(s.sku.replace(/\s*†$/,""))}_${hoje}.pdf`);
+    msg.textContent = "";
+  } catch(e){ msg.textContent = "não gerou o PDF: " + (e.message || e); }
+}
+document.getElementById("pdf-ctrl").addEventListener("click", () => gerarPdfSim("CTRL"));
+document.getElementById("pdf-com").addEventListener("click", () => gerarPdfSim("COMERCIAL"));
 
 /* ===== CADASTRO DE SKUs NO APP (v0.20 · Silvio 11/11/2026) — tabela custos_sku_cadastro (só ADM grava; RLS) ===== */
 function esc(x){ return String(x??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
