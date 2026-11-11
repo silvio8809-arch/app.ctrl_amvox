@@ -673,7 +673,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.23 · refresh 11/11/2026";
+const VERSAO = "v0.24 · refresh 11/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -742,6 +742,7 @@ const PMETA = [
 /* premissas de importação do SKU cadastrado (v0.21) sobre os parâmetros globais; dólar e Siscomex seguem globais */
 const PQ = s => (s && s.prem) ? {...P, ...s.prem, dolar:P.dolar, siscomex:P.siscomex} : P;
 const fixos = (modo, s) => { const Q = PQ(s); return Q.transp+Q.despacho+Q.bl+Q.armaz+Q.capataz+Q.descons + (modo==="25" ? Q.siscomex : 0); };
+const CRED_IMP = 1;   /* IPI/PIS/COFINS da importação: % creditado (100% = premissa do modelo) */
 const iiS = s => (s && s.ii!=null) ? s.ii : P.ii;   /* II do SKU cadastrado ou o parâmetro (v0.20) */
 const adic = (s,modo) => modo==="26" ? (s && s.adic!=null ? s.adic : P.adic333) : 0;
 function custoM(usd, frete, q, modo, s){
@@ -907,6 +908,8 @@ function simCalc(){
   const ct = cifR+ii+afrmm+magic+courr+fixosUn+adicUn; /* = custoM(...,"26") */
   /* impostos recuperáveis da importação (SYD NCM 85198190) — crédito espelho, líquido 0 */
   const ipiImp = (cifR+ii)*Q.ipiImp, pisImp = cifR*Q.pisImp, cofImp = cifR*Q.cofImp;
+  /* conta aberta (v0.24, Silvio 11/11/2026): pagos − créditos = líquido. Premissa: crédito de 100% (CRED_IMP) */
+  const recPago = ipiImp+pisImp+cofImp, recCred = recPago*CRED_IMP, recLiq = recPago-recCred;
   const c25 = s.usd25!=null ? custoM(s.usd25, P.freteProj, q, "25", s) : null;
   /* preço padrão = preço projetado p/ a MC MÍNIMA da linha (ÁUDIO 30% · demais 20%) */
   const mcAlvo = mcMin(s);
@@ -924,7 +927,7 @@ function simCalc(){
      Auditável: digitar o piso MC30/35/40 devolve exatamente 30/35/40%. */
   const mcGuia = (fcGuia(ipiG) - 1.01*ct/price)/fbGuia(ipiG);
   const qty = SIM.qty ?? q;
-  return {s, Q, usd, f, q, fobR, freteR, segR, cifR, ii, afrmm, magic, courr, fixosUn, adicUn, ct,
+  return {s, Q, recPago, recCred, recLiq, usd, f, q, fobR, freteR, segR, cifR, ii, afrmm, magic, courr, fixosUn, adicUn, ct,
           ipiImp, pisImp, cofImp, c25, price, pisoDef, mcAlvo, ipiS, vpc, impS, dmaqPct, dmaqV, cv,
           lucroV, marg: lucroV/price, mcGuia, ipiG, qty};
 }
@@ -988,7 +991,9 @@ function renderSim(){
     <div class="grp"><h4>Resumo do custo</h4>
       ${kv("Total importação (ex-II)", R$(d.ct-d.ii))}
       ${kv("I.I. (não recuperável)", R$(d.ii))}
-      ${kv("Impostos recuperáveis (líquido)", "R$ 0,00")}
+      ${kv("Impostos recuperáveis pagos (IPI + PIS + COFINS)", R$(d.recPago))}
+      ${kv("(−) Créditos tomados ("+pct0(CRED_IMP)+")", `<span class="neg">−${fmt(d.recCred)}</span>`)}
+      ${kv("= Impostos recuperáveis (líquido)", R$(d.recLiq), "sub")}
       ${kv("CUSTO TOTAL PRODUTO (CT)", R$(d.ct), "tot")}
       ${ADM && d.c25!=null ? kv("Modelo 2025 (premissas planilha)", `${R$(d.c25)} · <span class="${d.ct>d.c25?'delta-up':'delta-down'}">${pct(d.ct/d.c25-1)}</span>`, "hl") : ""}</div>`;
   document.getElementById("simfonte").innerHTML = s.cad
@@ -1394,7 +1399,7 @@ async function gerarPdfSim(versao){
       doc.autoTable({...op, startY:y, theme:"grid", head:[[{content:pdfT(titulo), colSpan:2}]],
         body: rows.map(r => r.map(pdfT)),
         headStyles:{fillColor:[30,30,34], textColor:255, fontSize:8.2, halign:"left", cellPadding:1.3},
-        styles:{fontSize:7.9, cellPadding:1.05, textColor:30, lineColor:205},
+        styles:{fontSize:7.8, cellPadding:0.8, textColor:30, lineColor:205},
         columnStyles:{0:{cellWidth:118}, 1:{halign:"right", fontStyle:"bold"}},
         didParseCell: c => { if (c.section==="body" && cols && cols.has(c.row.index)){ c.cell.styles.fillColor=[240,238,235]; c.cell.styles.fontStyle="bold"; } }});
       y = doc.lastAutoTable.finalY + 3;
@@ -1410,8 +1415,10 @@ async function gerarPdfSim(versao){
         [`AFRMM ${PCT(d.Q.afrmm)} s/ frete`, R(d.afrmm)], [`Magic ${PCT(d.Q.magic)} s/ FOB`, R(d.magic)], ["Courrier / EBS", R(d.courr)],
         ["Fixos que agregam ÷ qtd", R(d.fixosUn)], ["Adicional de frete (333)", R(d.adicUn)], ["TOTAL IMPORTAÇÃO (ex-II)", R(d.ct-d.ii)],
         [`I.I. ${PCT(iiS(s))} s/ CIF (não recuperável)`, R(d.ii)],
-        [`IPI ${PCT(d.Q.ipiImp)} · PIS ${PCT(d.Q.pisImp)} · COFINS ${PCT(d.Q.cofImp)} da importação (100% créditos)`, "R$ 0,00 líquido"],
-        ["CUSTO TOTAL PRODUTO (CT)", R(d.ct)]], new Set([3,9,12]));
+        [`Impostos recuperáveis pagos (IPI ${PCT(d.Q.ipiImp)} + PIS ${PCT(d.Q.pisImp)} + COFINS ${PCT(d.Q.cofImp)})`, R(d.recPago)],
+        [`(-) Créditos tomados (${PCT(CRED_IMP)})`, "-" + R(d.recCred)],
+        ["= Impostos recuperáveis (líquido)", R(d.recLiq)],
+        ["CUSTO TOTAL PRODUTO (CT)", R(d.ct)]], new Set([3,9,14]));
       kvT("2 · Formação do preço (R$ por unidade)", [
         ["Preço de venda s/ IPI", R(d.price)], [`IPI de saída ${fmt(SIM.ipi ?? ipiPad(),2)}%`, R(d.price*d.ipiS)], ["Preço de venda c/ IPI", R(d.price*(1+d.ipiS))],
         [`(-) Impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(SIM.icmsS,2)}%)`, R(d.impS)],
@@ -1523,7 +1530,9 @@ function montaPrem(){
     + linhaVal("cad-v-impliq","IMPOSTOS LÍQUIDOS (só II fica)","tot")
     + `<h4>Resumo do custo</h4>`
     + linhaVal("cad-v-r1","Total importação (ex-II)") + linhaVal("cad-v-r2","I.I. (não recuperável)")
-    + linhaVal("cad-v-r3","Impostos recuperáveis (líquido)")
+    + linhaVal("cad-v-r3p","Impostos recuperáveis pagos (IPI + PIS + COFINS)")
+    + linhaVal("cad-v-r3c","(−) Créditos tomados (100%)")
+    + linhaVal("cad-v-r3","= Impostos recuperáveis (líquido)","sub")
     + linhaVal("cad-v-ct","CUSTO TOTAL PRODUTO (CT)","tot");
 }
 /* R$ por unidade de cada linha — mesma conta do simCalc/custoM (modelo 2026) */
@@ -1548,7 +1557,8 @@ function mostraBlocos(f){
   put("cad-adic-v", b.adic); put("cad-v-totimp", b.totImp);
   put("cad-ii-v", b.ii); put("cad-ipiImp-v", b.ipiI); put("cad-pisImp-v", b.pisI); put("cad-cofImp-v", b.cofI);
   put("cad-v-cipi", b.ipiI, 1); put("cad-v-cpis", b.pisI, 1); put("cad-v-ccof", b.cofI, 1); put("cad-v-impliq", b.ii);
-  put("cad-v-r1", b.totImp); put("cad-v-r2", b.ii); const r3 = document.getElementById("cad-v-r3"); if (r3) r3.textContent = ok ? "R$ 0,00" : "—";
+  put("cad-v-r1", b.totImp); put("cad-v-r2", b.ii);
+  const rp = ok ? b.ipiI+b.pisI+b.cofI : 0; put("cad-v-r3p", rp); put("cad-v-r3c", rp*CRED_IMP, 1); put("cad-v-r3", rp - rp*CRED_IMP);
   put("cad-v-ct", b.ct);
 }
 montaPrem();
