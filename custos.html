@@ -680,7 +680,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.26 · refresh 12/11/2026";
+const VERSAO = "v0.27 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -753,6 +753,8 @@ const CRED_IMP = 1;
 /* ICMS de produto FORA da árvore de NCM incentivada (v0.25, Silvio 12/11/2026 — caso motos elétricas): ICMS na entrada
    (importação, por dentro, recuperável como o IPI) e na saída (BA interna · interestadual de importado). Premissas editáveis por SKU. */
 const ICMS_FORA = {icmsImp:0.205, icmsInt:0.205, icmsInter:0.04};
+/* PDF Comercial fora da árvore (v0.27): faixas de MC 20→10 (alvo 15) e EBITDA incremental com frete de venda 3% (sem despesa fixa) */
+const FAIXAS_FORA = [.20, .175, .15, .125, .10], FRETE_VENDA_FORA = 0.03;
 const foraArv = s => !!(s && s.prem && s.prem.foraArvore);
 const icmsImpA = s => foraArv(s) ? (s.prem.icmsImp ?? ICMS_FORA.icmsImp) : 0;
 const ufAtual = () => (document.getElementById("simuf") || {}).value || "BA";
@@ -1476,35 +1478,43 @@ async function gerarPdfComercial(){
     const nacional = !!s.hawb && s.st !== "sem" && !/†$/.test(s.sku);
     const projetado = !nacional;                                  /* sem nacionalização (EIC sem processo, ou cadastro) */
     const nome = s.sku.replace(/\s*†$/,"") + (projetado ? " †" : "");
-    const faixas = (s.linha || "AUDIO") === "AUDIO" ? [.40,.35,.30] : [.40,.35,.30,.20];
+    /* fora da árvore (v0.27, Silvio 12/11/2026): MC máx. 20%, alvo ~15% → 5 faixas de 20 a 10 + linha de EBITDA incremental */
+    const fora = foraArv(s);
+    const faixas = fora ? FAIXAS_FORA : (s.linha || "AUDIO") === "AUDIO" ? [.40,.35,.30] : [.40,.35,.30,.20];
+    const pctF = m => (m*100).toLocaleString("pt-BR",{maximumFractionDigits:1});
     const linhaT = s.linha==="LAR" ? "LAR" : s.linha==="OUTRA" ? "OUTRAS LINHAS" : "ÁUDIO";
     const agora = new Date();
     /* faixa preta + filete vermelho */
     doc.setFillColor(0,0,0); doc.rect(M, M, W-2*M, 8, "F");
     doc.setFont("helvetica","bold"); doc.setFontSize(9.6); doc.setTextColor(255);
-    doc.text(pdfT(`AMVOX  —  PROPOSTA DE PREÇO  —  MC ${faixas.map(x=>Math.round(x*100)).join("/")}  —  SEM VPC`), W/2, M+5.4, {align:"center"});
+    doc.text(pdfT(`AMVOX  —  PROPOSTA DE PREÇO  —  MC ${faixas.map(pctF).join("/")}  —  SEM VPC`), W/2, M+5.4, {align:"center"});
     doc.setFillColor(215,25,32); doc.rect(M, M+8, W-2*M, 0.45, "F");
     /* nota + legenda */
     const ipiTxt = `IPI de saída ${fmt(SIM.ipi ?? ipiPad(),2)}% (por fora, não incluso).`;
     const icmsTxt = foraArv(s) ? ` Produto FORA da árvore de NCM incentivada: preços já consideram ICMS de saída de ${fmt(icmsAtual(),2)}% (${uf==="BA" ? "venda interna BA" : "venda interestadual para " + uf}).` : "";
     const dag = projetado ? ` LEGENDA: † = custo PROJETADO (item ainda não nacionalizado), estimado pela fórmula de importação por contêiner (${fmt(d.q,0)} peças/ctr, dólar ${fmt(P.dolar)}); será substituído pelo custo real quando o produto for nacionalizado.` : "";
-    const nota = `Preço de venda (SEM IPI) para cada margem, SEM VPC, CIF (frete médio nacional 3% embutido). ${ipiTxt}${icmsTxt}${dag} Margem mínima da linha: ${Math.round(mcMin(s)*100)}%.`;
+    const nota = `Preço de venda (SEM IPI) para cada margem, SEM VPC, CIF (frete médio nacional 3% embutido). ${ipiTxt}${icmsTxt}${dag}${fora ? ` Linha com MC máxima de 20% e alvo em torno de 15% (coluna destacada). EBITDA INCREMENTAL = preço − impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}%) − custo projetado (já com os custos de importação) − frete de venda ${fmt(FRETE_VENDA_FORA*100,0)}%; sem rateio da despesa fixa da operação, que esta receita dilui.` : ` Margem mínima da linha: ${Math.round(mcMin(s)*100)}%.`}`;
     doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(0);
     const linhasNota = doc.splitTextToSize(pdfT(nota), W-2*M);
     doc.text(linhasNota, M, M+13);
     let y = M + 13 + linhasNota.length*3 + 3;
     /* tabela no padrão do guia */
     const precos = faixas.map(m => precoMC(d.ct, m, d.ipiG, d.icx));
+    const ebitda = P_ => (P_*(1 - (SIM.pisS+SIM.cofS+icmsAtual())/100 - FRETE_VENDA_FORA) - d.ct)/P_;
+    const iAlvo = fora ? faixas.indexOf(.15) + 2 : -1;
     doc.autoTable({startY:y, margin:{left:M, right:M}, theme:"grid", tableWidth: W-2*M,
       head:[[{content:pdfT(`${linhaT}  ›  ${s.cod && s.cod!=="—" ? "CÓD. " + s.cod : "LANÇAMENTO"}`), colSpan: 2 + faixas.length,
               styles:{fillColor:[0,0,0], textColor:255, halign:"left", fontSize:8.5}}],
-            ["MODELO", "CUSTO PROJ.", ...faixas.map(m => Math.round(m*100) + "%")]],
-      body:[[pdfT(nome), fmt(d.ct), ...precos.map(v => fmt(v))]],
+            ["MODELO", "CUSTO PROJ.", ...faixas.map(m => "MC " + pctF(m) + "%")]],
+      body:[[pdfT(nome), fmt(d.ct), ...precos.map(v => fmt(v))]]
+        .concat(fora ? [[pdfT("EBITDA incremental"), "", ...precos.map(v => pct0(ebitda(v)).replace(/\s/g,""))]] : []),
       headStyles:{fillColor:[230,230,230], textColor:0, fontStyle:"bold", fontSize:8},
       styles:{fontSize:8.5, cellPadding:1.8, textColor:0, lineColor:[200,200,200], lineWidth:0.2},
-      columnStyles: Object.fromEntries([[0,{cellWidth:70}], ...Array.from({length:1+faixas.length}, (_,i)=>[i+1, {halign:"right"}])]),
+      columnStyles: Object.fromEntries([[0,{cellWidth: fora ? 52 : 70}], ...Array.from({length:1+faixas.length}, (_,i)=>[i+1, {halign:"right"}])]),
       didParseCell: c => { if (c.section==="head" && c.row.index===1 && c.column.index>0) c.cell.styles.halign = "right";
-                           if (c.section==="head" && c.row.index===1) { c.cell.styles.lineWidth = {bottom:0.5}; c.cell.styles.lineColor = [215,25,32]; } }});
+                           if (c.section==="head" && c.row.index===1) { c.cell.styles.lineWidth = {bottom:0.5}; c.cell.styles.lineColor = [215,25,32]; }
+                           if (c.column.index===iAlvo && !(c.section==="head" && c.row.index===0)) { c.cell.styles.fillColor = c.section==="head" ? [215,25,32] : [253,236,236]; if (c.section==="head") c.cell.styles.textColor = 255; c.cell.styles.fontStyle = "bold"; }
+                           if (c.section==="body" && c.row.index===1) { c.cell.styles.fontStyle = "bold"; c.cell.styles.textColor = [21,128,61]; } }});
     y = doc.lastAutoTable.finalY + 5;
     doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(90);
     doc.text(doc.splitTextToSize(pdfT("Valores por unidade, em reais. Preço sujeito a confirmação comercial, à disponibilidade do produto e à condição de pagamento. Frete adicional da região conforme rodapé."), W-2*M), M, y);
