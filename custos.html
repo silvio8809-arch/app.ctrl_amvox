@@ -354,8 +354,8 @@ details.simparams .inner{padding:2px 18px 16px}
           <span id="pdfmsg" style="font-size:11px;text-transform:none;letter-spacing:0;color:var(--ink2)"></span></span></div>
         <div class="aprov" id="aprovpanel" hidden>
           <div class="fgrid">
-            <div class="fld"><label for="ap-venda">Código de VENDA (Protheus)</label><input id="ap-venda" maxlength="20"><div class="fh2">produto das notas (SD2) — busca o realizado</div></div>
-            <div class="fld"><label for="ap-eic">Código no EIC (importação)</label><input id="ap-eic" maxlength="20"><div class="fh2">KIT/CKD do processo — busca o custo real</div></div>
+            <div class="fld"><label for="ap-venda">Código de VENDA (Protheus)</label><input id="ap-venda" maxlength="20"><div class="fh2">opcional · produto em estudo pode ficar em branco</div></div>
+            <div class="fld"><label for="ap-eic">Código no EIC (importação)</label><input id="ap-eic" maxlength="20"><div class="fh2">opcional · KIT/CKD do processo</div></div>
             <div class="fld" style="grid-column:span 2; min-width:220px"><label for="ap-obs">Observação</label><input id="ap-obs" maxlength="300" placeholder="ex.: preço aprovado com o comercial em 12/11"></div>
           </div>
           <div class="cadbtns"><button class="btn pri" id="ap-ok" type="button">Confirmar aprovação</button><button class="btn" id="ap-cancela" type="button">Cancelar</button>
@@ -665,7 +665,8 @@ details.simparams .inner{padding:2px 18px 16px}
         <div class="fgrid">
           <div class="fld" style="grid-column:span 2; min-width:220px"><label for="cad-sku">SKU / descrição <span class="req">*</span></label>
             <input id="cad-sku" maxlength="80" placeholder="ex.: ACA 999 NOVO MODELO"><div class="fh2">nome que aparece na lista do simulador</div></div>
-          <div class="fld"><label for="cad-cod">Código Protheus</label><input id="cad-cod" maxlength="20"><div class="fh2">se já existir</div></div>
+          <div class="fld"><label for="cad-cod">Código de venda — DE-PARA</label><input id="cad-cod" maxlength="20"><div class="fh2">Protheus (notas) · liga ao realizado</div></div>
+          <div class="fld"><label for="cad-codeic">Código EIC — DE-PARA</label><input id="cad-codeic" maxlength="20"><div class="fh2">KIT/CKD · liga ao custo real</div></div>
           <div class="fld"><label for="cad-ncm">NCM</label><input id="cad-ncm" maxlength="12" inputmode="numeric"><div class="fh2">confira o II da pauta deste NCM</div></div>
           <div class="fld"><label for="cad-linha">Linha <span class="req">*</span></label>
             <select id="cad-linha"><option value="AUDIO">Áudio · MC 30%</option><option value="LAR">Lar · MC 20%</option><option value="OUTRA">Outra · MC 20%</option></select></div>
@@ -720,7 +721,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.30 · refresh 12/11/2026";
+const VERSAO = "v0.31 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -1599,8 +1600,9 @@ document.getElementById("sim-aprovar").addEventListener("click", ()=>{
   const s = ALL[SIM.i], pn = document.getElementById("aprovpanel");
   pn.hidden = !pn.hidden; if (pn.hidden) return;
   const c = (s.cod && s.cod!=="—") ? s.cod : "";
-  document.getElementById("ap-venda").value = /^000/.test(c) ? c : "";
-  document.getElementById("ap-eic").value = /^005/.test(c) ? c : (s.cad ? "" : c);
+  /* cadastro: vale o DE-PARA do item (venda = cod, EIC = cod_eic) · SKU do EIC: o código é o do KIT (EIC) */
+  document.getElementById("ap-venda").value = s.cad ? c : (/^000/.test(c) ? c : "");
+  document.getElementById("ap-eic").value = s.cad ? (s.codEic || "") : (/^000/.test(c) ? "" : c);
   document.getElementById("ap-obs").value = ""; document.getElementById("apmsg").textContent = "";
   document.getElementById("ap-venda").focus();
 });
@@ -1608,18 +1610,18 @@ document.getElementById("ap-cancela").addEventListener("click", ()=>{ document.g
 document.getElementById("ap-ok").addEventListener("click", async ()=>{
   const d = simCalc(), s = d.s, m = document.getElementById("apmsg");
   const cv_ = document.getElementById("ap-venda").value.trim(), ce = document.getElementById("ap-eic").value.trim();
-  if (!cv_) { m.textContent = "Informe o código de VENDA — sem ele não há realizado para comparar."; m.className = "cadmsg err"; return; }
   const pick = o => Object.fromEntries(Object.entries(o).filter(([k,v]) => typeof v === "number" || typeof v === "string" || typeof v === "boolean" || v === null));
-  const foto = {versao: VERSAO, sku: s.sku, cod_venda: cv_, cod_eic: ce || null, uf: ufAtual(), linha: s.linha || "AUDIO", fora: foraArv(s),
+  const foto = {versao: VERSAO, sku: s.sku, cod_venda: cv_ || null, cod_eic: ce || null, uf: ufAtual(), linha: s.linha || "AUDIO", fora: foraArv(s),
     P: {...P}, SIM: {...pick(SIM), icms: icmsAtual(), ipi: SIM.ipi ?? ipiPad()},
     s: {q: d.q, usd: d.usd, frete: d.f, adic: s.adic ?? null, ii: iiS(s), prem: s.prem || null, cad: !!s.cad, cod: s.cod || null, hawb: s.hawb || null, dt: s.dt || null, st: s.st || null},
     d: pick({...d, s: undefined, Q: undefined})};
   m.textContent = "Salvando…"; m.className = "cadmsg ok";
-  const { data, error } = await SB.from("custos_sim_aprovada").insert({sku: s.sku, cod: cv_, origem: s.cad ? "CADASTRO" : "EIC", cad_id: s.cad ? s.id : null,
+  const { data, error } = await SB.from("custos_sim_aprovada").insert({sku: s.sku, cod: cv_ || null, origem: s.cad ? "CADASTRO" : "EIC", cad_id: s.cad ? s.id : null,
     uf: ufAtual(), preco: +d.price.toFixed(4), ct: +d.ct.toFixed(4), margem_mc: +d.mcGuia.toFixed(6), margem_ebitda: +d.marg.toFixed(6),
     foto, obs: document.getElementById("ap-obs").value.trim() || null}).select();
   if (error || !data || !data.length) { m.textContent = "Não salvou: " + (error ? error.message : "sem permissão (só ADM aprova)"); m.className = "cadmsg err"; return; }
-  m.textContent = `Simulação aprovada (nº ${data[0].id}). O realizado aparece na aba Projetado × Realizado após a próxima atualização da rotina.`;
+  m.textContent = cv_ ? `Simulação aprovada (nº ${data[0].id}). O realizado aparece na aba Projetado × Realizado após a próxima atualização da rotina.`
+    : `Simulação aprovada (nº ${data[0].id}) sem código de venda. A comparação começa quando o código for informado ${s.cad ? "no DE-PARA do Cadastro de SKUs" : "numa nova aprovação"}.`;
   m.className = "cadmsg ok";
   await carregaReal();
 });
@@ -1648,7 +1650,8 @@ function renderReal(){
         TC = document.querySelector("#realcusto tbody"), N = document.getElementById("realnota"), F = document.getElementById("realfonte");
   if (!sim){ K.innerHTML = ""; V.innerHTML = "Aprove uma simulação no Simulador (botão <b>Aprovar simulação</b>, perfil ADM) para começar a comparar."; TB.innerHTML = TC.innerHTML = ""; N.textContent = F.textContent = ""; return; }
   const f = sim.foto, d0 = f.d, fora = !!f.fora, rr = REAL.real[sim.id], R = rr ? rr.dados : null;
-  F.textContent = `aprovada a R$ ${fmt(+sim.preco)} s/ IPI · UF ${f.uf} · venda ${f.cod_venda}${f.cod_eic ? " · EIC " + f.cod_eic : ""}${sim.obs ? " · " + sim.obs : ""}`
+  const codV = (R && R.cod_venda) || f.cod_venda || null, codE = (R && R.cod_eic) || f.cod_eic || null;
+  F.textContent = `aprovada a R$ ${fmt(+sim.preco)} s/ IPI · UF ${f.uf} · ${codV ? "venda " + codV : "sem código de venda"}${codE ? " · EIC " + codE : ""}${sim.obs ? " · " + sim.obs : ""}`
     + (rr ? ` · realizado atualizado em ${new Date(rr.atualizado_em).toLocaleString("pt-BR")}` : " · realizado ainda não buscado (roda na atualização diária)");
   const P0 = d0.price, t0 = d0.impS/P0, v0 = d0.vpc, C0 = d0.ct, dm = d0.dmaqPct;
   const E0 = P0*(1-t0-dm) - v0 - C0;
@@ -1667,7 +1670,8 @@ function renderReal(){
   if (!vend || !vend.QTD){
     K.innerHTML = tile("Preço aprovado", R$(P0), "s/ IPI") + tile(fora ? "Margem da operação aprovada" : "MC aprovada (régua)", pct0(fora ? d0.marg : d0.mcGuia), "")
       + tile(fora ? "" : "EBITDA aprovado", fora ? "" : pct0(d0.marg), "");
-    V.innerHTML = `<b>Sem venda do código ${esc(f.cod_venda)} desde ${R ? R.desde_mes.slice(4)+"/"+R.desde_mes.slice(0,4) : "a aprovação"}.</b> A comparação de margem começa quando houver nota; a importação real aparece abaixo assim que o processo no EIC existir.`;
+    V.innerHTML = !codV ? `<b>Simulação de estudo, sem código de venda.</b> Para comparar com o realizado, informe o código ${sim.origem === "CADASTRO" ? "no <b>DE-PARA do Cadastro de SKUs</b> (Código de venda) — vale também para esta aprovação" : "numa nova aprovação"}.`
+      : R && R.sb1_erro ? `<b>${esc(R.sb1_erro)}</b> Confira o DE-PARA.` : `<b>Sem venda do código ${esc(codV)} desde ${R ? R.desde_mes.slice(4)+"/"+R.desde_mes.slice(0,4) : "a aprovação"}.</b> A comparação de margem começa quando houver nota; a importação real aparece abaixo assim que o processo no EIC existir.`;
     TB.innerHTML = ""; N.textContent = ""; return;
   }
   /* realizado por unidade (mesma estrutura do Simulador) */
@@ -1717,7 +1721,7 @@ function renderReal(){
     + ordem.map(g => `<tr class="grp"><td colspan="6">${gN[g]}</td></tr>` + linhas.filter(l => l.g === g).map(linhaTb).join("")).join("")
     + `<tr class="tot"><td>${nomeM} realizado</td><td></td><td class="num">${R$(E1)}</td><td class="num">${(E1-E0>0?"+":"−") + fmt(Math.abs(E1-E0))}</td><td class="num">${pct0(e1)}</td><td></td></tr>`;
   const dev = R.vendas.DEV;
-  N.innerHTML = `Realizado = notas de venda (SD2) do código ${esc(f.cod_venda)} desde ${R.desde_mes.slice(4)}/${R.desde_mes.slice(0,4)} (mês da aprovação), filiais somadas; impostos de saída líquidos da subvenção (régua do incentivo PROBAHIA; fora da árvore = sem incentivo); VPC pelo % gravado no pedido (SFA); custo = CMV contábil da nota.`
+  N.innerHTML = `Realizado = notas de venda (SD2) do código ${esc(codV)} desde ${R.desde_mes.slice(4)}/${R.desde_mes.slice(0,4)} (mês da aprovação), filiais somadas; impostos de saída líquidos da subvenção (régua do incentivo PROBAHIA; fora da árvore = sem incentivo); VPC pelo % gravado no pedido (SFA); custo = CMV contábil da nota.`
     + ` A despesa ${fora ? "fixa" : "da máquina"} usa o mesmo % aprovado (${pct0(dm)}) dos dois lados — `
     + (ped.TOT ? `memória: frete do pedido ${pct0((ped.FRETE_RS||0)/ped.TOT)} e comissão ${pct0((ped.COM_RS||0)/ped.TOT)} do valor s/ IPI.` : "sem pedido associado.")
     + (dev && dev.QTD ? ` Devoluções no período: ${fmt(Math.abs(dev.QTD),0)} un (fora da margem acima).` : "")
@@ -1731,7 +1735,7 @@ const CAD = {linhas:[], editId:null, erro:null};
 const numBR = v => { const t=String(v??"").trim().replace(/\s/g,""); if(!t) return null;
   /* 1.234,56 · 1.234 (milhar) · 28,9 · 28.9 */
   const n = parseFloat(t.includes(",") || /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g,"").replace(",",".") : t); return isFinite(n) ? n : NaN; };
-const cadParaSku = r => ({sku:r.sku, cod:r.cod||"—", q:r.qtd_ctr, usd25:null, usd26:+r.fob_usd,
+const cadParaSku = r => ({sku:r.sku, cod:r.cod||"—", codEic:r.cod_eic||null, q:r.qtd_ctr, usd25:null, usd26:+r.fob_usd,
   frete: r.frete_usd_ctr==null ? null : +r.frete_usd_ctr, adic: r.adic_rs_ctr==null ? null : +r.adic_rs_ctr,
   hawb:null, dt:"—", st: r.frete_usd_ctr==null ? "sem" : "cad", linha:r.linha,
   ii: r.ii_pct==null ? null : r.ii_pct/100, ipiS: r.ipi_saida_pct==null ? null : +r.ipi_saida_pct,
@@ -1777,7 +1781,7 @@ const PREM = [
 ];
 const PREM_JSON = ["seg","afrmm","magic","courr","transp","despacho","bl","armaz","capataz","descons","ipiImp","pisImp","cofImp","icmsImp","icmsInt","icmsInter"];
 const premFmt = (c, v) => c[2]==="%" ? fmt(v*100, 4).replace(/0+$/,"").replace(/,$/,"") : fmt(v, c[2]==="US$" ? 2 : 2);
-const CAMPOS = ["sku","cod","ncm","linha","q","usd","obs","fora"].concat(PREM.map(c=>c[0]));
+const CAMPOS = ["sku","cod","codeic","ncm","linha","q","usd","obs","fora"].concat(PREM.map(c=>c[0]));
 const cv = id => document.getElementById("cad-"+id);
 /* blocos 1 e 2 do cadastro = mesma estrutura da "Formação do custo" do Simulador (v0.22, Silvio 11/11/2026) */
 const PC = Object.fromEntries(PREM.map(c=>[c[0], c]));
@@ -1857,7 +1861,7 @@ function mostraBlocos(f){
 }
 montaPrem();
 function lerForm(){
-  const f = {sku:cv("sku").value.trim(), cod:cv("cod").value.trim()||null, ncm:cv("ncm").value.trim()||null,
+  const f = {sku:cv("sku").value.trim(), cod:cv("cod").value.trim()||null, codEic:cv("codeic").value.trim()||null, ncm:cv("ncm").value.trim()||null,
     linha:cv("linha").value, q:numBR(cv("q").value), usd:numBR(cv("usd").value), obs:cv("obs").value.trim()||null, prem:{}, fora:cv("fora").checked};
   const e = [];
   if (f.sku.length < 3) e.push("informe o SKU / descrição");
@@ -1903,7 +1907,7 @@ function preenchePrem(r){
 function preencheForm(r){
   CAD.editId = r ? r.id : null;
   const v = x => x==null ? "" : String(x).replace(".", ",");
-  cv("sku").value = r ? r.sku : ""; cv("cod").value = r ? (r.cod||"") : ""; cv("ncm").value = r ? (r.ncm||"") : "";
+  cv("sku").value = r ? r.sku : ""; cv("cod").value = r ? (r.cod||"") : ""; cv("codeic").value = r ? (r.cod_eic||"") : ""; cv("ncm").value = r ? (r.ncm||"") : "";
   cv("linha").value = r ? r.linha : "AUDIO"; cv("q").value = r ? r.qtd_ctr : ""; cv("usd").value = r ? v(+r.fob_usd) : "";
   cv("obs").value = r ? (r.obs||"") : "";
   preenchePrem(r);
@@ -1920,7 +1924,7 @@ async function salvaCad(){
   const {f, e} = lerForm();
   if (e.length){ msgCad("Corrija: "+e.join("; "), false); return; }
   const prem = {foraArvore:f.fora}; PREM_JSON.forEach(k=>prem[k]=+f.prem[k].toFixed(6));
-  const linha = {sku:f.sku, cod:f.cod, ncm:f.ncm, linha:f.linha, qtd_ctr:f.q, fob_usd:f.usd, frete_usd_ctr:f.prem.frete,
+  const linha = {sku:f.sku, cod:f.cod, cod_eic:f.codEic, ncm:f.ncm, linha:f.linha, qtd_ctr:f.q, fob_usd:f.usd, frete_usd_ctr:f.prem.frete,
                  adic_rs_ctr:f.prem.adic, ii_pct:+(f.prem.ii*100).toFixed(2), ipi_saida_pct:+(f.prem.ipi*100).toFixed(2), obs:f.obs, premissas:prem};
   const b = document.getElementById("cad-salvar"); b.disabled = true; msgCad("Salvando…", true);
   const q = CAD.editId ? SB.from("custos_sku_cadastro").update(linha).eq("id", CAD.editId).select()
@@ -1956,7 +1960,7 @@ function renderCadLista(){
   const nomeL = {AUDIO:"Áudio", LAR:"Lar", OUTRA:"Outra"};
   tb.innerHTML = CAD.linhas.map(r=>{ const s = cadParaSku(r); const k = ALL.findIndex(x=>x.cad && x.id===r.id);
     const dt = r.criado_em ? new Date(r.criado_em).toLocaleDateString("pt-BR") : "";
-    return `<tr><td><b>${esc(r.sku)}</b>${r.cod?`<div class="mono" style="font-size:11px;color:var(--ink2)">${esc(r.cod)}${r.ncm?" · NCM "+esc(r.ncm):""}</div>`:(r.ncm?`<div class="mono" style="font-size:11px;color:var(--ink2)">NCM ${esc(r.ncm)}</div>`:"")}</td>
+    return `<tr><td><b>${esc(r.sku)}</b><div class="mono" style="font-size:11px;color:var(--ink2)">${[r.cod ? "venda " + esc(r.cod) : '<span style="color:var(--up)">sem código de venda (DE-PARA)</span>', r.cod_eic ? "EIC " + esc(r.cod_eic) : "", r.ncm ? "NCM " + esc(r.ncm) : ""].filter(Boolean).join(" · ")}</div></td>
       <td>${nomeL[r.linha]||r.linha}${r.premissas && r.premissas.foraArvore ? '<div style="font-size:11px;color:var(--up)">ICMS fora da árvore</div>' : ""}</td><td class="num">${fmt(r.qtd_ctr,0)}</td><td class="num">${fmt(+r.fob_usd)}</td>
       <td class="num">${r.frete_usd_ctr==null?'<span style="color:var(--ink3)">mediana</span>':fmt(+r.frete_usd_ctr,0)}</td>
       <td class="num">${r.adic_rs_ctr==null?'<span style="color:var(--ink3)">média</span>':fmt(+r.adic_rs_ctr,0)}</td>
