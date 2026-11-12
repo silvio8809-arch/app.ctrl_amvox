@@ -727,7 +727,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.35 · refresh 12/11/2026";
+const VERSAO = "v0.36 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -1627,7 +1627,7 @@ async function gerarPdfComercial(){
     doc.setFont("helvetica","bold"); doc.setFontSize(6.8); doc.setTextColor(0);
     doc.text(pdfT("FRETE MÉDIO POR REGIÃO:   Norte 14,3%   |   Nordeste 5,0%   |   Centro-Oeste 9,1%   |   Sudeste 4,1%   |   Sul 9,3%"), M, H-M+2);
     doc.setTextColor(215,25,32); doc.setFontSize(6.4);
-    doc.text(pdfT(`gerado ${agora.toLocaleDateString("pt-BR")}${PDF_APROV ? ` · simulação aprovada nº ${PDF_APROV.id} de ${PDF_APROV.data}` : ""}`), W-M, H-M+2, {align:"right"});
+    doc.text(pdfT(`gerado ${agora.toLocaleDateString("pt-BR")}`), W-M, H-M+2, {align:"right"});   /* rodapé original (Silvio 12/11/2026) */
     doc.save(`Proposta_preco_${nomeArqC(s.sku.replace(/\s*†$/,""))}_${agora.toISOString().slice(0,10)}.pdf`);
     msg.textContent = "";
   } catch(e){ msg.textContent = "não gerou o PDF: " + (e.message || e); }
