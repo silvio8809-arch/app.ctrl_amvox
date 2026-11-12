@@ -721,7 +721,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.31 · refresh 12/11/2026";
+const VERSAO = "v0.32 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -1542,35 +1542,42 @@ async function gerarPdfComercial(){
     /* faixa preta + filete vermelho */
     doc.setFillColor(0,0,0); doc.rect(M, M, W-2*M, 8, "F");
     doc.setFont("helvetica","bold"); doc.setFontSize(9.6); doc.setTextColor(255);
-    doc.text(pdfT(`AMVOX  —  PROPOSTA DE PREÇO  —  ${fora ? "MARGEM EBITDA" : "MC"} ${faixas.map(pctF).join("/")}  —  SEM VPC`), W/2, M+5.4, {align:"center"});
+    doc.text(pdfT(`AMVOX  —  PROPOSTA DE PREÇO  —  ${fora ? "MC E MARGEM EBITDA" : "MC"} ${faixas.map(pctF).join("/")}  —  SEM VPC`), W/2, M+5.4, {align:"center"});
     doc.setFillColor(215,25,32); doc.rect(M, M+8, W-2*M, 0.45, "F");
     /* nota + legenda */
     const ipiTxt = `IPI de saída ${fmt(SIM.ipi ?? ipiPad(),2)}% (por fora, não incluso).`;
     const icmsTxt = foraArv(s) ? ` Produto FORA da árvore de NCM incentivada: preços já consideram ICMS de saída de ${fmt(icmsAtual(),2)}% (${uf==="BA" ? "venda interna BA" : "venda interestadual para " + uf}).` : "";
     const dag = projetado ? ` LEGENDA: † = custo PROJETADO (item ainda não nacionalizado), estimado pela fórmula de importação por contêiner (${fmt(d.q,0)} peças/ctr, dólar ${fmt(P.dolar)}); será substituído pelo custo real quando o produto for nacionalizado.` : "";
     const nota = fora
-      ? `Preço de venda (SEM IPI) para cada margem EBITDA, SEM VPC. Margem EBITDA = preço − impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}%) − custo do produto − despesa fixa de 5%. Linha com margem máxima de 20% e alvo em torno de 15% (coluna destacada). ${ipiTxt}${icmsTxt}${dag} Frete de venda já incluído nos 5% de despesa fixa.`
+      ? `Preço de venda (SEM IPI) para cada margem, SEM VPC. Quadro 1 — MC pela régua do guia de bolso (CIF, frete médio nacional 3% embutido, com o ICMS de saída deste produto). Quadro 2 — Margem EBITDA = preço − impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}%) − custo do produto − despesa fixa de 5% (frete de venda já incluído). Linha com margem máxima de 20% e alvo em torno de 15% (coluna destacada). ${ipiTxt}${icmsTxt}${dag}`
       : `Preço de venda (SEM IPI) para cada margem, SEM VPC, CIF (frete médio nacional 3% embutido). ${ipiTxt}${icmsTxt}${dag} Margem mínima da linha: ${Math.round(mcMin(s)*100)}%.`;
     doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(0);
     const linhasNota = doc.splitTextToSize(pdfT(nota), W-2*M);
     doc.text(linhasNota, M, M+13);
     let y = M + 13 + linhasNota.length*3 + 3;
-    /* tabela no padrão do guia */
-    const precos = faixas.map(m => fora ? precoEbitda(d.ct, m, DESP_FIXA_FORA) : precoMC(d.ct, m, d.ipiG, d.icx));
+    /* tabela no padrão do guia — fora da árvore (v0.32, Silvio 12/11/2026): quadro 1 = MC (régua do guia, como antes) e
+       quadro 2, abaixo = MARGEM EBITDA (despesa fixa 5%) — "a ideia não seria retirar a MC" */
     const iAlvo = fora ? faixas.indexOf(.15) + 2 : -1;
-    doc.autoTable({startY:y, margin:{left:M, right:M}, theme:"grid", tableWidth: W-2*M,
-      head:[[{content:pdfT(`${linhaT}  ›  ${s.cod && s.cod!=="—" ? "CÓD. " + s.cod : "LANÇAMENTO"}`), colSpan: 2 + faixas.length,
-              styles:{fillColor:[0,0,0], textColor:255, halign:"left", fontSize:8.5}}],
-            ["MODELO", "CUSTO PROJ.", ...faixas.map(m => (fora ? "EBITDA " : "") + pctF(m) + "%")]],
-      body:[[pdfT(nome), fmt(d.ct), ...precos.map(v => fmt(v))]],
-      headStyles:{fillColor:[230,230,230], textColor:0, fontStyle:"bold", fontSize:8},
-      styles:{fontSize:8.5, cellPadding:1.8, textColor:0, lineColor:[200,200,200], lineWidth:0.2},
-      columnStyles: Object.fromEntries([[0,{cellWidth: fora ? 52 : 70}], ...Array.from({length:1+faixas.length}, (_,i)=>[i+1, {halign:"right"}])]),
-      didParseCell: c => { if (c.section==="head" && c.row.index===1 && c.column.index>0) c.cell.styles.halign = "right";
-                           if (c.section==="head" && c.row.index===1) { c.cell.styles.lineWidth = {bottom:0.5}; c.cell.styles.lineColor = [215,25,32]; }
-                           if (c.column.index===iAlvo && !(c.section==="head" && c.row.index===0)) { c.cell.styles.fillColor = c.section==="head" ? [215,25,32] : [253,236,236]; if (c.section==="head") c.cell.styles.textColor = 255; c.cell.styles.fontStyle = "bold"; }
-                         }});
-    y = doc.lastAutoTable.finalY + 5;
+    const tabela = (sub, rot, precos) => {
+      doc.autoTable({startY:y, margin:{left:M, right:M}, theme:"grid", tableWidth: W-2*M,
+        head:[[{content:pdfT(`${linhaT}  ›  ${s.cod && s.cod!=="—" ? "CÓD. " + s.cod : "LANÇAMENTO"}${sub ? "  —  " + sub : ""}`), colSpan: 2 + faixas.length,
+                styles:{fillColor:[0,0,0], textColor:255, halign:"left", fontSize:8.5}}],
+              ["MODELO", "CUSTO PROJ.", ...faixas.map(m => rot + pctF(m) + "%")]],
+        body:[[pdfT(nome), fmt(d.ct), ...precos.map(v => fmt(v))]],
+        headStyles:{fillColor:[230,230,230], textColor:0, fontStyle:"bold", fontSize:8},
+        styles:{fontSize:8.5, cellPadding:1.8, textColor:0, lineColor:[200,200,200], lineWidth:0.2},
+        columnStyles: Object.fromEntries([[0,{cellWidth: fora ? 52 : 70}], ...Array.from({length:1+faixas.length}, (_,i)=>[i+1, {halign:"right"}])]),
+        didParseCell: c => { if (c.section==="head" && c.row.index===1 && c.column.index>0) c.cell.styles.halign = "right";
+                             if (c.section==="head" && c.row.index===1) { c.cell.styles.lineWidth = {bottom:0.5}; c.cell.styles.lineColor = [215,25,32]; }
+                             if (c.column.index===iAlvo && !(c.section==="head" && c.row.index===0)) { c.cell.styles.fillColor = c.section==="head" ? [215,25,32] : [253,236,236]; if (c.section==="head") c.cell.styles.textColor = 255; c.cell.styles.fontStyle = "bold"; }
+                           }});
+      y = doc.lastAutoTable.finalY + 4;
+    };
+    if (fora){
+      tabela("1. MC (RÉGUA DO GUIA)", "MC ", faixas.map(m => precoMC(d.ct, m, d.ipiG, d.icx)));
+      tabela("2. MARGEM EBITDA (DESPESA FIXA 5%)", "EBITDA ", faixas.map(m => precoEbitda(d.ct, m, DESP_FIXA_FORA)));
+    } else tabela("", "", faixas.map(m => precoMC(d.ct, m, d.ipiG, d.icx)));
+    y += 1;
     doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(90);
     doc.text(doc.splitTextToSize(pdfT("Valores por unidade, em reais. Preço sujeito a confirmação comercial, à disponibilidade do produto e à condição de pagamento. Frete adicional da região conforme rodapé."), W-2*M), M, y);
     if (fora){   /* definição da despesa fixa no rodapé (Silvio 12/11/2026) */
