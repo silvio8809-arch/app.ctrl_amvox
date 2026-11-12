@@ -176,6 +176,8 @@ tr.exp td{background:var(--surface2); padding:16px 18px; white-space:normal}
 .chip.verde{background:var(--ok-bg); color:var(--ok)}
 .chip.amarelo{background:var(--amber-bg); color:var(--amber)}
 .groupbar .t{font-size:13px; color:var(--ink2)}
+/* v0.34: o atributo hidden tem de vencer o all:unset dos botões (ícone "Simulação aprovada" só com aprovação) */
+[hidden]{display:none !important}
 .btn{all:unset; cursor:pointer; font:600 13px "IBM Plex Sans",sans-serif; color:var(--ink);
   border:1px solid var(--line2); background:var(--surface); border-radius:7px; padding:8px 16px}
 .btn:hover{background:var(--surface2)}
@@ -725,7 +727,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.33 · refresh 12/11/2026";
+const VERSAO = "v0.34 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
