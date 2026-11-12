@@ -385,7 +385,7 @@ details.simparams .inner{padding:2px 18px 16px}
           <div class="fld"><label for="sp-vpc">VPC % s/ preço</label><input id="sp-vpc" inputmode="decimal"><div class="fh2">inicia em 0; típico do cadastro = 8,5%</div></div>
           <div class="fld"><label for="sp-pis">PIS saída %</label><input id="sp-pis" inputmode="decimal"></div>
           <div class="fld"><label for="sp-cof">COFINS saída %</label><input id="sp-cof" inputmode="decimal"></div>
-          <div class="fld"><label for="sp-icms">ICMS saída %</label><input id="sp-icms" inputmode="decimal"><div class="fh2">0% = incentivo BA</div></div>
+          <div class="fld"><label for="sp-icms">ICMS saída %</label><input id="sp-icms" inputmode="decimal"><div class="fh2" id="sp-icms-h">0% = incentivo BA</div></div>
           <div class="fld"><label for="sp-dmaq">Despesa da máquina</label>
             <select id="sp-dmaq"><option value="25">27% — Modelo 2025</option><option value="26">16% — Modelo 2026</option><option value="custom">Outro (editável)</option></select></div>
           <div class="fld" id="fld-dmaqc" hidden><label for="sp-dmaqc">Despesa da máquina — outro %</label><input id="sp-dmaqc" inputmode="decimal"></div>
@@ -627,6 +627,9 @@ details.simparams .inner{padding:2px 18px 16px}
             <select id="cad-linha"><option value="AUDIO">Áudio · MC 30%</option><option value="LAR">Lar · MC 20%</option><option value="OUTRA">Outra · MC 20%</option></select></div>
           <div class="fld"><label for="cad-q">Qtd por contêiner <span class="req">*</span></label><input id="cad-q" inputmode="numeric"><div class="fh2">contêiner dedicado</div></div>
           <div class="fld"><label for="cad-usd">FOB US$ / unidade <span class="req">*</span></label><input id="cad-usd" inputmode="decimal"><div class="fh2">cotação / proforma</div></div>
+          <div class="fld"><label>ICMS do produto</label>
+            <label class="switch"><input type="checkbox" id="cad-fora"><span class="trk"></span><span id="cad-fora-lbl">incentivado</span></label>
+            <div class="fh2">ligue se o NCM está FORA da árvore incentivada (ex.: motos elétricas 8711.60)</div></div>
           <div class="fld"><label for="cad-ipi">IPI de saída % <span class="req">*</span></label><input id="cad-ipi" inputmode="decimal"><div class="fh2" id="cad-ipi-h"></div></div>
           <div class="fld" style="grid-column:span 2; min-width:220px"><label for="cad-obs">Fonte / observação</label><input id="cad-obs" maxlength="300" placeholder="ex.: proforma fornecedor 10/11/2026"></div>
         </div>
@@ -673,7 +676,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.24 · refresh 12/11/2026";
+const VERSAO = "v0.25 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -742,7 +745,17 @@ const PMETA = [
 /* premissas de importação do SKU cadastrado (v0.21) sobre os parâmetros globais; dólar e Siscomex seguem globais */
 const PQ = s => (s && s.prem) ? {...P, ...s.prem, dolar:P.dolar, siscomex:P.siscomex} : P;
 const fixos = (modo, s) => { const Q = PQ(s); return Q.transp+Q.despacho+Q.bl+Q.armaz+Q.capataz+Q.descons + (modo==="25" ? Q.siscomex : 0); };
-const CRED_IMP = 1;   /* IPI/PIS/COFINS da importação: % creditado (100% = premissa do modelo) */
+const CRED_IMP = 1;
+/* ICMS de produto FORA da árvore de NCM incentivada (v0.25, Silvio 12/11/2026 — caso motos elétricas): ICMS na entrada
+   (importação, por dentro, recuperável como o IPI) e na saída (BA interna · interestadual de importado). Premissas editáveis por SKU. */
+const ICMS_FORA = {icmsImp:0.205, icmsInt:0.205, icmsInter:0.04};
+const foraArv = s => !!(s && s.prem && s.prem.foraArvore);
+const icmsImpA = s => foraArv(s) ? (s.prem.icmsImp ?? ICMS_FORA.icmsImp) : 0;
+const ufAtual = () => (document.getElementById("simuf") || {}).value || "BA";
+const icmsSaiPad = s => !foraArv(s) ? 0 : 100*(ufAtual()==="BA" ? (s.prem.icmsInt ?? ICMS_FORA.icmsInt) : (s.prem.icmsInter ?? ICMS_FORA.icmsInter));
+const icmsAtual = () => SIM.icmsS ?? icmsSaiPad(ALL[SIM.i]);
+/* régua do guia: o ICMS cheio da saída entra como dedução a mais (os 24% da régua já trazem a carga incentivada) */
+const icxGuia = s => foraArv(s) ? icmsAtual()/100 : 0;   /* IPI/PIS/COFINS da importação: % creditado (100% = premissa do modelo) */
 const iiS = s => (s && s.ii!=null) ? s.ii : P.ii;   /* II do SKU cadastrado ou o parâmetro (v0.20) */
 const adic = (s,modo) => modo==="26" ? (s && s.adic!=null ? s.adic : P.adic333) : 0;
 function custoM(usd, frete, q, modo, s){
@@ -859,7 +872,7 @@ const ipiPad = () => { const s = ALL[SIM.i]; return (s && s.ipiS!=null) ? s.ipiS
 /* Defaults por definição do Silvio: VPC inicia ZERO (toggle desligado E % zerado; 8,5% é o
    típico do cadastro, digitar quando aplicável) · meta EBITDA 9% */
 const SIM = {i:0, qty:null, price:null, ipi:null, vpcOn:false, dmaq:"25", dmaqCustom:20,
-             vpcPct:0, pisS:1.65, cofS:7.6, icmsS:0, meta:9};
+             vpcPct:0, pisS:1.65, cofS:7.6, icmsS:null, meta:9};   /* icmsS null = padrão do SKU/UF (v0.25) */
 const dmaqAtual = () => SIM.dmaq==="25" ? P.dmaq25 : (SIM.dmaq==="26" ? P.dmaqMC : SIM.dmaqCustom/100);
 const dmaqRotulo = () => SIM.dmaq==="25" ? " (Modelo 2025)" : (SIM.dmaq==="26" ? " (Modelo 2026)" : " (outro)");
 /* MC mínima por linha (definição Silvio): ÁUDIO = 30% · demais linhas = 20%.
@@ -868,8 +881,8 @@ const dmaqRotulo = () => SIM.dmaq==="25" ? " (Modelo 2025)" : (SIM.dmaq==="26" ?
 const mcMin = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.30 : 0.20;
 const ipiGuia = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.15 : (SIM.ipi ?? ipiPad())/100;   /* áudio = B1_IPI 15% (mesmo do guia) */
 const fcGuia = ipi => 1 - 0.24*(1+ipi), fbGuia = ipi => 1 - 0.18*(1+ipi);
-const divMC = (m, ipi=0.15) => fcGuia(ipi) - fbGuia(ipi)*m;
-const precoMC = (ct, m, ipi=0.15) => ct*1.01/divMC(m, ipi);
+const divMC = (m, ipi=0.15, icx=0) => fcGuia(ipi) - icx - fbGuia(ipi)*m;
+const precoMC = (ct, m, ipi=0.15, icx=0) => ct*1.01/divMC(m, ipi, icx);
 const kv = (l,r,cls="") => `<div class="kv ${cls}"><span class="l">${l}</span><span class="r">${r}</span></div>`;
 const R$ = v => "R$ "+fmt(v);
 function renderSimOptions(){
@@ -884,7 +897,7 @@ function renderSimOptions(){
 }
 /* SKU GLOBAL: selecionar em qualquer tela sincroniza as demais — a análise segue o mesmo produto */
 function setSku(i){
-  SIM.i = i; SIM.qty = null; SIM.price = null; SIM.ipi = null;
+  SIM.i = i; SIM.qty = null; SIM.price = null; SIM.ipi = null; SIM.icmsS = null;
   ["simsku","compsku","fretesku"].forEach(id=>{
     const el = document.getElementById(id);
     if (el && el.options.length) el.value = String(i);
@@ -909,25 +922,27 @@ function simCalc(){
   /* impostos recuperáveis da importação (SYD NCM 85198190) — crédito espelho, líquido 0 */
   const ipiImp = (cifR+ii)*Q.ipiImp, pisImp = cifR*Q.pisImp, cofImp = cifR*Q.cofImp;
   /* conta aberta (v0.24, Silvio 11/11/2026): pagos − créditos = líquido. Premissa: crédito de 100% (CRED_IMP) */
-  const recPago = ipiImp+pisImp+cofImp, recCred = recPago*CRED_IMP, recLiq = recPago-recCred;
+  const icmsA = icmsImpA(s), icmsImp = icmsA>0 ? (cifR+ii+ipiImp+pisImp+cofImp+afrmm)*icmsA/(1-icmsA) : 0;   /* por dentro */
+  const recPago = ipiImp+pisImp+cofImp+icmsImp, recCred = recPago*CRED_IMP, recLiq = recPago-recCred;
   const c25 = s.usd25!=null ? custoM(s.usd25, P.freteProj, q, "25", s) : null;
   /* preço padrão = preço projetado p/ a MC MÍNIMA da linha (ÁUDIO 30% · demais 20%) */
   const mcAlvo = mcMin(s);
   const ipiG = ipiGuia(s);
-  const pisoDef = precoMC(ct, mcAlvo, ipiG);
+  const icx = icxGuia(s);
+  const pisoDef = precoMC(ct, mcAlvo, ipiG, icx);
   const price = SIM.price ?? Math.round(pisoDef*100)/100;
   const ipiS = (SIM.ipi ?? ipiPad())/100;
   const vpc = SIM.vpcOn ? price*SIM.vpcPct/100 : 0;
-  const impS = price*(SIM.pisS+SIM.cofS+SIM.icmsS)/100;
+  const impS = price*(SIM.pisS+SIM.cofS+icmsAtual())/100;
   const dmaqPct = dmaqAtual();
   const dmaqV = price*dmaqPct;
   const cv = ct+vpc+dmaqV;
   const lucroV = price - impS - cv;
   /* MC pela régua do guia de bolso — inversa exata do piso: MC = (fc − 1,01·CT/P) ÷ fb (fc/fb com o IPI do guia).
      Auditável: digitar o piso MC30/35/40 devolve exatamente 30/35/40%. */
-  const mcGuia = (fcGuia(ipiG) - 1.01*ct/price)/fbGuia(ipiG);
+  const mcGuia = (fcGuia(ipiG) - icx - 1.01*ct/price)/fbGuia(ipiG);
   const qty = SIM.qty ?? q;
-  return {s, Q, recPago, recCred, recLiq, usd, f, q, fobR, freteR, segR, cifR, ii, afrmm, magic, courr, fixosUn, adicUn, ct,
+  return {s, Q, icmsA, icmsImp, icx, recPago, recCred, recLiq, usd, f, q, fobR, freteR, segR, cifR, ii, afrmm, magic, courr, fixosUn, adicUn, ct,
           ipiImp, pisImp, cofImp, c25, price, pisoDef, mcAlvo, ipiS, vpc, impS, dmaqPct, dmaqV, cv,
           lucroV, marg: lucroV/price, mcGuia, ipiG, qty};
 }
@@ -952,6 +967,8 @@ function renderSim(){
   document.getElementById("simprec").value = fmt(d.price);
   document.getElementById("simipi").value = fmt((SIM.ipi ?? ipiPad()),2);
   document.getElementById("sp-dolar").value = fmt(P.dolar,2);
+  document.getElementById("sp-icms").value = fmt(icmsAtual(),2);
+  document.getElementById("sp-icms-h").textContent = foraArv(s) ? `fora da árvore incentivada: padrão ${ufAtual()==="BA"?"interna BA":"interestadual (importado)"} ${fmt(icmsSaiPad(s),2)}%` : "0% = incentivo BA";
   document.getElementById("simprechint").textContent =
     `padrão = preço projetado p/ MC ${Math.round(d.mcAlvo*100)}% (mínimo da linha ${ (d.s.linha||"ÁUDIO") }): R$ ${fmt(d.pisoDef)}`;
   document.getElementById("simvpclbl").textContent = SIM.vpcOn ? "sim" : "não";
@@ -983,15 +1000,17 @@ function renderSim(){
       ${kv("IPI "+pct0(d.Q.ipiImp), R$(d.ipiImp))}
       ${kv("PIS "+pct0(d.Q.pisImp), R$(d.pisImp))}
       ${kv("COFINS "+pct0(d.Q.cofImp), R$(d.cofImp))}
+      ${d.icmsImp>0 ? kv("ICMS "+pct0(d.icmsA)+" (por dentro · fora da árvore)", R$(d.icmsImp)) : ""}
       <h4>Créditos (recuperáveis)</h4>
       ${kv("(−) IPI", `<span class="neg">−${fmt(d.ipiImp)}</span>`)}
       ${kv("(−) PIS", `<span class="neg">−${fmt(d.pisImp)}</span>`)}
       ${kv("(−) COFINS", `<span class="neg">−${fmt(d.cofImp)}</span>`)}
+      ${d.icmsImp>0 ? kv("(−) ICMS", `<span class="neg">−${fmt(d.icmsImp)}</span>`) : ""}
       ${kv("IMPOSTOS LÍQUIDOS (só II fica)", R$(d.ii), "tot")}</div>
     <div class="grp"><h4>Resumo do custo</h4>
       ${kv("Total importação (ex-II)", R$(d.ct-d.ii))}
       ${kv("I.I. (não recuperável)", R$(d.ii))}
-      ${kv("Impostos recuperáveis pagos (IPI + PIS + COFINS)", R$(d.recPago))}
+      ${kv("Impostos recuperáveis pagos (IPI + PIS + COFINS"+(d.icmsImp>0?" + ICMS":"")+")", R$(d.recPago))}
       ${kv("(−) Créditos tomados ("+pct0(CRED_IMP)+")", `<span class="neg">−${fmt(d.recCred)}</span>`)}
       ${kv("= Impostos recuperáveis (líquido)", R$(d.recLiq), "sub")}
       ${kv("CUSTO TOTAL PRODUTO (CT)", R$(d.ct), "tot")}
@@ -1006,7 +1025,7 @@ function renderSim(){
     kv("Preço de venda s/ IPI", R$(d.price))
    +kv("IPI de saída "+fmt(SIM.ipi ?? ipiPad(),2)+"%", R$(d.price*d.ipiS))
    +kv("Preço de venda c/ IPI", R$(d.price*(1+d.ipiS)), "sub")
-   +kv("(−) Impostos de saída (PIS "+fmt(SIM.pisS,2)+"% + COFINS "+fmt(SIM.cofS,2)+"% + ICMS "+fmt(SIM.icmsS,2)+"%)", R$(d.impS))
+   +kv("(−) Impostos de saída (PIS "+fmt(SIM.pisS,2)+"% + COFINS "+fmt(SIM.cofS,2)+"% + ICMS "+fmt(icmsAtual(),2)+"%"+(foraArv(s)?" "+ufAtual():"")+")", R$(d.impS))
    +kv("(−) VPC "+(SIM.vpcOn? fmt(SIM.vpcPct,2)+"%":"(desligado)"), R$(d.vpc))
    +kv("(−) Despesa da máquina "+pct0(d.dmaqPct)+dmaqRotulo(), R$(d.dmaqV))
    +kv("(−) Custo do produto (CT)", R$(d.ct))
@@ -1053,7 +1072,7 @@ function renderSim(){
       <span class="small" style="position:absolute; left:0">0%</span><span class="small" style="position:absolute; right:0">30%</span></div>`;
   const sl = document.getElementById("simslider");
   const precoDaMargem = m => {
-    const t = (SIM.pisS+SIM.cofS+SIM.icmsS)/100, vpcr = SIM.vpcOn? SIM.vpcPct/100:0;
+    const t = (SIM.pisS+SIM.cofS+icmsAtual())/100, vpcr = SIM.vpcOn? SIM.vpcPct/100:0;
     const den = 1 - t - vpcr - dmaqAtual() - m;
     return den > 0.03 ? Math.round((d.ct/den)*100)/100 : null;
   };
@@ -1073,9 +1092,9 @@ function renderSim(){
   /* pisos (só ADM) */
   document.getElementById("simpisos").innerHTML = ADM ? `
     <h2>Pisos de preço com o custo vigente (só ADM)</h2>
-    <div class="tiles">${tile("Piso MC 30%", R$(precoMC(d.ct, .30, d.ipiG)), "régua do guia de bolso")
-      +tile("Piso MC 35%", R$(precoMC(d.ct, .35, d.ipiG)), "")
-      +tile("Piso MC 40%", R$(precoMC(d.ct, .40, d.ipiG)), "")}</div>` : "";
+    <div class="tiles">${tile("Piso MC 30%", R$(precoMC(d.ct, .30, d.ipiG, d.icx)), "régua do guia de bolso")
+      +tile("Piso MC 35%", R$(precoMC(d.ct, .35, d.ipiG, d.icx)), "")
+      +tile("Piso MC 40%", R$(precoMC(d.ct, .40, d.ipiG, d.icx)), "")}</div>` : "";
 }
 /* fiação dos campos do simulador */
 function simNum(id, fn){
@@ -1104,7 +1123,10 @@ function wireSim(){
     const v = parseFloat(String(ev.target.value).replace(/\./g,"").replace(",","."));
     if(isFinite(v) && v>0){ P.dolar=v; renderParams(); render(); } else { ev.target.value = fmt(P.dolar,2); }
   });
-  [["sp-vpc","vpcPct"],["sp-pis","pisS"],["sp-cof","cofS"],["sp-icms","icmsS"],["sp-meta","meta"]].forEach(([id,k])=>{
+  document.getElementById("sp-icms").value = fmt(icmsAtual(),2);
+  simNum("sp-icms", v=>{ if(v>=0) SIM.icmsS=v; });
+  document.getElementById("simuf").addEventListener("change", ()=>{ SIM.icmsS = null; renderSim(); renderFreteMargem(); });
+  [["sp-vpc","vpcPct"],["sp-pis","pisS"],["sp-cof","cofS"],["sp-meta","meta"]].forEach(([id,k])=>{
     document.getElementById(id).value = fmt(SIM[k],2);
     simNum(id, v=>{ if(v>=0) SIM[k]=v; });
   });
@@ -1239,8 +1261,8 @@ function renderFreteMargem(){
   const MN = ["jan","fev","mar","abr","mai","jun","jul","ago","set","out","nov","dez"];
   /* preço fixo de tabela: preço projetado p/ a MC mínima da linha, no frete projetado */
   const ct0 = custoM(usd, P.freteProj, q, "26", s);
-  const priceRef = precoMC(ct0, mcMin(s), ipiGuia(s));
-  const t = (SIM.pisS+SIM.cofS+SIM.icmsS)/100, vpcr = SIM.vpcOn? SIM.vpcPct/100:0, dm = dmaqAtual();
+  const priceRef = precoMC(ct0, mcMin(s), ipiGuia(s), icxGuia(s));
+  const t = (SIM.pisS+SIM.cofS+icmsAtual())/100, vpcr = SIM.vpcOn? SIM.vpcPct/100:0, dm = dmaqAtual();
   const margs = months.map(k=>{
     const fm = byM[k].reduce((a,b)=>a+b,0)/byM[k].length;
     const ct = custoM(usd, fm, q, "26", s);
@@ -1369,7 +1391,9 @@ function libPdfC(){
     .then(() => fetch("img/timbrado_a4.jpg").then(r => r.ok ? r.blob() : null).catch(() => null))
     .then(b => b ? new Promise(ok => { const f = new FileReader(); f.onload = () => ok(f.result); f.readAsDataURL(b); }) : null));
 }
-const pdfT = s => String(s ?? "").replace(/≤/g,"<=").replace(/≥/g,">=").replace(/→/g,"->").replace(/[−—–]/g,"-").replace(/†/g,"*").replace(/[^\x00-\xFF—–‘’“”•…]/g, "");
+/* fontes padrão do PDF = WinAnsi: †, ›, — e – vão pelo código da própria fonte (0x86, 0x9B, 0x97, 0x96) */
+const pdfT = s => String(s ?? "").replace(/≤/g,"<=").replace(/≥/g,">=").replace(/→/g,"->").replace(/−/g,"-")
+  .replace(/†/g,"\x86").replace(/›/g,"\x9B").replace(/—/g,"\x97").replace(/–/g,"\x96").replace(/[^\x00-\xFF]/g, "");
 const nomeArqC = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Za-z0-9]+/g, "_").replace(/^_|_$/g, "").slice(0, 40);
 function fundoC(doc, img){ doc.__f = doc.__f || new Set(); const n = doc.getCurrentPageInfo().pageNumber;
   if (img && !doc.__f.has(n)) doc.addImage(img, "JPEG", 0, 0, 210, 297); doc.__f.add(n); }
@@ -1415,13 +1439,13 @@ async function gerarPdfSim(versao){
         [`AFRMM ${PCT(d.Q.afrmm)} s/ frete`, R(d.afrmm)], [`Magic ${PCT(d.Q.magic)} s/ FOB`, R(d.magic)], ["Courrier / EBS", R(d.courr)],
         ["Fixos que agregam ÷ qtd", R(d.fixosUn)], ["Adicional de frete (333)", R(d.adicUn)], ["TOTAL IMPORTAÇÃO (ex-II)", R(d.ct-d.ii)],
         [`I.I. ${PCT(iiS(s))} s/ CIF (não recuperável)`, R(d.ii)],
-        [`Impostos recuperáveis pagos (IPI ${PCT(d.Q.ipiImp)} + PIS ${PCT(d.Q.pisImp)} + COFINS ${PCT(d.Q.cofImp)})`, R(d.recPago)],
+        [`Impostos recuperáveis pagos (IPI ${PCT(d.Q.ipiImp)} + PIS ${PCT(d.Q.pisImp)} + COFINS ${PCT(d.Q.cofImp)}${d.icmsImp>0 ? " + ICMS "+PCT(d.icmsA)+" por dentro" : ""})`, R(d.recPago)],
         [`(-) Créditos tomados (${PCT(CRED_IMP)})`, "-" + R(d.recCred)],
         ["= Impostos recuperáveis (líquido)", R(d.recLiq)],
         ["CUSTO TOTAL PRODUTO (CT)", R(d.ct)]], new Set([3,9,14]));
       kvT("2 · Formação do preço (R$ por unidade)", [
         ["Preço de venda s/ IPI", R(d.price)], [`IPI de saída ${fmt(SIM.ipi ?? ipiPad(),2)}%`, R(d.price*d.ipiS)], ["Preço de venda c/ IPI", R(d.price*(1+d.ipiS))],
-        [`(-) Impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(SIM.icmsS,2)}%)`, R(d.impS)],
+        [`(-) Impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}%${foraArv(s) ? " " + uf + " - fora da árvore" : ""})`, R(d.impS)],
         [`(-) VPC ${SIM.vpcOn ? fmt(SIM.vpcPct,2)+"%" : "(desligado)"}`, R(d.vpc)],
         [`(-) Despesa da máquina ${PCT(d.dmaqPct)}${dmaqRotulo()}`, R(d.dmaqV)], ["(-) Custo do produto (CT)", R(d.ct)],
         ["CUSTO DA VENDA (CV = CT + VPC + desp. máquina)", R(d.cv)],
@@ -1429,12 +1453,6 @@ async function gerarPdfSim(versao){
         ["Margem Ctb. Bruta (MC) pela régua do guia", `${PCT(d.mcGuia)} (mínimo ${Math.round(d.mcAlvo*100)}%) ${d.mcGuia>=d.mcAlvo-1e-4 ? "OK" : "ABAIXO DO MÍNIMO"}`]], new Set([2,7,8,9]));
       doc.setFont("helvetica","normal"); doc.setFontSize(7.4); doc.setTextColor(110);
       doc.text(doc.splitTextToSize(pdfT("Custo pelo modelo 2026 (por contêiner, dólar do parâmetro). Item sem nacionalização: custo projetado, sujeito ao custo real e aos complementos de importação até o fechamento do mês seguinte à NF. Gerado pelo app de Custos de Aquisição — AMVOX Controladoria."), W-2*M), M, y+2);
-    } else {
-      kvT("Identificação", [["Produto", s.sku.replace(/\s*†$/,"")], ["Código", s.cod && s.cod!=="—" ? s.cod : "a definir"], ["UF de destino", uf]]);
-      kvT("Preço (por unidade)", [["Preço de venda s/ IPI", R(d.price)], [`IPI ${fmt(SIM.ipi ?? ipiPad(),2)}%`, R(d.price*d.ipiS)],
-        ["Preço de venda c/ IPI", R(d.price*(1+d.ipiS))]].concat(SIM.vpcOn ? [[`VPC de contrato considerado`, fmt(SIM.vpcPct,2)+"%"]] : []), new Set([2]));
-      doc.setFont("helvetica","normal"); doc.setFontSize(7.6); doc.setTextColor(110);
-      doc.text(doc.splitTextToSize(pdfT("Valores por unidade, em reais. Preço sujeito a confirmação comercial, à disponibilidade do produto e à condição de pagamento. Impostos conforme a legislação vigente na data da emissão."), W-2*M), M, y+2);
     }
     const hoje = agora.toISOString().slice(0,10);
     doc.save(`${ctrl ? "Simulacao_custo_CTRL" : "Proposta_preco"}_${nomeArqC(s.sku.replace(/\s*†$/,""))}_${hoje}.pdf`);
@@ -1442,7 +1460,60 @@ async function gerarPdfSim(versao){
   } catch(e){ msg.textContent = "não gerou o PDF: " + (e.message || e); }
 }
 document.getElementById("pdf-ctrl").addEventListener("click", () => gerarPdfSim("CTRL"));
-document.getElementById("pdf-com").addEventListener("click", () => gerarPdfSim("COMERCIAL"));
+/* PDF COMERCIAL no modelo do GUIA DE BOLSO (v0.25, Silvio 12/11/2026): faixa preta + filete vermelho, nota com legenda do †,
+   preço SEM IPI e SEM VPC por faixa de MC (régua do guia, CIF frete 3% embutido) + coluna CUSTO PROJ.; rodapé = frete por região. */
+async function gerarPdfComercial(){
+  const msg = document.getElementById("pdfmsg");
+  try {
+    msg.textContent = "gerando PDF…";
+    await libPdfC();
+    const d = simCalc(), s = d.s, uf = ufAtual();
+    const doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"}), W = 210, H = 297, M = 10;
+    const nacional = !!s.hawb && s.st !== "sem" && !/†$/.test(s.sku);
+    const projetado = !nacional;                                  /* sem nacionalização (EIC sem processo, ou cadastro) */
+    const nome = s.sku.replace(/\s*†$/,"") + (projetado ? " †" : "");
+    const faixas = (s.linha || "AUDIO") === "AUDIO" ? [.40,.35,.30] : [.40,.35,.30,.20];
+    const linhaT = s.linha==="LAR" ? "LAR" : s.linha==="OUTRA" ? "OUTRAS LINHAS" : "ÁUDIO";
+    const agora = new Date();
+    /* faixa preta + filete vermelho */
+    doc.setFillColor(0,0,0); doc.rect(M, M, W-2*M, 8, "F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(9.6); doc.setTextColor(255);
+    doc.text(pdfT(`AMVOX  —  PROPOSTA DE PREÇO  —  MC ${faixas.map(x=>Math.round(x*100)).join("/")}  —  SEM VPC`), W/2, M+5.4, {align:"center"});
+    doc.setFillColor(215,25,32); doc.rect(M, M+8, W-2*M, 0.45, "F");
+    /* nota + legenda */
+    const ipiTxt = `IPI de saída ${fmt(SIM.ipi ?? ipiPad(),2)}% (por fora, não incluso).`;
+    const icmsTxt = foraArv(s) ? ` Produto FORA da árvore de NCM incentivada: preços já consideram ICMS de saída de ${fmt(icmsAtual(),2)}% (${uf==="BA" ? "venda interna BA" : "venda interestadual para " + uf}).` : "";
+    const dag = projetado ? ` LEGENDA: † = custo PROJETADO (item ainda não nacionalizado), estimado pela fórmula de importação por contêiner (${fmt(d.q,0)} peças/ctr, dólar ${fmt(P.dolar)}); será substituído pelo custo real quando o produto for nacionalizado.` : "";
+    const nota = `Preço de venda (SEM IPI) para cada margem, SEM VPC, CIF (frete médio nacional 3% embutido). ${ipiTxt}${icmsTxt}${dag} Margem mínima da linha: ${Math.round(mcMin(s)*100)}%.`;
+    doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(0);
+    const linhasNota = doc.splitTextToSize(pdfT(nota), W-2*M);
+    doc.text(linhasNota, M, M+13);
+    let y = M + 13 + linhasNota.length*3 + 3;
+    /* tabela no padrão do guia */
+    const precos = faixas.map(m => precoMC(d.ct, m, d.ipiG, d.icx));
+    doc.autoTable({startY:y, margin:{left:M, right:M}, theme:"grid", tableWidth: W-2*M,
+      head:[[{content:pdfT(`${linhaT}  ›  ${s.cod && s.cod!=="—" ? "CÓD. " + s.cod : "LANÇAMENTO"}`), colSpan: 2 + faixas.length,
+              styles:{fillColor:[0,0,0], textColor:255, halign:"left", fontSize:8.5}}],
+            ["MODELO", "CUSTO PROJ.", ...faixas.map(m => Math.round(m*100) + "%")]],
+      body:[[pdfT(nome), fmt(d.ct), ...precos.map(v => fmt(v))]],
+      headStyles:{fillColor:[230,230,230], textColor:0, fontStyle:"bold", fontSize:8},
+      styles:{fontSize:8.5, cellPadding:1.8, textColor:0, lineColor:[200,200,200], lineWidth:0.2},
+      columnStyles: Object.fromEntries([[0,{cellWidth:70}], ...Array.from({length:1+faixas.length}, (_,i)=>[i+1, {halign:"right"}])]),
+      didParseCell: c => { if (c.section==="head" && c.row.index===1 && c.column.index>0) c.cell.styles.halign = "right";
+                           if (c.section==="head" && c.row.index===1) { c.cell.styles.lineWidth = {bottom:0.5}; c.cell.styles.lineColor = [215,25,32]; } }});
+    y = doc.lastAutoTable.finalY + 5;
+    doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(90);
+    doc.text(doc.splitTextToSize(pdfT("Valores por unidade, em reais. Preço sujeito a confirmação comercial, à disponibilidade do produto e à condição de pagamento. Frete adicional da região conforme rodapé."), W-2*M), M, y);
+    /* rodapé: frete médio por região + data (igual ao guia) */
+    doc.setFont("helvetica","bold"); doc.setFontSize(6.8); doc.setTextColor(0);
+    doc.text(pdfT("FRETE MÉDIO POR REGIÃO:   Norte 14,3%   |   Nordeste 5,0%   |   Centro-Oeste 9,1%   |   Sudeste 4,1%   |   Sul 9,3%"), M, H-M+2);
+    doc.setTextColor(215,25,32); doc.setFontSize(6.4);
+    doc.text(pdfT(`gerado ${agora.toLocaleDateString("pt-BR")}`), W-M, H-M+2, {align:"right"});
+    doc.save(`Proposta_preco_${nomeArqC(s.sku.replace(/\s*†$/,""))}_${agora.toISOString().slice(0,10)}.pdf`);
+    msg.textContent = "";
+  } catch(e){ msg.textContent = "não gerou o PDF: " + (e.message || e); }
+}
+document.getElementById("pdf-com").addEventListener("click", gerarPdfComercial);
 
 /* ===== CADASTRO DE SKUs NO APP (v0.20 · Silvio 11/11/2026) — tabela custos_sku_cadastro (só ADM grava; RLS) ===== */
 function esc(x){ return String(x??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
@@ -1490,10 +1561,13 @@ const PREM = [
  ["pisImp","PIS importação % (crédito)","%","imp", ()=>P.pisImp],
  ["cofImp","COFINS importação % (crédito)","%","imp", ()=>P.cofImp],
  ["ipi","IPI de saída %","%","imp", ()=>0.1625, "pauta do NCM"],
+ ["icmsImp","ICMS importação % (crédito)","%","icms", ()=>ICMS_FORA.icmsImp, "BA, por dentro"],
+ ["icmsInt","ICMS saída interna (BA) %","%","icms", ()=>ICMS_FORA.icmsInt, "alíquota interna BA"],
+ ["icmsInter","ICMS saída interestadual %","%","icms", ()=>ICMS_FORA.icmsInter, "importado (Res. SF 13/2012)"],
 ];
-const PREM_JSON = ["seg","afrmm","magic","courr","transp","despacho","bl","armaz","capataz","descons","ipiImp","pisImp","cofImp"];
+const PREM_JSON = ["seg","afrmm","magic","courr","transp","despacho","bl","armaz","capataz","descons","ipiImp","pisImp","cofImp","icmsImp","icmsInt","icmsInter"];
 const premFmt = (c, v) => c[2]==="%" ? fmt(v*100, 4).replace(/0+$/,"").replace(/,$/,"") : fmt(v, c[2]==="US$" ? 2 : 2);
-const CAMPOS = ["sku","cod","ncm","linha","q","usd","obs"].concat(PREM.map(c=>c[0]));
+const CAMPOS = ["sku","cod","ncm","linha","q","usd","obs","fora"].concat(PREM.map(c=>c[0]));
 const cv = id => document.getElementById("cad-"+id);
 /* blocos 1 e 2 do cadastro = mesma estrutura da "Formação do custo" do Simulador (v0.22, Silvio 11/11/2026) */
 const PC = Object.fromEntries(PREM.map(c=>[c[0], c]));
@@ -1525,15 +1599,20 @@ function montaPrem(){
     + linhaPrem("ipiImp","IPI","% s/ CIF+II")
     + linhaPrem("pisImp","PIS","% s/ CIF")
     + linhaPrem("cofImp","COFINS","% s/ CIF")
+    + `<div id="cad-icms-imp">` + linhaPrem("icmsImp","ICMS (fora da árvore)","% por dentro") + `</div>`
     + `<h4>Créditos (recuperáveis)</h4>`
     + linhaVal("cad-v-cipi","(−) IPI") + linhaVal("cad-v-cpis","(−) PIS") + linhaVal("cad-v-ccof","(−) COFINS")
+    + `<div id="cad-icms-cred">` + linhaVal("cad-v-cicms","(−) ICMS") + `</div>`
     + linhaVal("cad-v-impliq","IMPOSTOS LÍQUIDOS (só II fica)","tot")
     + `<h4>Resumo do custo</h4>`
     + linhaVal("cad-v-r1","Total importação (ex-II)") + linhaVal("cad-v-r2","I.I. (não recuperável)")
     + linhaVal("cad-v-r3p","Impostos recuperáveis pagos (IPI + PIS + COFINS)")
     + linhaVal("cad-v-r3c","(−) Créditos tomados (100%)")
     + linhaVal("cad-v-r3","= Impostos recuperáveis (líquido)","sub")
-    + linhaVal("cad-v-ct","CUSTO TOTAL PRODUTO (CT)","tot");
+    + linhaVal("cad-v-ct","CUSTO TOTAL PRODUTO (CT)","tot")
+    + `<div id="cad-icms-sai"><h4>ICMS na saída (fora da árvore)</h4>`
+    + linhaPrem("icmsInt","Venda interna (BA)","%") + linhaPrem("icmsInter","Venda interestadual","%")
+    + `<div class="pr"><span class="l" style="font-size:11.5px">Entra nos impostos de saída e na régua de margem, conforme a UF de destino do Simulador.</span></div></div>`;
 }
 /* R$ por unidade de cada linha — mesma conta do simCalc/custoM (modelo 2026) */
 function calcBlocos(f){
@@ -1544,7 +1623,8 @@ function calcBlocos(f){
   const fixos = Object.values(fx).reduce((a,b)=>a+b,0), adic = pr.adic/q;
   const totImp = cif+afrmm+magic+courr+fixos+adic;
   return {fob, frete, seg, cif, afrmm, magic, courr, fx, fixos, adic, totImp, ii,
-          ipiI:(cif+ii)*pr.ipiImp, pisI:cif*pr.pisImp, cofI:cif*pr.cofImp, ct: totImp+ii};
+          ipiI:(cif+ii)*pr.ipiImp, pisI:cif*pr.pisImp, cofI:cif*pr.cofImp, ct: totImp+ii,
+          icmsI: f.fora ? (cif+ii+(cif+ii)*pr.ipiImp+cif*pr.pisImp+cif*pr.cofImp+afrmm)*pr.icmsImp/(1-pr.icmsImp) : 0};
 }
 function mostraBlocos(f){
   const ok = f.q>0 && f.usd>0 && !Object.values(f.prem).some(Number.isNaN);
@@ -1558,13 +1638,17 @@ function mostraBlocos(f){
   put("cad-ii-v", b.ii); put("cad-ipiImp-v", b.ipiI); put("cad-pisImp-v", b.pisI); put("cad-cofImp-v", b.cofI);
   put("cad-v-cipi", b.ipiI, 1); put("cad-v-cpis", b.pisI, 1); put("cad-v-ccof", b.cofI, 1); put("cad-v-impliq", b.ii);
   put("cad-v-r1", b.totImp); put("cad-v-r2", b.ii);
-  const rp = ok ? b.ipiI+b.pisI+b.cofI : 0; put("cad-v-r3p", rp); put("cad-v-r3c", rp*CRED_IMP, 1); put("cad-v-r3", rp - rp*CRED_IMP);
+  put("cad-icmsImp-v", b.icmsI); put("cad-v-cicms", b.icmsI, 1);
+  ["cad-icms-imp","cad-icms-cred","cad-icms-sai"].forEach(id=>{ const el=document.getElementById(id); if(el) el.hidden = !f.fora; });
+  ["icmsInt","icmsInter"].forEach(k=>{ const el=document.getElementById(`cad-${k}-v`); if(el) el.textContent = ""; });
+  const r3l = document.querySelector("#cad-v-r3p")?.parentElement?.querySelector(".l"); if (r3l) r3l.textContent = "Impostos recuperáveis pagos (IPI + PIS + COFINS" + (f.fora ? " + ICMS" : "") + ")";
+  const rp = ok ? b.ipiI+b.pisI+b.cofI+b.icmsI : 0; put("cad-v-r3p", rp); put("cad-v-r3c", rp*CRED_IMP, 1); put("cad-v-r3", rp - rp*CRED_IMP);
   put("cad-v-ct", b.ct);
 }
 montaPrem();
 function lerForm(){
   const f = {sku:cv("sku").value.trim(), cod:cv("cod").value.trim()||null, ncm:cv("ncm").value.trim()||null,
-    linha:cv("linha").value, q:numBR(cv("q").value), usd:numBR(cv("usd").value), obs:cv("obs").value.trim()||null, prem:{}};
+    linha:cv("linha").value, q:numBR(cv("q").value), usd:numBR(cv("usd").value), obs:cv("obs").value.trim()||null, prem:{}, fora:cv("fora").checked};
   const e = [];
   if (f.sku.length < 3) e.push("informe o SKU / descrição");
   if (!(f.q > 0) || !Number.isInteger(f.q)) e.push("qtd por contêiner (número inteiro > 0)");
@@ -1577,7 +1661,7 @@ function lerForm(){
     e.push("já existe um SKU com este nome na lista");
   return {f, e};
 }
-function skuDoForm(f){ const prem = {}; PREM_JSON.forEach(k=>prem[k]=f.prem[k]);
+function skuDoForm(f){ const prem = {foraArvore:f.fora}; PREM_JSON.forEach(k=>prem[k]=f.prem[k]);
   return {q:f.q, usd26:f.usd, frete:f.prem.frete, adic:f.prem.adic, linha:f.linha, ii:f.prem.ii, ipiS:f.prem.ipi*100, prem}; }
 function custoCad(s){ return custoM(s.usd26, s.frete ?? FRETE_FALLBACK, s.q, "26", s); }
 function marcaMudou(){
@@ -1595,8 +1679,8 @@ function previaCad(){
   if (!(f.q > 0) || !(f.usd > 0) || Object.values(f.prem).some(Number.isNaN)){ el.innerHTML = "Preencha qtd/ctr e FOB (e confira as premissas) para ver o custo projetado."
     + (e.length && f.q>0 && f.usd>0 ? ` · <span style="color:var(--brand)">falta: ${esc(e.join("; "))}</span>` : ""); return; }
   const s = skuDoForm(f), ct = custoCad(s);
-  const ipiG = (f.linha==="AUDIO") ? 0.15 : f.prem.ipi, m = f.linha==="AUDIO" ? 0.30 : 0.20;
-  el.innerHTML = `Prévia: custo projetado (CT) <b>R$ ${fmt(ct)}</b> por unidade · preço s/ IPI para a MC mínima da linha (${Math.round(m*100)}%) <b>R$ ${fmt(precoMC(ct, m, ipiG))}</b>`
+  const ipiG = (f.linha==="AUDIO") ? 0.15 : f.prem.ipi, m = f.linha==="AUDIO" ? 0.30 : 0.20, icx = f.fora ? f.prem.icmsInt : 0;
+  el.innerHTML = `Prévia: custo projetado (CT) <b>R$ ${fmt(ct)}</b> por unidade · preço s/ IPI para a MC mínima da linha (${Math.round(m*100)}%) <b>R$ ${fmt(precoMC(ct, m, ipiG, icx))}</b>${f.fora ? " (venda interna BA, com ICMS de saída)" : ""}`
     + (e.length ? ` · <span style="color:var(--brand)">falta: ${esc(e.join("; "))}</span>` : "");
 }
 function preenchePrem(r){
@@ -1604,6 +1688,7 @@ function preenchePrem(r){
   const val = {frete: r && r.frete_usd_ctr!=null ? +r.frete_usd_ctr : null, adic: r && r.adic_rs_ctr!=null ? +r.adic_rs_ctr : null,
                ii: r && r.ii_pct!=null ? r.ii_pct/100 : null, ipi: r && r.ipi_saida_pct!=null ? r.ipi_saida_pct/100 : null};
   PREM.forEach(c=>{ const v = val[c[0]] ?? pr[c[0]] ?? c[4](); cv(c[0]).value = premFmt(c, v); });
+  cv("fora").checked = !!pr.foraArvore; foraLbl();
 }
 function preencheForm(r){
   CAD.editId = r ? r.id : null;
@@ -1616,11 +1701,15 @@ function preencheForm(r){
   document.getElementById("cad-salvar").textContent = r ? "Salvar alterações" : "Salvar SKU";
   previaCad();
 }
+function foraLbl(){ document.getElementById("cad-fora-lbl").textContent = cv("fora").checked ? "FORA da árvore — ICMS normal" : "incentivado (árvore NCM)"; }
+cv("fora").addEventListener("change", ()=>{ foraLbl(); previaCad(); });
+/* NCM de moto elétrica (8711) sugere ICMS fora da árvore — só liga, nunca desliga sozinho */
+cv("ncm").addEventListener("change", ()=>{ if (/^\D*8711/.test(cv("ncm").value) && !cv("fora").checked){ cv("fora").checked = true; foraLbl(); previaCad(); } });
 function msgCad(t, ok){ const m=document.getElementById("cadmsg"); m.textContent=t; m.className="cadmsg "+(ok?"ok":"err"); }
 async function salvaCad(){
   const {f, e} = lerForm();
   if (e.length){ msgCad("Corrija: "+e.join("; "), false); return; }
-  const prem = {}; PREM_JSON.forEach(k=>prem[k]=+f.prem[k].toFixed(6));
+  const prem = {foraArvore:f.fora}; PREM_JSON.forEach(k=>prem[k]=+f.prem[k].toFixed(6));
   const linha = {sku:f.sku, cod:f.cod, ncm:f.ncm, linha:f.linha, qtd_ctr:f.q, fob_usd:f.usd, frete_usd_ctr:f.prem.frete,
                  adic_rs_ctr:f.prem.adic, ii_pct:+(f.prem.ii*100).toFixed(2), ipi_saida_pct:+(f.prem.ipi*100).toFixed(2), obs:f.obs, premissas:prem};
   const b = document.getElementById("cad-salvar"); b.disabled = true; msgCad("Salvando…", true);
@@ -1658,7 +1747,7 @@ function renderCadLista(){
   tb.innerHTML = CAD.linhas.map(r=>{ const s = cadParaSku(r); const k = ALL.findIndex(x=>x.cad && x.id===r.id);
     const dt = r.criado_em ? new Date(r.criado_em).toLocaleDateString("pt-BR") : "";
     return `<tr><td><b>${esc(r.sku)}</b>${r.cod?`<div class="mono" style="font-size:11px;color:var(--ink2)">${esc(r.cod)}${r.ncm?" · NCM "+esc(r.ncm):""}</div>`:(r.ncm?`<div class="mono" style="font-size:11px;color:var(--ink2)">NCM ${esc(r.ncm)}</div>`:"")}</td>
-      <td>${nomeL[r.linha]||r.linha}</td><td class="num">${fmt(r.qtd_ctr,0)}</td><td class="num">${fmt(+r.fob_usd)}</td>
+      <td>${nomeL[r.linha]||r.linha}${r.premissas && r.premissas.foraArvore ? '<div style="font-size:11px;color:var(--up)">ICMS fora da árvore</div>' : ""}</td><td class="num">${fmt(r.qtd_ctr,0)}</td><td class="num">${fmt(+r.fob_usd)}</td>
       <td class="num">${r.frete_usd_ctr==null?'<span style="color:var(--ink3)">mediana</span>':fmt(+r.frete_usd_ctr,0)}</td>
       <td class="num">${r.adic_rs_ctr==null?'<span style="color:var(--ink3)">média</span>':fmt(+r.adic_rs_ctr,0)}</td>
       <td class="num">${r.ii_pct==null?'<span style="color:var(--ink3)">'+pct0(P.ii)+'</span>':fmt(+r.ii_pct)}</td>
