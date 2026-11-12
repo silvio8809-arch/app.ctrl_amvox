@@ -680,7 +680,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.28 · refresh 12/11/2026";
+const VERSAO = "v0.29 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -756,7 +756,7 @@ const ICMS_FORA = {icmsImp:0.205, icmsInt:0.205, icmsInter:0.04};
 /* FORA DA ÁRVORE (v0.28, Silvio 12/11/2026): despesa fixa da operação = 5% do preço (estrutura compartilhada), não 16%/27% da
    máquina toda; custos de importação já estão no CT. Margem da linha = EBITDA (preço − impostos de saída − CT − 5%): máx. 20%, alvo 15%. */
 const FAIXAS_FORA = [.20, .175, .15, .125, .10], DESP_FIXA_FORA = 0.05, ALVO_FORA = 0.15;
-const NOTA_FIXA_FORA = "Produto FORA da árvore de NCM incentivada: despesa fixa da operação = 5% do preço (a operação compartilha a estrutura existente; não se aplicam os 16%/27% da máquina toda). Custos de importação já estão no custo do produto. Definição da Controladoria em 12/11/2026.";
+const NOTA_FIXA_FORA = "Produto FORA da árvore de NCM incentivada: despesa fixa da operação = 5% do preço (a operação compartilha a estrutura existente; não se aplicam os 16%/27% da máquina toda). Os 5% englobam o frete de venda e os demais custos associados à operação. Custos de importação já estão no custo do produto. Definição da Controladoria em 12/11/2026.";
 /* preço s/ IPI para uma margem EBITDA m: P = CT ÷ (1 − impostos de saída − despesa fixa − m) */
 const precoEbitda = (ct, m, dfx) => ct / (1 - (SIM.pisS+SIM.cofS+icmsAtual())/100 - dfx - m);
 const foraArv = s => !!(s && s.prem && s.prem.foraArvore);
@@ -1508,7 +1508,7 @@ async function gerarPdfComercial(){
     const icmsTxt = foraArv(s) ? ` Produto FORA da árvore de NCM incentivada: preços já consideram ICMS de saída de ${fmt(icmsAtual(),2)}% (${uf==="BA" ? "venda interna BA" : "venda interestadual para " + uf}).` : "";
     const dag = projetado ? ` LEGENDA: † = custo PROJETADO (item ainda não nacionalizado), estimado pela fórmula de importação por contêiner (${fmt(d.q,0)} peças/ctr, dólar ${fmt(P.dolar)}); será substituído pelo custo real quando o produto for nacionalizado.` : "";
     const nota = fora
-      ? `Preço de venda (SEM IPI) para cada margem EBITDA, SEM VPC. Margem EBITDA = preço − impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}%) − custo do produto − despesa fixa de 5%. Linha com margem máxima de 20% e alvo em torno de 15% (coluna destacada). ${ipiTxt}${icmsTxt}${dag} Frete de venda não incluso: somar o frete médio da região (rodapé).`
+      ? `Preço de venda (SEM IPI) para cada margem EBITDA, SEM VPC. Margem EBITDA = preço − impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}%) − custo do produto − despesa fixa de 5%. Linha com margem máxima de 20% e alvo em torno de 15% (coluna destacada). ${ipiTxt}${icmsTxt}${dag} Frete de venda já incluído nos 5% de despesa fixa.`
       : `Preço de venda (SEM IPI) para cada margem, SEM VPC, CIF (frete médio nacional 3% embutido). ${ipiTxt}${icmsTxt}${dag} Margem mínima da linha: ${Math.round(mcMin(s)*100)}%.`;
     doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(0);
     const linhasNota = doc.splitTextToSize(pdfT(nota), W-2*M);
