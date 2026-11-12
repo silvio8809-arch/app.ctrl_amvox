@@ -192,7 +192,11 @@ ul{padding-left:20px; display:grid; gap:6px}
 .fgrid .fld .fh2{font-size:10.5px; color:var(--ink3); margin-top:4px}
 .switch{display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-top:8px; user-select:none; position:relative}
 .fgrid .fld .switch input, .switch input{position:absolute; opacity:0; width:0; height:0; margin:0; padding:0; border:0}
-.switch .trk{width:38px; height:20px; border-radius:99px; background:var(--line2); position:relative; transition:background .15s}
+.switch .trk{display:inline-block; flex:0 0 38px; width:38px; height:20px; border-radius:99px; background:var(--line2); position:relative; transition:background .15s}
+/* v0.26: o rótulo genérico do formulário (.fgrid .fld label = bloco, maiúsculo) não pode vencer o botão de ligar */
+.fgrid .fld label.switch{display:inline-flex; align-items:center; gap:9px; margin-top:8px; text-transform:none; letter-spacing:0;
+  font:600 13px "IBM Plex Sans",sans-serif; color:var(--ink); line-height:1.25}
+.fgrid .fld label.switch > span:last-child{white-space:normal}
 .switch .trk::after{content:""; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:99px;
   background:var(--surface); box-shadow:0 1px 2px rgba(0,0,0,.25); transition:left .15s}
 .switch input:checked + .trk{background:var(--brand)}
@@ -676,7 +680,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.25 · refresh 12/11/2026";
+const VERSAO = "v0.26 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
