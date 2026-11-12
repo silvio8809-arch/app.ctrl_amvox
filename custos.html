@@ -120,6 +120,8 @@ tr.exp td{background:var(--surface2); padding:16px 18px; white-space:normal}
 .expgrid .cell .l{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink2)}
 .expgrid .cell .r{font-size:14px; margin-top:2px; font-variant-numeric:tabular-nums}
 .src{margin-top:12px; font:400 12px/1.6 "IBM Plex Mono",monospace; color:var(--ink2)}
+.pdfico{vertical-align:-2px; margin-right:5px}
+.btn.aprov-pdf{border-color:var(--ok); color:var(--ok)}
 .admx{display:none} body.is-adm .admx{display:inline-block}
 .aprov{margin-top:12px; padding:12px 14px; border:1px dashed var(--line2); border-radius:8px; background:var(--surface2)}
 .ponte td.bar{width:34%; text-align:left}
@@ -351,7 +353,9 @@ details.simparams .inner{padding:2px 18px 16px}
           <span class="pdfbtns"><button class="btn sm" id="pdf-ctrl" type="button" title="Simulação completa com custo e margem — uso interno">PDF CTRL (interno)</button>
           <button class="btn sm" id="pdf-com" type="button" title="Só produto e preço — sem custo nem margem, para enviar">PDF Comercial</button>
           <button class="btn sm pri admx" id="sim-aprovar" type="button" title="Congela esta simulação como base para comparar com o realizado">Aprovar simulação</button>
+          <button class="btn sm aprov-pdf" id="ap-pdf-btn" type="button" hidden title="Reimprimir a simulação APROVADA (foto congelada)"><svg class="pdfico" width="13" height="14" viewBox="0 0 22 24" aria-hidden="true"><path d="M3 1h11l5 5v17H3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 1v5h5" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="4.2" y="18.5" font-size="6.6" font-weight="700" fill="currentColor" font-family="Arial">PDF</text></svg>Simulação aprovada</button>
           <span id="pdfmsg" style="font-size:11px;text-transform:none;letter-spacing:0;color:var(--ink2)"></span></span></div>
+        <div class="aprov" id="aprovpdfpanel" hidden></div>
         <div class="aprov" id="aprovpanel" hidden>
           <div class="fgrid">
             <div class="fld"><label for="ap-venda">Código de VENDA (Protheus)</label><input id="ap-venda" maxlength="20"><div class="fh2">opcional · produto em estudo pode ficar em branco</div></div>
@@ -640,7 +644,7 @@ details.simparams .inner{padding:2px 18px 16px}
       <b>qual linha explica a diferença</b>: preço praticado, impostos, VPC ou custo (FOB, câmbio, frete, adicional, custo contábil).</p>
       <div class="formcard"><div class="fh">Simulação aprovada</div>
         <div class="fgrid"><div class="fld" style="grid-column:span 3; min-width:260px"><label for="realsel">Simulação</label><select id="realsel"></select>
-          <div class="fh2" id="realfonte"></div></div></div></div>
+          <div class="fh2" id="realfonte"></div><div id="realpdf" style="margin-top:8px"></div></div></div></div>
       <div class="kpis" id="realkpis"></div>
       <div class="flag" id="realveredito" style="margin-top:14px"></div>
       <h2>Linha a linha — por unidade</h2>
@@ -721,7 +725,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.32 · refresh 12/11/2026";
+const VERSAO = "v0.33 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -1016,6 +1020,7 @@ function donut(parts, total){
 function renderSim(){
   const el = document.getElementById("simsku"); if(!el || !el.options.length) return;
   const d = simCalc(); const s = d.s;
+  atualizaBotaoAprov();
   /* inputs refletem estado */
   document.getElementById("simqty").value = fmt(d.qty,0);
   document.getElementById("simprec").value = fmt(d.price);
@@ -1470,7 +1475,7 @@ async function gerarPdfSim(versao){
     doc.text(pdfT(ctrl ? "SIMULAÇÃO DE CUSTO E PREÇO" : "PROPOSTA DE PREÇO"), W/2, y, {align:"center"}); y += 5.5;
     doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(90);
     const agora = new Date();
-    doc.text(pdfT(`${ctrl ? s.sku : s.sku.replace(/\s*†$/,"")} · emitido em ${agora.toLocaleDateString("pt-BR")} ${agora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}` + (ctrl && window.USUARIO_EMAIL ? ` por ${window.USUARIO_EMAIL}` : "")), W/2, y, {align:"center"}); y += 5;
+    doc.text(pdfT(`${ctrl ? s.sku : s.sku.replace(/\s*†$/,"")} · emitido em ${agora.toLocaleDateString("pt-BR")} ${agora.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})}` + (ctrl && window.USUARIO_EMAIL ? ` por ${window.USUARIO_EMAIL}` : "") + (PDF_APROV ? ` · SIMULAÇÃO APROVADA nº ${PDF_APROV.id} em ${PDF_APROV.data} por ${PDF_APROV.por}` : "")), W/2, y, {align:"center"}); y += 5;
     if (ctrl){
       doc.setFillColor(180,35,24); doc.roundedRect(M, y, W-2*M, 8, 1.5, 1.5, "F");
       doc.setFont("helvetica","bold"); doc.setFontSize(9.5); doc.setTextColor(255);
@@ -1591,7 +1596,7 @@ async function gerarPdfComercial(){
     doc.setFont("helvetica","bold"); doc.setFontSize(6.8); doc.setTextColor(0);
     doc.text(pdfT("FRETE MÉDIO POR REGIÃO:   Norte 14,3%   |   Nordeste 5,0%   |   Centro-Oeste 9,1%   |   Sudeste 4,1%   |   Sul 9,3%"), M, H-M+2);
     doc.setTextColor(215,25,32); doc.setFontSize(6.4);
-    doc.text(pdfT(`gerado ${agora.toLocaleDateString("pt-BR")}`), W-M, H-M+2, {align:"right"});
+    doc.text(pdfT(`gerado ${agora.toLocaleDateString("pt-BR")}${PDF_APROV ? ` · simulação aprovada nº ${PDF_APROV.id} de ${PDF_APROV.data}` : ""}`), W-M, H-M+2, {align:"right"});
     doc.save(`Proposta_preco_${nomeArqC(s.sku.replace(/\s*†$/,""))}_${agora.toISOString().slice(0,10)}.pdf`);
     msg.textContent = "";
   } catch(e){ msg.textContent = "não gerou o PDF: " + (e.message || e); }
@@ -1641,7 +1646,7 @@ async function carregaReal(){
   sel.innerHTML = REAL.sims.length ? REAL.sims.map(x => `<option value="${x.id}">${esc(x.sku)} · nº ${x.id} · aprovada ${new Date(x.aprovado_em).toLocaleDateString("pt-BR")} por ${esc(x.aprovado_por||"—")}${x.vigente ? "" : " (substituída)"}</option>`).join("")
                                    : `<option value="">${REAL.erro ? "indisponível: " + esc(REAL.erro) : "nenhuma simulação aprovada ainda"}</option>`;
   if (atual && REAL.sims.some(x => String(x.id) === atual)) sel.value = atual;
-  renderReal();
+  renderReal(); atualizaBotaoAprov(); renderCadLista();
 }
 document.getElementById("realsel").addEventListener("change", renderReal);
 document.getElementById("nav").addEventListener("click", ev=>{ const b=ev.target.closest("button"); if(b && b.dataset.v==="real") carregaReal(); });
@@ -1655,9 +1660,10 @@ function renderReal(){
   const sim = REAL.sims.find(x => String(x.id) === document.getElementById("realsel").value);
   const K = document.getElementById("realkpis"), V = document.getElementById("realveredito"), TB = document.querySelector("#realtbl tbody"),
         TC = document.querySelector("#realcusto tbody"), N = document.getElementById("realnota"), F = document.getElementById("realfonte");
-  if (!sim){ K.innerHTML = ""; V.innerHTML = "Aprove uma simulação no Simulador (botão <b>Aprovar simulação</b>, perfil ADM) para começar a comparar."; TB.innerHTML = TC.innerHTML = ""; N.textContent = F.textContent = ""; return; }
+  if (!sim){ document.getElementById("realpdf").innerHTML = ""; K.innerHTML = ""; V.innerHTML = "Aprove uma simulação no Simulador (botão <b>Aprovar simulação</b>, perfil ADM) para começar a comparar."; TB.innerHTML = TC.innerHTML = ""; N.textContent = F.textContent = ""; return; }
   const f = sim.foto, d0 = f.d, fora = !!f.fora, rr = REAL.real[sim.id], R = rr ? rr.dados : null;
   const codV = (R && R.cod_venda) || f.cod_venda || null, codE = (R && R.cod_eic) || f.cod_eic || null;
+  document.getElementById("realpdf").innerHTML = `<button class="btn sm aprov-pdf" data-rp="${sim.id}" data-v="CTRL"><svg class="pdfico" width="13" height="14" viewBox="0 0 22 24" aria-hidden="true"><path d="M3 1h11l5 5v17H3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 1v5h5" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="4.2" y="18.5" font-size="6.6" font-weight="700" fill="currentColor" font-family="Arial">PDF</text></svg>Reimprimir CTRL</button> <button class="btn sm aprov-pdf" data-rp="${sim.id}" data-v="COM"><svg class="pdfico" width="13" height="14" viewBox="0 0 22 24" aria-hidden="true"><path d="M3 1h11l5 5v17H3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 1v5h5" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="4.2" y="18.5" font-size="6.6" font-weight="700" fill="currentColor" font-family="Arial">PDF</text></svg>Reimprimir Comercial</button>`;
   F.textContent = `aprovada a R$ ${fmt(+sim.preco)} s/ IPI · UF ${f.uf} · ${codV ? "venda " + codV : "sem código de venda"}${codE ? " · EIC " + codE : ""}${sim.obs ? " · " + sim.obs : ""}`
     + (rr ? ` · realizado atualizado em ${new Date(rr.atualizado_em).toLocaleString("pt-BR")}` : " · realizado ainda não buscado (roda na atualização diária)");
   const P0 = d0.price, t0 = d0.impS/P0, v0 = d0.vpc, C0 = d0.ct, dm = d0.dmaqPct;
@@ -1976,7 +1982,7 @@ function renderCadLista(){
       <td class="num"><b>${fmt(custoCad(s))}</b></td>
       <td style="font-size:12px;color:var(--ink2);white-space:normal;min-width:140px">${premAlteradas(r)}</td>
       <td style="font-size:12px;color:var(--ink2)">${esc(r.criado_por||"—")}<br>${dt}${r.alterado_em?" · alt. "+new Date(r.alterado_em).toLocaleDateString("pt-BR"):""}</td>
-      <td class="acoes"><button class="btn sm" data-sim="${k}">Simular</button><button class="btn sm" data-ed="${r.id}">Editar</button><button class="btn sm" data-off="${r.id}">Desativar</button></td></tr>`; }).join("");
+      <td class="acoes"><button class="btn sm" data-sim="${k}">Simular</button><button class="btn sm" data-ed="${r.id}">Editar</button><button class="btn sm" data-off="${r.id}">Desativar</button>${(()=>{ const ap = simVigente(cadParaSku(r)); return ap ? `<button class="btn sm aprov-pdf" data-rp="${ap.id}" data-v="CTRL" title="Simulação aprovada nº ${ap.id} — reimprimir CTRL"><svg class="pdfico" width="13" height="14" viewBox="0 0 22 24" aria-hidden="true"><path d="M3 1h11l5 5v17H3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 1v5h5" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="4.2" y="18.5" font-size="6.6" font-weight="700" fill="currentColor" font-family="Arial">PDF</text></svg>CTRL</button><button class="btn sm aprov-pdf" data-rp="${ap.id}" data-v="COM" title="Simulação aprovada nº ${ap.id} — reimprimir Comercial"><svg class="pdfico" width="13" height="14" viewBox="0 0 22 24" aria-hidden="true"><path d="M3 1h11l5 5v17H3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 1v5h5" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="4.2" y="18.5" font-size="6.6" font-weight="700" fill="currentColor" font-family="Arial">PDF</text></svg>Comercial</button>` : ""; })()}</td></tr>`; }).join("");
 }
 document.getElementById("cadtbl").addEventListener("click", ev=>{
   const b = ev.target.closest("button"); if(!b) return;
@@ -1990,7 +1996,52 @@ document.getElementById("cad-limpar").addEventListener("click", ()=>{ preencheFo
 document.getElementById("cad-restaura").addEventListener("click", ()=>{ preenchePrem(null); previaCad(); });
 document.getElementById("nav").addEventListener("click", ev=>{ const b=ev.target.closest("button"); if(b && b.dataset.v==="cadsku"){ previaCad(); renderCadLista(); } });
 preencheForm(null);
-carregaCadSku();
+carregaCadSku().then(() => carregaReal());
+
+/* ===== REIMPRESSÃO DA SIMULAÇÃO APROVADA (v0.33 · Silvio 12/11/2026: "ao selecionar o SKU, no Cadastro ou no Simulador, deve
+   constar o ícone do PDF — SIMULAÇÃO APROVADA, para reimpressão a qualquer tempo"). Os PDFs saem da FOTO congelada da aprovação
+   (custos_sim_aprovada.foto), não da tela atual: parâmetros, premissas, preço e UF da época. */
+let PDF_APROV = null;
+const normSku = x => String(x || "").toLowerCase().replace(/\s*†$/, "").trim();
+function simVigente(s){
+  if (!s || !REAL.sims) return null;
+  return REAL.sims.find(x => x.vigente && ((s.cad && x.cad_id === s.id) || normSku(x.sku) === normSku(s.sku))) || null;
+}
+function atualizaBotaoAprov(){
+  const b = document.getElementById("ap-pdf-btn"), pn = document.getElementById("aprovpdfpanel"); if (!b) return;
+  let ap = null;
+  try { ap = simVigente(ALL[SIM.i]); } catch(e) { /* 1ª renderização: aprovações ainda não carregadas */ }
+  b.hidden = !ap; if (!ap) { pn.hidden = true; return; }
+  b.title = `Simulação aprovada nº ${ap.id} em ${new Date(ap.aprovado_em).toLocaleDateString("pt-BR")} — reimprimir`;
+  pn.innerHTML = `<b>Simulação aprovada nº ${ap.id}</b> · ${new Date(ap.aprovado_em).toLocaleDateString("pt-BR")} por ${esc(ap.aprovado_por || "—")} · preço R$ ${fmt(+ap.preco)} s/ IPI · UF ${esc(ap.uf || "—")}${ap.obs ? " · " + esc(ap.obs) : ""}
+    <div class="cadbtns" style="margin-top:8px"><button class="btn sm aprov-pdf" data-rp="${ap.id}" data-v="CTRL"><svg class="pdfico" width="13" height="14" viewBox="0 0 22 24" aria-hidden="true"><path d="M3 1h11l5 5v17H3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 1v5h5" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="4.2" y="18.5" font-size="6.6" font-weight="700" fill="currentColor" font-family="Arial">PDF</text></svg>Reimprimir CTRL</button>
+    <button class="btn sm aprov-pdf" data-rp="${ap.id}" data-v="COM"><svg class="pdfico" width="13" height="14" viewBox="0 0 22 24" aria-hidden="true"><path d="M3 1h11l5 5v17H3z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M14 1v5h5" fill="none" stroke="currentColor" stroke-width="1.8"/><text x="4.2" y="18.5" font-size="6.6" font-weight="700" fill="currentColor" font-family="Arial">PDF</text></svg>Reimprimir Comercial</button>
+    <span style="font-size:11.5px;color:var(--ink2)">sai da foto da aprovação — não da tela atual</span></div>`;
+}
+document.getElementById("ap-pdf-btn").addEventListener("click", () => { const pn = document.getElementById("aprovpdfpanel"); pn.hidden = !pn.hidden; });
+function simDaFoto(sim){
+  const f = sim.foto, Pf = {...DEFAULTS, ...f.P};
+  const s = {sku: f.sku, cod: f.s.cod || "—", q: f.s.q, usd25: null, usd26: f.s.usd, frete: f.s.frete, adic: f.s.adic, ii: f.s.ii,
+             prem: f.s.prem, cad: f.s.cad, hawb: f.s.hawb, dt: f.s.dt, st: f.s.st, linha: f.linha, ipiS: f.SIM.ipi, criadoPor: "", obs: sim.obs};
+  return {...f.d, s, Q: {...Pf, ...(s.prem || {}), dolar: Pf.dolar, siscomex: Pf.siscomex}, usd: f.s.usd, f: f.s.frete, q: f.s.q};
+}
+async function reimprime(sim, versao){
+  const f = sim.foto, bkP = P, bkSIM = {...SIM}, ufEl = document.getElementById("simuf"), bkUf = ufEl.value, bkCalc = simCalc;
+  try {
+    P = {...DEFAULTS, ...f.P};
+    Object.assign(SIM, f.SIM); SIM.icmsS = f.SIM.icms; SIM.ipi = f.SIM.ipi;
+    if ([...ufEl.options].some(o => o.value === f.uf)) ufEl.value = f.uf;
+    const d = simDaFoto(sim); simCalc = () => d;
+    PDF_APROV = {id: sim.id, data: new Date(sim.aprovado_em).toLocaleDateString("pt-BR"), por: sim.aprovado_por || "—"};
+    if (versao === "CTRL") await gerarPdfSim("CTRL"); else await gerarPdfComercial();
+  } finally {
+    simCalc = bkCalc; P = bkP; Object.keys(SIM).forEach(k => delete SIM[k]); Object.assign(SIM, bkSIM); ufEl.value = bkUf; PDF_APROV = null;
+  }
+}
+document.addEventListener("click", ev => {
+  const b = ev.target.closest("[data-rp]"); if (!b) return;
+  const sim = REAL.sims.find(x => x.id === +b.dataset.rp); if (sim) reimprime(sim, b.dataset.v);
+});
 </script>
 
 
