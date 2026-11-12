@@ -120,6 +120,13 @@ tr.exp td{background:var(--surface2); padding:16px 18px; white-space:normal}
 .expgrid .cell .l{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink2)}
 .expgrid .cell .r{font-size:14px; margin-top:2px; font-variant-numeric:tabular-nums}
 .src{margin-top:12px; font:400 12px/1.6 "IBM Plex Mono",monospace; color:var(--ink2)}
+.admx{display:none} body.is-adm .admx{display:inline-block}
+.aprov{margin-top:12px; padding:12px 14px; border:1px dashed var(--line2); border-radius:8px; background:var(--surface2)}
+.ponte td.bar{width:34%; text-align:left}
+.ponte .pbar{display:inline-block; height:10px; border-radius:3px; vertical-align:middle}
+.ponte tr.tot td{font-weight:700; background:var(--surface2)}
+.ponte tr.grp td{font:600 10.5px "IBM Plex Sans",sans-serif; letter-spacing:.1em; text-transform:uppercase; color:var(--ink2); background:var(--surface); text-align:left}
+.ponte tr.maior td{background:var(--amber-bg)}
 .cadbtns{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; align-items:center}
 .btn.pri{background:var(--brand); color:#fff; border-color:var(--brand)}
 .btn.pri:hover{background:var(--brand-ink)}
@@ -313,6 +320,7 @@ details.simparams .inner{padding:2px 18px 16px}
       <button class="on" data-v="sim">Simulador</button>
       <button data-v="comp">Visão Comparativa</button>
       <button data-v="frete">Frete real × projetado</button>
+      <button data-v="real">Projetado × Realizado</button>
       <button class="adm" data-v="cadsku">Cadastro de SKUs</button>
       <button class="adm" data-v="central">Visão Central</button>
       <button class="adm" data-v="params">Parâmetros</button>
@@ -342,7 +350,18 @@ details.simparams .inner{padding:2px 18px 16px}
         <div class="fh" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">Dados do SKU / Produto
           <span class="pdfbtns"><button class="btn sm" id="pdf-ctrl" type="button" title="Simulação completa com custo e margem — uso interno">PDF CTRL (interno)</button>
           <button class="btn sm" id="pdf-com" type="button" title="Só produto e preço — sem custo nem margem, para enviar">PDF Comercial</button>
+          <button class="btn sm pri admx" id="sim-aprovar" type="button" title="Congela esta simulação como base para comparar com o realizado">Aprovar simulação</button>
           <span id="pdfmsg" style="font-size:11px;text-transform:none;letter-spacing:0;color:var(--ink2)"></span></span></div>
+        <div class="aprov" id="aprovpanel" hidden>
+          <div class="fgrid">
+            <div class="fld"><label for="ap-venda">Código de VENDA (Protheus)</label><input id="ap-venda" maxlength="20"><div class="fh2">produto das notas (SD2) — busca o realizado</div></div>
+            <div class="fld"><label for="ap-eic">Código no EIC (importação)</label><input id="ap-eic" maxlength="20"><div class="fh2">KIT/CKD do processo — busca o custo real</div></div>
+            <div class="fld" style="grid-column:span 2; min-width:220px"><label for="ap-obs">Observação</label><input id="ap-obs" maxlength="300" placeholder="ex.: preço aprovado com o comercial em 12/11"></div>
+          </div>
+          <div class="cadbtns"><button class="btn pri" id="ap-ok" type="button">Confirmar aprovação</button><button class="btn" id="ap-cancela" type="button">Cancelar</button>
+            <span class="cadmsg" id="apmsg" role="status"></span></div>
+          <div class="fh2" style="margin-top:6px">A foto completa da tela (custo linha a linha, preço, impostos, VPC, despesa, MC e EBITDA) fica congelada com seu usuário e a data. Nova aprovação do mesmo SKU passa a ser a vigente; a anterior fica no histórico.</div>
+        </div>
         <div class="fgrid">
           <div class="fld" style="grid-column:span 2; min-width:220px">
             <label for="simsku">SKU / Produto</label>
@@ -613,6 +632,27 @@ details.simparams .inner{padding:2px 18px 16px}
     </section>
 
     <!-- ================= ACESSO ================= -->
+    <!-- ================= PROJETADO × REALIZADO (v0.30 · 12/11/2026) ================= -->
+    <section class="view" id="v-real">
+      <div class="crumb">Importação · Margem aprovada × vendas reais</div>
+      <h1>Projetado × Realizado — MC e EBITDA</h1>
+      <p class="lede">Compara a simulação <b>aprovada</b> com o que aconteceu de fato nas vendas e na importação, e mostra
+      <b>qual linha explica a diferença</b>: preço praticado, impostos, VPC ou custo (FOB, câmbio, frete, adicional, custo contábil).</p>
+      <div class="formcard"><div class="fh">Simulação aprovada</div>
+        <div class="fgrid"><div class="fld" style="grid-column:span 3; min-width:260px"><label for="realsel">Simulação</label><select id="realsel"></select>
+          <div class="fh2" id="realfonte"></div></div></div></div>
+      <div class="kpis" id="realkpis"></div>
+      <div class="flag" id="realveredito" style="margin-top:14px"></div>
+      <h2>Linha a linha — por unidade</h2>
+      <div class="card"><div class="tblwrap"><table class="ponte" id="realtbl">
+        <thead><tr><th>Linha</th><th>Projetado</th><th>Realizado</th><th>Δ R$/un</th><th>Efeito na margem (p.p.)</th><th style="text-align:left">Peso</th></tr></thead>
+        <tbody></tbody></table></div></div>
+      <h2>Custo do produto — projetado × importação real</h2>
+      <div class="card"><div class="tblwrap"><table id="realcusto">
+        <thead><tr><th>Premissa</th><th>Projetado</th><th>Real</th><th>Fonte do real</th></tr></thead><tbody></tbody></table></div></div>
+      <p class="note" id="realnota"></p>
+    </section>
+
     <!-- ================= CADASTRO DE SKU (v0.20 · 11/11/2026) ================= -->
     <section class="view" id="v-cadsku">
       <div class="crumb">Administração · Itens novos</div>
@@ -680,7 +720,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.29 · refresh 12/11/2026";
+const VERSAO = "v0.30 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -1549,6 +1589,141 @@ async function gerarPdfComercial(){
   } catch(e){ msg.textContent = "não gerou o PDF: " + (e.message || e); }
 }
 document.getElementById("pdf-com").addEventListener("click", gerarPdfComercial);
+
+/* ===== APROVAÇÃO DA SIMULAÇÃO + PROJETADO × REALIZADO (v0.30 · Silvio 12/11/2026) =====
+   Aprovar = foto congelada (custos_sim_aprovada). Realizado = rotina com o Protheus (custos_sim_realizado): FAT PLUS desde o
+   mês da aprovação (filiais somadas), condições do pedido SFA e último processo EIC. Mesma estrutura de cálculo do Simulador
+   dos dois lados, para que cada Δ caia numa linha. */
+const REAL = {sims:[], real:{}};
+document.getElementById("sim-aprovar").addEventListener("click", ()=>{
+  const s = ALL[SIM.i], pn = document.getElementById("aprovpanel");
+  pn.hidden = !pn.hidden; if (pn.hidden) return;
+  const c = (s.cod && s.cod!=="—") ? s.cod : "";
+  document.getElementById("ap-venda").value = /^000/.test(c) ? c : "";
+  document.getElementById("ap-eic").value = /^005/.test(c) ? c : (s.cad ? "" : c);
+  document.getElementById("ap-obs").value = ""; document.getElementById("apmsg").textContent = "";
+  document.getElementById("ap-venda").focus();
+});
+document.getElementById("ap-cancela").addEventListener("click", ()=>{ document.getElementById("aprovpanel").hidden = true; });
+document.getElementById("ap-ok").addEventListener("click", async ()=>{
+  const d = simCalc(), s = d.s, m = document.getElementById("apmsg");
+  const cv_ = document.getElementById("ap-venda").value.trim(), ce = document.getElementById("ap-eic").value.trim();
+  if (!cv_) { m.textContent = "Informe o código de VENDA — sem ele não há realizado para comparar."; m.className = "cadmsg err"; return; }
+  const pick = o => Object.fromEntries(Object.entries(o).filter(([k,v]) => typeof v === "number" || typeof v === "string" || typeof v === "boolean" || v === null));
+  const foto = {versao: VERSAO, sku: s.sku, cod_venda: cv_, cod_eic: ce || null, uf: ufAtual(), linha: s.linha || "AUDIO", fora: foraArv(s),
+    P: {...P}, SIM: {...pick(SIM), icms: icmsAtual(), ipi: SIM.ipi ?? ipiPad()},
+    s: {q: d.q, usd: d.usd, frete: d.f, adic: s.adic ?? null, ii: iiS(s), prem: s.prem || null, cad: !!s.cad, cod: s.cod || null, hawb: s.hawb || null, dt: s.dt || null, st: s.st || null},
+    d: pick({...d, s: undefined, Q: undefined})};
+  m.textContent = "Salvando…"; m.className = "cadmsg ok";
+  const { data, error } = await SB.from("custos_sim_aprovada").insert({sku: s.sku, cod: cv_, origem: s.cad ? "CADASTRO" : "EIC", cad_id: s.cad ? s.id : null,
+    uf: ufAtual(), preco: +d.price.toFixed(4), ct: +d.ct.toFixed(4), margem_mc: +d.mcGuia.toFixed(6), margem_ebitda: +d.marg.toFixed(6),
+    foto, obs: document.getElementById("ap-obs").value.trim() || null}).select();
+  if (error || !data || !data.length) { m.textContent = "Não salvou: " + (error ? error.message : "sem permissão (só ADM aprova)"); m.className = "cadmsg err"; return; }
+  m.textContent = `Simulação aprovada (nº ${data[0].id}). O realizado aparece na aba Projetado × Realizado após a próxima atualização da rotina.`;
+  m.className = "cadmsg ok";
+  await carregaReal();
+});
+async function carregaReal(){
+  const [a, b] = await Promise.all([SB.from("custos_sim_aprovada").select("*").order("aprovado_em", {ascending:false}),
+                                    SB.from("custos_sim_realizado").select("*")]);
+  REAL.erro = a.error ? a.error.message : null;
+  REAL.sims = a.data || []; REAL.real = Object.fromEntries((b.data || []).map(r => [r.sim_id, r]));
+  const sel = document.getElementById("realsel"), atual = sel.value;
+  sel.innerHTML = REAL.sims.length ? REAL.sims.map(x => `<option value="${x.id}">${esc(x.sku)} · nº ${x.id} · aprovada ${new Date(x.aprovado_em).toLocaleDateString("pt-BR")} por ${esc(x.aprovado_por||"—")}${x.vigente ? "" : " (substituída)"}</option>`).join("")
+                                   : `<option value="">${REAL.erro ? "indisponível: " + esc(REAL.erro) : "nenhuma simulação aprovada ainda"}</option>`;
+  if (atual && REAL.sims.some(x => String(x.id) === atual)) sel.value = atual;
+  renderReal();
+}
+document.getElementById("realsel").addEventListener("change", renderReal);
+document.getElementById("nav").addEventListener("click", ev=>{ const b=ev.target.closest("button"); if(b && b.dataset.v==="real") carregaReal(); });
+/* custo modelo 2026 com premissas EXPLÍCITAS (foto + valores reais) — mesma fórmula do custoM */
+function custoFoto(f, usd, frete, dolar, adicCtr){
+  const Q = {...f.P, ...(f.s.prem || {})}, q = f.s.q, ii = f.s.ii ?? f.P.ii;
+  const fx = Q.transp + Q.despacho + Q.bl + Q.armaz + Q.capataz + Q.descons;
+  return (usd + frete/q)*(1+Q.seg)*dolar*(1+ii) + frete*Q.afrmm*dolar/q + usd*Q.magic*dolar + frete*dolar*Q.courr/q + (fx + adicCtr)/q;
+}
+function renderReal(){
+  const sim = REAL.sims.find(x => String(x.id) === document.getElementById("realsel").value);
+  const K = document.getElementById("realkpis"), V = document.getElementById("realveredito"), TB = document.querySelector("#realtbl tbody"),
+        TC = document.querySelector("#realcusto tbody"), N = document.getElementById("realnota"), F = document.getElementById("realfonte");
+  if (!sim){ K.innerHTML = ""; V.innerHTML = "Aprove uma simulação no Simulador (botão <b>Aprovar simulação</b>, perfil ADM) para começar a comparar."; TB.innerHTML = TC.innerHTML = ""; N.textContent = F.textContent = ""; return; }
+  const f = sim.foto, d0 = f.d, fora = !!f.fora, rr = REAL.real[sim.id], R = rr ? rr.dados : null;
+  F.textContent = `aprovada a R$ ${fmt(+sim.preco)} s/ IPI · UF ${f.uf} · venda ${f.cod_venda}${f.cod_eic ? " · EIC " + f.cod_eic : ""}${sim.obs ? " · " + sim.obs : ""}`
+    + (rr ? ` · realizado atualizado em ${new Date(rr.atualizado_em).toLocaleString("pt-BR")}` : " · realizado ainda não buscado (roda na atualização diária)");
+  const P0 = d0.price, t0 = d0.impS/P0, v0 = d0.vpc, C0 = d0.ct, dm = d0.dmaqPct;
+  const E0 = P0*(1-t0-dm) - v0 - C0;
+  const vend = R && R.vendas && R.vendas.FAT, ped = (R && R.pedido) || {};
+  const eic = R && R.eic && !R.eic.erro ? R.eic : null, eicOk = eic && eic.posterior && eic.usd26;
+  /* custo: projetado × importação real (tabela de premissas) */
+  const fr0 = f.s.frete, adic0 = f.s.adic ?? f.P.adic333, dol0 = f.P.dolar;
+  TC.innerHTML = [["FOB US$/un", "US$ " + fmt(f.s.usd), eic && eic.usd26 ? "US$ " + fmt(eic.usd26) : "—"],
+    ["Dólar", fmt(dol0, 4), eic && eic.tx ? fmt(eic.tx, 4) : "—"],
+    ["Frete marítimo US$/ctr", fmt(fr0, 0), eic && eic.frete ? fmt(eic.frete, 0) : "—"],
+    ["Adicional de frete (333) R$/ctr", fmt(adic0, 0), eic && eic.adic ? fmt(eic.adic, 0) : "—"],
+    ["II %", pct0(f.s.ii ?? f.P.ii), eic && eic.ii != null ? pct0(eic.ii) : "—"],
+    ["Custo do produto R$/un (CT)", fmt(C0), vend && vend.QTD ? fmt(-vend.CMV/vend.QTD) + " (CMV contábil das vendas)" : "—"]]
+    .map(([a, b, c]) => `<tr><td>${a}</td><td class="num">${b}</td><td class="num">${c}</td><td style="text-align:left;font-size:12px;color:var(--ink2)">${
+      a.startsWith("Custo") ? "FAT PLUS (CMV ÷ qtd)" : eic ? `EIC ${esc(eic.hawb||"")} (${esc(eic.dt||"")})${eic.posterior ? "" : " — ANTERIOR à aprovação, não entra na ponte"}` : "sem processo EIC"}</td></tr>`).join("");
+  if (!vend || !vend.QTD){
+    K.innerHTML = tile("Preço aprovado", R$(P0), "s/ IPI") + tile(fora ? "Margem da operação aprovada" : "MC aprovada (régua)", pct0(fora ? d0.marg : d0.mcGuia), "")
+      + tile(fora ? "" : "EBITDA aprovado", fora ? "" : pct0(d0.marg), "");
+    V.innerHTML = `<b>Sem venda do código ${esc(f.cod_venda)} desde ${R ? R.desde_mes.slice(4)+"/"+R.desde_mes.slice(0,4) : "a aprovação"}.</b> A comparação de margem começa quando houver nota; a importação real aparece abaixo assim que o processo no EIC existir.`;
+    TB.innerHTML = ""; N.textContent = ""; return;
+  }
+  /* realizado por unidade (mesma estrutura do Simulador) */
+  const Q1 = vend.QTD, rec = vend.FAT + vend.IPI, P1 = rec/Q1;
+  const imp1 = -(vend.ICMS + vend.SUBVENC + vend.PISCOFINS + vend.DIFAL)/Q1, t1 = imp1/P1;
+  const v1 = ped.QTD ? (ped.VPC_RS || 0)/ped.QTD : 0, C1 = -vend.CMV/Q1;
+  const E1 = P1*(1-t1-dm) - v1 - C1;
+  /* efeitos em R$/un — somam exatamente E1 − E0 */
+  const ef = [];
+  ef.push(["Preço praticado", "comercial", (P1-P0)*(1-t0-dm), R$(P0), R$(P1)]);
+  ef.push(["Impostos de saída (líq. da subvenção)", "comercial", -P1*(t1-t0), pct0(t0), pct0(t1)]);
+  ef.push(["VPC", "comercial", -(v1-v0), R$(v0), R$(v1)]);
+  if (eicOk){
+    const Ca = custoFoto(f, eic.usd26, fr0, dol0, adic0), Cb = custoFoto(f, eic.usd26, fr0, eic.tx || dol0, adic0),
+          Cc = custoFoto(f, eic.usd26, eic.frete ?? fr0, eic.tx || dol0, adic0), Cd = custoFoto(f, eic.usd26, eic.frete ?? fr0, eic.tx || dol0, eic.adic ?? adic0);
+    const C0m = custoFoto(f, f.s.usd, fr0, dol0, adic0);
+    ef.push(["Custo — FOB de compra (US$)", "mercado", -(Ca-C0m), "US$ " + fmt(f.s.usd), "US$ " + fmt(eic.usd26)]);
+    ef.push(["Custo — câmbio", "mercado", -(Cb-Ca), fmt(dol0,4), fmt(eic.tx || dol0,4)]);
+    ef.push(["Custo — frete marítimo", "mercado", -(Cc-Cb), fmt(fr0,0), fmt(eic.frete ?? fr0,0)]);
+    ef.push(["Custo — adicional de frete (333)", "mercado", -(Cd-Cc), fmt(adic0,0), fmt(eic.adic ?? adic0,0)]);
+    ef.push(["Custo — contábil × modelo (complementos, estoque anterior, rateios)", "modelo", -(C1-Cd) - (C0m - C0), R$(C0), R$(C1)]);
+  } else {
+    ef.push(["Custo do produto (sem processo EIC posterior à aprovação)", "modelo", -(C1-C0), R$(C0), R$(C1)]);
+  }
+  const base = E0*(1/P1 - 1/P0);
+  const linhas = ef.map(([n, g, r, a, b]) => ({n, g, r, pp: r/P1, a, b}));
+  linhas.push({n:"Efeito base (preço diferente muda o denominador)", g:"comercial", r:0, pp: base, a:"", b:""});
+  const e0 = E0/P0, e1 = E1/P1, maxAbs = Math.max(...linhas.map(l => Math.abs(l.pp)), 1e-9);
+  const maior = linhas.reduce((a, b) => Math.abs(b.pp) > Math.abs(a.pp) ? b : a);
+  const soma = g => linhas.filter(l => l.g === g).reduce((a, l) => a + l.pp, 0);
+  const mc1 = (fcGuia(d0.ipiG) - (d0.icx||0) - 1.01*C1/P1)/fbGuia(d0.ipiG);
+  const nomeM = fora ? "Margem da operação" : "EBITDA";
+  const pp = v => (v>0?"+":"") + fmt(v*100, 2) + " p.p.";
+  K.innerHTML = tile("Unidades vendidas", fmt(Q1,0), `${vend.NFS} NFs · ${vend.MES_INI.slice(4)}/${vend.MES_INI.slice(0,4)} a ${vend.MES_FIM.slice(4)}/${vend.MES_FIM.slice(0,4)} · filiais somadas`)
+    + tile("Preço s/ IPI", `${R$(P1)}`, `aprovado ${R$(P0)} · ${pct((P1/P0)-1)}`)
+    + tile("Custo do produto", `${R$(C1)}`, `projetado ${R$(C0)} · ${pct((C1/C0)-1)}`)
+    + tile(nomeM, `<span style="color:${e1>=e0?'var(--ok)':'var(--up)'}">${pct0(e1)}</span>`, `aprovado ${pct0(e0)} · ${pp(e1-e0)}`)
+    + (fora ? "" : tile("MC (régua do guia)", `<span style="color:${mc1>=d0.mcGuia?'var(--ok)':'var(--up)'}">${pct0(mc1)}</span>`, `aprovada ${pct0(d0.mcGuia)} · ${pp(mc1-d0.mcGuia)}`));
+  const gN = {comercial:"preço, impostos e VPC praticados (decisão/realidade comercial)", mercado:"importação real — FOB, câmbio e fretes (a realidade destoou da premissa)", modelo:"custo contábil × modelo de estimativa (limite/falha da estimativa de custo)"};
+  const ordem = ["comercial","mercado","modelo"].filter(g => linhas.some(l => l.g === g));
+  V.innerHTML = `<b>${nomeM}: aprovado ${pct0(e0)} → realizado ${pct0(e1)} (${pp(e1-e0)}).</b> A linha que mais explica a diferença é <b>${esc(maior.n)}</b> (${pp(maior.pp)}).<br>`
+    + ordem.map(g => `${pp(soma(g))} vêm de ${gN[g]}`).join(" · ") + ".";
+  const linhaTb = l => { const w = Math.abs(l.pp)/maxAbs*100, cor = l.pp >= 0 ? "var(--down)" : "var(--up)";
+    return `<tr class="${l === maior ? "maior" : ""}"><td>${esc(l.n)}</td><td class="num">${l.a}</td><td class="num">${l.b}</td><td class="num">${l.r ? (l.r>0?"+":"−") + fmt(Math.abs(l.r)) : "—"}</td>
+      <td class="num ${l.pp>=0?'delta-down':'delta-up'}">${pp(l.pp)}</td><td class="bar"><span class="pbar" style="width:${w.toFixed(0)}%;background:${cor}"></span></td></tr>`; };
+  TB.innerHTML = `<tr class="tot"><td>${nomeM} aprovado</td><td class="num">${R$(E0)}</td><td></td><td></td><td class="num">${pct0(e0)}</td><td></td></tr>`
+    + ordem.map(g => `<tr class="grp"><td colspan="6">${gN[g]}</td></tr>` + linhas.filter(l => l.g === g).map(linhaTb).join("")).join("")
+    + `<tr class="tot"><td>${nomeM} realizado</td><td></td><td class="num">${R$(E1)}</td><td class="num">${(E1-E0>0?"+":"−") + fmt(Math.abs(E1-E0))}</td><td class="num">${pct0(e1)}</td><td></td></tr>`;
+  const dev = R.vendas.DEV;
+  N.innerHTML = `Realizado = notas de venda (SD2) do código ${esc(f.cod_venda)} desde ${R.desde_mes.slice(4)}/${R.desde_mes.slice(0,4)} (mês da aprovação), filiais somadas; impostos de saída líquidos da subvenção (régua do incentivo PROBAHIA; fora da árvore = sem incentivo); VPC pelo % gravado no pedido (SFA); custo = CMV contábil da nota.`
+    + ` A despesa ${fora ? "fixa" : "da máquina"} usa o mesmo % aprovado (${pct0(dm)}) dos dois lados — `
+    + (ped.TOT ? `memória: frete do pedido ${pct0((ped.FRETE_RS||0)/ped.TOT)} e comissão ${pct0((ped.COM_RS||0)/ped.TOT)} do valor s/ IPI.` : "sem pedido associado.")
+    + (dev && dev.QTD ? ` Devoluções no período: ${fmt(Math.abs(dev.QTD),0)} un (fora da margem acima).` : "")
+    + ` Soma dos efeitos = Δ da margem (conferência: ${pp(linhas.reduce((a,l)=>a+l.pp,0) - (e1-e0))} de resíduo).`;
+}
+
 
 /* ===== CADASTRO DE SKUs NO APP (v0.20 · Silvio 11/11/2026) — tabela custos_sku_cadastro (só ADM grava; RLS) ===== */
 function esc(x){ return String(x??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
