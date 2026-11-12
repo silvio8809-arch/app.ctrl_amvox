@@ -727,7 +727,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.34 · refresh 12/11/2026";
+const VERSAO = "v0.35 · refresh 12/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
 let ADM = false;
@@ -806,6 +806,13 @@ const FAIXAS_FORA = [.20, .175, .15, .125, .10], DESP_FIXA_FORA = 0.05, ALVO_FOR
 const NOTA_FIXA_FORA = "Produto FORA da árvore de NCM incentivada: despesa fixa da operação = 5% do preço (a operação compartilha a estrutura existente; não se aplicam os 16%/27% da máquina toda). Os 5% englobam o frete de venda e os demais custos associados à operação. Custos de importação já estão no custo do produto. Definição da Controladoria em 12/11/2026.";
 /* preço s/ IPI para uma margem EBITDA m: P = CT ÷ (1 − impostos de saída − despesa fixa − m) */
 const precoEbitda = (ct, m, dfx) => ct / (1 - (SIM.pisS+SIM.cofS+icmsAtual())/100 - dfx - m);
+/* CASCATA FORA DA ÁRVORE (v0.35, Silvio 12/11/2026): no MESMO preço, MC da operação = preço − impostos de saída − custo do
+   produto; entre a MC e a margem saem o VPC (se houver) e o custo fixo de 5% → Margem EBITDA = MC − VPC − 5%.
+   (A régua do guia — 24% sobre o preço c/ IPI — não vale para esta linha: com IPI de 35% invertia MC e EBITDA.) */
+const MC_MAX_FORA = 0.20, FAIXAS_MC_FORA = [.20, .175, .15, .125, .10];
+const tSaida = () => (SIM.pisS + SIM.cofS + icmsAtual())/100;
+const mcOperacao = (P_, ct) => 1 - tSaida() - ct/P_;
+const precoMcOp = (ct, m) => ct / (1 - tSaida() - m);
 const foraArv = s => !!(s && s.prem && s.prem.foraArvore);
 const icmsImpA = s => foraArv(s) ? (s.prem.icmsImp ?? ICMS_FORA.icmsImp) : 0;
 const ufAtual = () => (document.getElementById("simuf") || {}).value || "BA";
@@ -989,7 +996,7 @@ function simCalc(){
   const mcAlvo = mcMin(s);
   const ipiG = ipiGuia(s);
   const icx = icxGuia(s);
-  const pisoDef = foraArv(s) ? precoEbitda(ct, ALVO_FORA, dmaqAtual()) : precoMC(ct, mcAlvo, ipiG, icx);
+  const pisoDef = foraArv(s) ? precoMcOp(ct, MC_MAX_FORA) : precoMC(ct, mcAlvo, ipiG, icx);
   const price = SIM.price ?? Math.round(pisoDef*100)/100;
   const ipiS = (SIM.ipi ?? ipiPad())/100;
   const vpc = SIM.vpcOn ? price*SIM.vpcPct/100 : 0;
@@ -1031,7 +1038,7 @@ function renderSim(){
   document.getElementById("sp-icms").value = fmt(icmsAtual(),2);
   document.getElementById("sp-icms-h").textContent = foraArv(s) ? `fora da árvore incentivada: padrão ${ufAtual()==="BA"?"interna BA":"interestadual (importado)"} ${fmt(icmsSaiPad(s),2)}%` : "0% = incentivo BA";
   document.getElementById("simprechint").textContent =
-    foraArv(d.s) ? `padrão = preço p/ EBITDA ${Math.round(ALVO_FORA*100)}% (alvo da linha fora da árvore, despesa fixa ${pct0(dmaqAtual())}): R$ ${fmt(d.pisoDef)}`
+    foraArv(d.s) ? `padrão = preço p/ MC da operação de ${Math.round(MC_MAX_FORA*100)}% (teto da linha fora da árvore): R$ ${fmt(d.pisoDef)}`
     : `padrão = preço projetado p/ MC ${Math.round(d.mcAlvo*100)}% (mínimo da linha ${ (d.s.linha||"ÁUDIO") }): R$ ${fmt(d.pisoDef)}`;
   document.getElementById("simvpclbl").textContent = SIM.vpcOn ? "sim" : "não";
   /* KPIs */
@@ -1043,7 +1050,8 @@ function renderSim(){
    +`<div class="kpi" ${kcol("var(--brand)")}><div class="k">Preço venda s/ IPI</div><div class="v">${Rk(d.price)}<span class="pc">100%</span></div><div class="d">editável — ou arraste a barra de margem</div></div>`
    +`<div class="kpi" ${kcol("var(--brand)")}><div class="k">Preço venda c/ IPI</div><div class="v">${Rk(d.price*(1+d.ipiS))}<span class="pc">+${fmt(SIM.ipi ?? ipiPad(),2)}%</span></div><div class="d">IPI de saída</div></div>`
    +(foraArv(s)
-     ? `<div class="kpi" ${kcol(d.marg>=ALVO_FORA-1e-4?"var(--ok)":"var(--up)")}><div class="k">Margem EBITDA (fora da árvore)</div><div class="v"><span style="color:${d.marg>=ALVO_FORA-1e-4?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.marg,-9.99))}</span><span class="pc">alvo ${Math.round(ALVO_FORA*100)}% · máx 20%</span></div><div class="d">despesa fixa ${pct0(d.dmaqPct)} — régua do guia não se aplica</div></div>`
+     ? (()=>{ const mc = mcOperacao(d.price, d.ct), ok = mc <= MC_MAX_FORA + 1e-4 && d.marg >= 0;
+         return `<div class="kpi" ${kcol(ok?"var(--ok)":"var(--up)")}><div class="k">MC da operação (fora da árvore)</div><div class="v"><span style="color:${ok?'var(--ok)':'var(--up)'}">${pct0(Math.max(mc,-9.99))}</span><span class="pc">máx ${Math.round(MC_MAX_FORA*100)}%</span></div><div class="d">− VPC ${pct0(d.vpc/d.price)} − custo fixo ${pct0(d.dmaqPct)} = EBITDA ${pct0(d.marg)}</div></div>`; })()
      : `<div class="kpi" ${kcol(d.mcGuia>=d.mcAlvo?"var(--ok)":"var(--up)")}><div class="k">Margem Ctb. Bruta (MC)</div><div class="v"><span style="color:${d.mcGuia>=d.mcAlvo?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.mcGuia,-9.99))}</span><span class="pc">mín ${Math.round(d.mcAlvo*100)}%</span></div><div class="d">régua do guia de bolso — auditável</div></div>`)
    +`<div class="kpi" ${kcol(d.marg>=SIM.meta/100?"var(--ok)":"var(--up)")}><div class="k">EBITDA</div><div class="v"><span style="color:${d.marg>=SIM.meta/100?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.marg,-9.99))}</span><span class="pc">${(d.marg*100-SIM.meta)>=0?"+":""}${fmt(d.marg*100-SIM.meta,1)} p.p.</span></div><div class="d">gerencial (desconta desp. máquina) · meta ${fmt(SIM.meta,1)}%</div></div>`;
   /* ① formação do custo — grupos como no excel */
@@ -1096,7 +1104,7 @@ function renderSim(){
    +kv("CUSTO DA VENDA (CV = CT + VPC + desp. máquina)", R$(d.cv), "tot")
    +kv("LUCRO · EBITDA", `${R$(d.lucroV)} · ${pct0(d.marg)}`, d.lucroV>=0?"ok":"hl")
    +(foraArv(s)
-     ? kv("Margem EBITDA × alvo da linha fora da árvore (15%, máx. 20%) — régua do guia não se aplica", pct0(d.marg), d.marg>=ALVO_FORA-1e-4?"ok":"hl")
+     ? kv(`MC da operação (preço − impostos − custo) · − VPC ${pct0(d.vpc/d.price)} − custo fixo ${pct0(d.dmaqPct)} = EBITDA ${pct0(d.marg)}`, pct0(mcOperacao(d.price, d.ct)), mcOperacao(d.price, d.ct) <= MC_MAX_FORA + 1e-4 ? "ok" : "hl")
      : kv("Margem Ctb. Bruta (MC) pela régua do guia (a este preço, com o custo vigente)", pct0(d.mcGuia), d.mcGuia>=d.mcAlvo?"ok":"hl"));
   /* donut composição do preço */
   const parts = [
@@ -1517,7 +1525,7 @@ async function gerarPdfSim(versao){
         ["CUSTO DA VENDA (CV = CT + VPC + desp. máquina)", R(d.cv)],
         ["LUCRO · EBITDA", `${R(d.lucroV)} · ${PCT(d.marg)} (meta ${fmt(SIM.meta,1)}%)`],
         foraArv(s)
-          ? ["Margem EBITDA (fora da árvore: alvo 15%, máx. 20%)", `${PCT(d.marg)} ${d.marg>=ALVO_FORA-1e-4 ? "OK" : "ABAIXO DO ALVO"}${d.marg>0.20+1e-4 ? " - ACIMA DO MÁXIMO" : ""}`]
+          ? ["MC da operação (preço - impostos - custo; máx. 20%) · - VPC - custo fixo 5% = EBITDA", `${PCT(mcOperacao(d.price, d.ct))} - ${PCT(d.vpc/d.price)} - ${PCT(d.dmaqPct)} = ${PCT(d.marg)}`]
           : ["Margem Ctb. Bruta (MC) pela régua do guia", `${PCT(d.mcGuia)} (mínimo ${Math.round(d.mcAlvo*100)}%) ${d.mcGuia>=d.mcAlvo-1e-4 ? "OK" : "ABAIXO DO MÍNIMO"}`]], new Set([2,7,8,9]));
       doc.setFont("helvetica","normal"); doc.setFontSize(7.4); doc.setTextColor(110);
       doc.text(doc.splitTextToSize(pdfT("Custo pelo modelo 2026 (por contêiner, dólar do parâmetro). Item sem nacionalização: custo projetado, sujeito ao custo real e aos complementos de importação até o fechamento do mês seguinte à NF. Gerado pelo app de Custos de Aquisição — AMVOX Controladoria." + (foraArv(s) ? " " + NOTA_FIXA_FORA : "")), W-2*M), M, y+2);
@@ -1549,14 +1557,16 @@ async function gerarPdfComercial(){
     /* faixa preta + filete vermelho */
     doc.setFillColor(0,0,0); doc.rect(M, M, W-2*M, 8, "F");
     doc.setFont("helvetica","bold"); doc.setFontSize(9.6); doc.setTextColor(255);
-    doc.text(pdfT(`AMVOX  —  PROPOSTA DE PREÇO  —  ${fora ? "MC E MARGEM EBITDA" : "MC"} ${faixas.map(pctF).join("/")}  —  SEM VPC`), W/2, M+5.4, {align:"center"});
+    const vpcP = SIM.vpcOn ? SIM.vpcPct/100 : 0;
+    doc.text(pdfT(fora ? `AMVOX  —  PROPOSTA DE PREÇO  —  MC ${FAIXAS_MC_FORA.map(pctF).join("/")}  ›  MARGEM EBITDA  —  ${vpcP ? "VPC " + pctF(vpcP) + "%" : "SEM VPC"}`
+                       : `AMVOX  —  PROPOSTA DE PREÇO  —  MC ${faixas.map(pctF).join("/")}  —  SEM VPC`), W/2, M+5.4, {align:"center"});
     doc.setFillColor(215,25,32); doc.rect(M, M+8, W-2*M, 0.45, "F");
     /* nota + legenda */
     const ipiTxt = `IPI de saída ${fmt(SIM.ipi ?? ipiPad(),2)}% (por fora, não incluso).`;
     const icmsTxt = foraArv(s) ? ` Produto FORA da árvore de NCM incentivada: preços já consideram ICMS de saída de ${fmt(icmsAtual(),2)}% (${uf==="BA" ? "venda interna BA" : "venda interestadual para " + uf}).` : "";
     const dag = projetado ? ` LEGENDA: † = custo PROJETADO (item ainda não nacionalizado), estimado pela fórmula de importação por contêiner (${fmt(d.q,0)} peças/ctr, dólar ${fmt(P.dolar)}); será substituído pelo custo real quando o produto for nacionalizado.` : "";
     const nota = fora
-      ? `Preço de venda (SEM IPI) para cada margem, SEM VPC. Quadro 1 — MC pela régua do guia de bolso (CIF, frete médio nacional 3% embutido, com o ICMS de saída deste produto). Quadro 2 — Margem EBITDA = preço − impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}%) − custo do produto − despesa fixa de 5% (frete de venda já incluído). Linha com margem máxima de 20% e alvo em torno de 15% (coluna destacada). ${ipiTxt}${icmsTxt}${dag}`
+      ? `Preço de venda SEM IPI, por unidade. Cada coluna é UM preço, lido em cascata: MC da operação = preço − impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}%) − custo do produto; (−) VPC ${vpcP ? pctF(vpcP) + "% do preço" : "não há"}; (−) custo fixo da operação 5% (frete de venda incluído); (=) Margem EBITDA. Linha com MC máxima de 20%. ${PDF_APROV ? "Última coluna = preço da simulação APROVADA" : "Última coluna = preço simulado"} (destacada). ${ipiTxt}${icmsTxt}${dag}`
       : `Preço de venda (SEM IPI) para cada margem, SEM VPC, CIF (frete médio nacional 3% embutido). ${ipiTxt}${icmsTxt}${dag} Margem mínima da linha: ${Math.round(mcMin(s)*100)}%.`;
     doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(0);
     const linhasNota = doc.splitTextToSize(pdfT(nota), W-2*M);
@@ -1580,9 +1590,28 @@ async function gerarPdfComercial(){
                            }});
       y = doc.lastAutoTable.finalY + 4;
     };
-    if (fora){
-      tabela("1. MC (RÉGUA DO GUIA)", "MC ", faixas.map(m => precoMC(d.ct, m, d.ipiG, d.icx)));
-      tabela("2. MARGEM EBITDA (DESPESA FIXA 5%)", "EBITDA ", faixas.map(m => precoEbitda(d.ct, m, DESP_FIXA_FORA)));
+    if (fora){   /* quadro único em cascata (v0.35) */
+      const cols = FAIXAS_MC_FORA.map(m => ({rot: "MC " + pctF(m) + "%", P: precoMcOp(d.ct, m)})).concat([{rot: PDF_APROV ? "APROVADO" : "SIMULADO", P: d.price}]);
+      const lin = (rot, fn) => [pdfT(rot), ...cols.map(c => fn(c.P))];
+      const pc = v => pct0(v).replace(/\s/g, "");
+      const ult = cols.length;   /* índice da coluna aprovada/simulada */
+      doc.autoTable({startY:y, margin:{left:M, right:M}, theme:"grid", tableWidth: W-2*M,
+        head:[[{content:pdfT(`${linhaT}  ›  ${nome}  —  custo do produto ${projetado ? "projetado " : ""}R$ ${fmt(d.ct)}`), colSpan: 1 + cols.length,
+                styles:{fillColor:[0,0,0], textColor:255, halign:"left", fontSize:8.5}}],
+              ["", ...cols.map(c => c.rot)]],
+        body:[lin("Preço de venda s/ IPI (R$)", P_ => fmt(P_)),
+              lin("MC da operação (preço − impostos − custo)", P_ => pc(mcOperacao(P_, d.ct))),
+              lin(`(−) VPC`, P_ => vpcP ? pc(vpcP) : "—"),
+              lin("(−) Custo fixo da operação", P_ => pc(DESP_FIXA_FORA)),
+              lin("(=) Margem EBITDA", P_ => pc(mcOperacao(P_, d.ct) - vpcP - DESP_FIXA_FORA))],
+        headStyles:{fillColor:[230,230,230], textColor:0, fontStyle:"bold", fontSize:8},
+        styles:{fontSize:8.5, cellPadding:1.8, textColor:0, lineColor:[200,200,200], lineWidth:0.2},
+        columnStyles: Object.fromEntries([[0,{cellWidth:58}], ...cols.map((_,i)=>[i+1, {halign:"right"}])]),
+        didParseCell: c => { if (c.section==="head" && c.row.index===1 && c.column.index>0) c.cell.styles.halign = "right";
+                             if (c.section==="head" && c.row.index===1) { c.cell.styles.lineWidth = {bottom:0.5}; c.cell.styles.lineColor = [215,25,32]; }
+                             if (c.column.index===ult && !(c.section==="head" && c.row.index===0)) { c.cell.styles.fillColor = c.section==="head" ? [215,25,32] : [253,236,236]; if (c.section==="head") c.cell.styles.textColor = 255; c.cell.styles.fontStyle = "bold"; }
+                             if (c.section==="body" && (c.row.index===0 || c.row.index===4)) c.cell.styles.fontStyle = "bold"; }});
+      y = doc.lastAutoTable.finalY + 4;
     } else tabela("", "", faixas.map(m => precoMC(d.ct, m, d.ipiG, d.icx)));
     y += 1;
     doc.setFont("helvetica","normal"); doc.setFontSize(7); doc.setTextColor(90);
