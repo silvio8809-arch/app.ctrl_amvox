@@ -329,13 +329,17 @@ async function abreLancamentos(setor, conta, titulo) {
   abrePainel(`<div class="pl-top"><div><h3>${esc(titulo || conta)}</h3><p>Carregando o razão…</p></div><button class="x" data-fecha>Fechar ✕</button></div>`);
   let R; try { R = await carregaRazao(); } catch (e) { abrePainel(`<div class="pl-top"><div><h3>Erro</h3><p>${esc(e.message)}</p></div><button class="x" data-fecha>Fechar ✕</button></div>`); return; }
   const dic = D.meta.razao.dic, iS = dic.setor.indexOf(setor);
-  const L = R.filter(r => r[4] === conta && (setor == null || r[11] === iS)).sort((a, b) => a[0] - b[0] || Math.abs(b[6]) - Math.abs(a[6]));
+  let L = R.filter(r => r[4] === conta && (setor == null || r[11] === iS)), noCC = false;
+  /* 13/11/2026: sem base na área (setor final) → mostra o razão dos CCs da área (base foi para outra área pela política: centralizada, exceção, fornecedor) */
+  if (!L.length && setor != null) { L = R.filter(r => r[4] === conta && r[10] === iS); noCC = L.length > 0; }
+  L = L.sort((a, b) => a[0] - b[0] || Math.abs(b[6]) - Math.abs(a[6]));
   const pm = {}; L.forEach(r => pm[r[0]] = (pm[r[0]] || 0) + r[6]);
   const tot = soma(L, r => r[6]), fator = D.meta.fator || 3;
   abrePainel(`<div class="pl-top"><div><h3>${esc(titulo || conta)}</h3><p>${esc(setor || 'todas as áreas')} · conta ${esc(conta)} ${esc(D.contaDesc[conta] || '')} · razão jul–out/26 (CT2, somente leitura)</p></div><button class="x" data-fecha>Fechar ✕</button></div>
    <div class="pl-corpo">
+    ${noCC ? `<div class="aviso">Sem base nesta área: os lançamentos abaixo estão nos <b>CCs da área</b>, mas a base foi para <b>${esc([...new Set(L.map(r => dic.setor[r[11]]))].join(', '))}</b> pela política (conta centralizada, exceção ou fornecedor que prevalece). Por isso a linha não é "sem histórico".</div>` : ''}
     <div class="kpis">${Object.entries(pm).map(([m, v]) => `<div class="kpi k5"><div class="lab">${MESES[+String(m).slice(4) - 1]}/26</div><div class="val">${fmt(v)}</div></div>`).join('')}
-      <div class="kpi"><div class="lab">Base anualizada (× ${fator})</div><div class="val">${fmt(tot * fator)}</div><div class="meta">${L.length} lançamento(s) · soma ${rs(tot)}</div></div></div>
+      <div class="kpi"><div class="lab">${noCC ? 'Razão nos CCs da área' : 'Base anualizada'} (× ${fator})</div><div class="val">${fmt(tot * fator)}</div><div class="meta">${L.length} lançamento(s) · soma ${rs(tot)}</div></div></div>
     <div class="tw solta"><table class="t"><thead><tr><th>Mês</th><th>Dia</th><th>Lote/Doc</th><th>LP</th><th>CC</th><th>Área do CC</th><th>Histórico</th><th>Fornecedor</th><th class="n">D − C</th><th>Alocação</th></tr></thead><tbody>
     ${L.slice(0, 400).map(r => `<tr><td class="nw">${MESES[+String(r[0]).slice(4) - 1]}/26</td><td>${esc(r[1])}</td><td class="nw">${esc(r[2])}/${esc(r[3])}</td><td>${esc(r[8])}</td><td>${esc(r[5])}</td><td>${esc(dic.setor[r[10]])}</td><td class="w">${esc(r[7])}</td><td class="w">${esc(dic.nome[r[14]] || '')}</td>${tdN(r[6], { uni: 'R$', dec: 2 })}<td>${/^FORA/.test(dic.aloc[r[12]]) ? `<span class="tag r">${esc(dic.aloc[r[12]])}</span>` : esc(dic.aloc[r[12]])}</td></tr>`).join('')}
     </tbody></table></div>${L.length > 400 ? `<div class="vazio">Mostrando 400 de ${L.length} lançamentos.</div>` : ''}${!L.length ? '<div class="vazio">Sem lançamentos na janela (conta fora da janela = modelo 0).</div>' : ''}
@@ -776,7 +780,7 @@ POS.folha = () => {
 };
 
 /* ---------------------------------------------------------------- MODELO × GESTOR */
-const SITS = ['ACIMA DA INFLAÇÃO — EXPLICAR', 'SEM HISTÓRICO NA BASE — EXPLICAR', 'NÃO ORÇADO PELO GESTOR — confirmar', 'OK — dentro da inflação', 'SETOR SEM ORÇAMENTO — vale o modelo', 'FORA DA JANELA — modelo 0 (gasto deixou de existir)'];
+const SITS = ['ACIMA DA INFLAÇÃO — EXPLICAR', 'SEM HISTÓRICO NA BASE — EXPLICAR', 'HISTÓRICO NO CC, BASE EM OUTRA ÁREA — EXPLICAR', 'NÃO ORÇADO PELO GESTOR — confirmar', 'OK — dentro da inflação', 'SETOR SEM ORÇAMENTO — vale o modelo', 'FORA DA JANELA — modelo 0 (gasto deixou de existir)'];
 const sitTag = s => /EXPLICAR/.test(s) ? `<span class="tag r">${esc(s)}</span>` : /^NÃO ORÇADO/.test(s) ? `<span class="tag y">${esc(s)}</span>` : /^OK/.test(s) ? `<span class="tag g">${esc(s)}</span>` : `<span class="tag">${esc(s)}</span>`;
 TELAS.mxg = () => {
   const vis = setoresVisiveis(), Lv = D.linhas.filter(l => vis.has(l.s)), sel = est.f.mxgSetor && vis.has(est.f.mxgSetor) ? est.f.mxgSetor : null, sits = est.f.mxgSit || [];
