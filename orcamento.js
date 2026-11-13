@@ -24,6 +24,7 @@ const MENU = [
     { id: 'mensal', t: 'Mensal', ico: '▥', r: TODOS }] },
   { g: 'orc', t: 'Orçamento 2027', itens: [
     { id: 'ciclo', t: 'Ciclo do orçamento', ico: '◷', r: TODOS }, { id: 'meu', t: 'Meu orçamento', ico: '✎', r: TODOS },
+    { id: 'folha', t: 'Folha 2027 (simulador)', ico: '☷', r: CT_CEO },
     { id: 'mxg', t: 'Modelo × Gestor', ico: '⇄', r: TODOS }, { id: 'decisoes', t: 'Decisões por linha', ico: '✓', r: CT_CEO_DIR },
     { id: 'projecao', t: 'Projeção final', ico: '▧', r: TODOS }, { id: 'versoes', t: 'Versões e cenários', ico: '⧉', r: CT_CEO }] },
   { g: 'acomp', t: 'Acompanhamento 2027', itens: [
@@ -245,15 +246,18 @@ function ligaChips(nome, cb, multi = false) {
     cb ? cb() : desenha();
   });
 }
-function grafBarras(serie, { w = 640, h = 210, cor = '#C8102E', cor2 = '#C4CCD6', linha = null, rot = MESES, fmtY = v => fmt(v, { uni: 'mi', dec: 1 }) } = {}) {
+function grafBarras(serie, { w = 640, h = 210, cor = '#C8102E', cor2 = '#C4CCD6', linha = null, rot = MESES, fmtY = v => fmt(v, { uni: 'mi', dec: 1 }), zero = true } = {}) {
   const padL = 46, padB = 24, padT = 10, iw = w - padL - 10, ih = h - padB - padT, n = serie.length;
   const vals = serie.concat(linha || []);
-  let mx = Math.max(0, ...vals), mn = Math.min(0, ...vals); if (mx === mn) mx = mn + 1;
+  let mx = Math.max(0, ...vals), mn = Math.min(0, ...vals);
+  if (!zero) { const lo = Math.min(...vals); mx = Math.max(...vals); mn = lo - (mx - lo) * 0.6; }        // eixo aproximado: realça a variação mês a mês
+  if (mx === mn) mx = mn + 1;
   const rg = (mx - mn) * 1.08, y = v => padT + ih * (1 - (v - mn) / rg), slot = iw / n, bw = Math.min(22, slot * .55);
   let g = '';
   for (let i = 0; i <= 4; i++) { const gv = mn + rg / 4 * i, gy = y(gv); g += `<line x1="${padL}" y1="${gy}" x2="${w - 8}" y2="${gy}" stroke="#EEF1F5"/><text x="${padL - 6}" y="${gy + 3}" text-anchor="end" font-size="9.5" fill="#8A93A0">${fmtY(gv)}</text>`; }
-  g += `<line x1="${padL}" y1="${y(0)}" x2="${w - 8}" y2="${y(0)}" stroke="#C9D1DC"/>`;
-  serie.forEach((v, i) => { const cx = padL + slot * i + slot / 2, y0 = y(0), yv = y(v);
+  const b0 = zero ? 0 : mn;
+  g += `<line x1="${padL}" y1="${y(b0)}" x2="${w - 8}" y2="${y(b0)}" stroke="#C9D1DC"/>`;
+  serie.forEach((v, i) => { const cx = padL + slot * i + slot / 2, y0 = y(b0), yv = y(v);
     g += `<rect x="${cx - bw / 2}" y="${Math.min(y0, yv)}" width="${bw}" height="${Math.max(1, Math.abs(yv - y0))}" rx="3" fill="${v < 0 ? cor : cor2}"><title>${rot[i]}: ${rs(v)}</title></rect>`;
     g += `<text x="${cx}" y="${h - 8}" text-anchor="middle" font-size="10" fill="#5B6472">${rot[i]}</text>`; });
   if (linha) { const pts = linha.map((v, i) => `${padL + slot * i + slot / 2},${y(v)}`).join(' ');
@@ -532,6 +536,77 @@ POS.meu = () => {
   const s = $('meuSetor'); if (s) s.onchange = e => { est.f.meuSetor = e.target.value; desenha(); };
   document.querySelectorAll('#tela [data-fil]').forEach(b => b.onclick = () => { est.f.meuFil = b.dataset.fil || null; desenha(); });
   document.querySelectorAll('#tela [data-lanc]').forEach(tr => tr.onclick = () => abreLancamentos(est.f.meuSetor, tr.dataset.lanc, 'Base 2026 — ' + tr.dataset.lanc));
+};
+
+/* ---------------------------------------------------------------- FOLHA 2027 (simulador) — 13/11/2026 */
+TELAS.folha = () => {
+  const F = D.folha;
+  if (!F) return `${cabecalho('Folha 2027 — simulador', '')}<div class="info">O simulador de folha entra com o PT gerado com o parâmetro <b>--folha</b> (quadro anônimo da folha do DP + premissas de dissídio, encargos, benefícios e movimentações).</div>`;
+  const cen = est.f.flCen || 'MODELO', m = est.per === 'ano' ? null : +est.per;
+  const R = F.resumo.filter(r => r[0] !== 'TOTAL'), T = F.resumo.find(r => r[0] === 'TOTAL') || ['', 0, 0, 0, 0, 0, 0, 0];
+  const comp = F.componentes[cen] || {}, totM = Array(12).fill(0); Object.values(comp).forEach(v => v.slice(0, 12).forEach((x, i) => totM[i] += x));
+  const outros = F.componentes[cen === 'MODELO' ? 'GESTOR' : 'MODELO'] || {}, totO = Array(12).fill(0); Object.values(outros).forEach(v => v.slice(0, 12).forEach((x, i) => totO[i] += x));
+  const ligado = F.chave === 'S';
+  const calSt = est.f.flCal || null, cal = F.calibracao.filter(c => !calSt || c[7] === calSt), calCont = {}; F.calibracao.forEach(c => calCont[c[7]] = (calCont[c[7]] || 0) + 1);
+  const qa = {}; F.quadro.forEach(q => { const x = qa[q[0]] ||= { p: 0, r: 0, pl: 0, af: 0, fun: [] }; x.p += q[2]; x.r += q[3]; x.pl += q[4]; x.af += q[5]; x.fun.push(q); });
+  const abQ = est.f.flQ || {};
+  const pct = v => v == null ? '—' : pc(v, 2);
+  return `${cabecalho('Folha 2027 — simulador (dissídio, movimentações e sazonalidade)', `Quadro de partida: <b>${esc(F.base_desc)}</b> (competência ${esc(F.competencia_base)}). MODELO = quadro atual + dissídio + benefícios + sazonalidade · GESTOR = MODELO + admissões, desligamentos e promoções. Na projeção do orçamento: <span class="tag ${ligado ? 'g' : 'y'}">${ligado ? 'LIGADO (cenário MODELO)' : 'DESLIGADO — vale a base 2026 até validar a calibração'}</span>`)}
+  ${trava('Premissas e movimentações serão editadas aqui (Controladoria; gestor informa admissões, desligamentos e promoções da sua área). Hoje: abas PREMISSAS_FOLHA e QUADRO_FOLHA do PT.')}
+  <section class="kpis">
+    <div class="kpi k5"><div class="lab">Pessoas no quadro</div><div class="val">${fmt(T[1], { uni: 'R$' })}</div><div class="meta">competência ${esc(F.competencia_base)} · vagas novas: ${F.movimentos.filter(x => String(x[0]).startsWith('V')).length}</div></div>
+    <button class="kpi ${cen === 'MODELO' ? 'sel' : ''}" data-flcen="MODELO"><div class="lab">Folha 2027 — MODELO</div><div class="val">${rsC(T[2])}</div><div class="meta">quadro atual × dissídio · mês-base × 12 = ${rsC(T[7])}</div></button>
+    <button class="kpi k2 ${cen === 'GESTOR' ? 'sel' : ''}" data-flcen="GESTOR"><div class="lab">Folha 2027 — GESTOR</div><div class="val">${rsC(T[3])}</div><div class="meta">com movimentações · Δ ${rsC(T[4])}</div></button>
+    <div class="kpi k3"><div class="lab">Orçado pelos gestores (folha)</div><div class="val">${rsC(T[5])}</div><div class="meta">Δ sobre o MODELO <span class="${cd(T[6], true)}">${rsC(T[6])}</span> (${pc(div(T[6], T[2]))})</div></div>
+  </section>
+  <div class="row2">
+    <div class="card"><h3>Dissídio 2027 por convenção</h3><div class="csub">O reajuste entra no mês de APLICAÇÃO; o atraso desde a data-base é compensado por ABONO (único, sem encargos por padrão) ou RETROATIVO (com encargos). As provisões de férias e 13º são reavaliadas no mês da aplicação.</div>
+      <div class="tw solta"><table class="t"><thead><tr><th>Convenção</th><th class="n ed">% dissídio</th><th class="n ed">Data-base</th><th class="n ed">Aplicação</th><th class="ed">Compensação</th><th class="n">Meses de atraso</th></tr></thead><tbody>
+      ${F.dissidio.map(d => `<tr><td><b>${esc(d[0])}</b></td><td class="n ed">${pct(d[1])}</td><td class="n ed">${d[2] ? MESES[d[2] - 1] : '—'}</td><td class="n ed">${d[3] ? MESES[d[3] - 1] : '—'}</td><td class="ed">${esc(d[4])}</td><td class="n">${d[5] || '–'}</td></tr>`).join('')}</tbody></table></div>
+      ${F.dissidio[0] && F.dissidio[0][6] ? `<div class="csub" style="margin-top:8px">${esc(F.dissidio[0][6])}</div>` : ''}</div>
+    <div class="card"><h3>Folha mensal 2027 — ${esc(cen)} <small>barras</small> × ${cen === 'MODELO' ? 'GESTOR' : 'MODELO'} <small>linha azul</small></h3><div class="csub">R$ milhões · o pico do mês de aplicação traz o dissídio, o abono e o ajuste das provisões</div>
+      ${grafBarras(totM, { linha: totO, cor2: '#C8102E', zero: false, fmtY: v => fmt(v, { uni: 'mi', dec: 2 }) })}</div>
+  </div>
+  <div class="tw solta"><table class="t"><thead><tr><th class="fx">Componente — ${esc(cen)}</th>${MESES.map((x, i) => `<th class="n ${i === m ? 'hl' : ''}">${x}/27</th>`).join('')}<th class="n">Total 2027</th><th class="n">part.</th>${cen === 'MODELO' ? '<th class="n">Mês-base</th>' : ''}</tr></thead><tbody>
+    ${Object.entries(comp).filter(([, v]) => v.some(x => Math.abs(x) > 0.5)).map(([n, v]) => `<tr><td class="fx">${esc(n)}</td>${v.slice(0, 12).map((x, i) => tdN(x, { cls: i === m ? 'hl' : '' })).join('')}${tdN(v[12])}${tdP(div(v[12], soma(totM)))}${cen === 'MODELO' ? tdN(v[13]) : ''}</tr>`).join('')}
+  </tbody><tfoot><tr><td class="fx">Total</td>${totM.map((x, i) => tdN(x, { cls: i === m ? 'hl' : '' })).join('')}${tdN(soma(totM))}<td class="n">100%</td>${cen === 'MODELO' ? tdN(soma(Object.values(comp), v => v[13])) : ''}</tr></tfoot></table></div>
+  <div class="row2">
+    <div class="tw solta"><table class="t"><thead><tr><th>Área</th><th class="n">Pessoas</th><th class="n">MODELO 2027</th><th class="n">part.</th><th class="n">GESTOR 2027</th><th class="n">Orçado pelo gestor</th><th class="n">Δ orçado − modelo</th></tr></thead><tbody>
+      ${R.filter(r => r[1] || r[2] || r[5]).map(r => `<tr><td>${esc(r[0])}</td><td class="n">${r[1] || '–'}</td>${tdN(r[2])}${tdP(div(r[2], T[2]))}${tdN(r[3])}${tdN(r[5])}<td class="n ${cd(r[6], true)}">${fmt(r[6], { sinal: true })}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td>Total</td><td class="n">${T[1]}</td>${tdN(T[2])}<td class="n">100%</td>${tdN(T[3])}${tdN(T[5])}<td class="n">${fmt(T[6], { sinal: true })}</td></tr></tfoot></table></div>
+    <div class="card"><h3>Efeito de caixa — 13º e férias (cenário MODELO)</h3><div class="csub">A DRE provisiona todo mês; o caixa paga o 13º em duas parcelas e as férias conforme a curva do ano anterior.</div>
+      <div class="tw solta"><table class="t"><thead><tr><th>Linha</th>${MESES.map(x => `<th class="n">${x}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>
+      ${F.caixa.map((c, i) => `<tr ${i === 4 ? 'style="font-weight:700"' : ''}><td class="nw">${esc(c[0])}</td>${c.slice(1).map(x => tdN(x, { uni: 'mil', dec: 0 })).join('')}</tr>`).join('')}</tbody></table></div><div class="csub">valores em R$ mil</div></div>
+  </div>
+  <div class="card"><h3>Calibração — simulado no mês-base × realizado médio jul–out/26 <small>por setor final × conta (R$/mês)</small></h3><div class="csub">Antes de ligar o simulador na projeção, os Δ relevantes precisam de explicação (premissa de benefício, encargo, % MOD, HE ou evento do realizado: rescisão, estorno, reclassificação).</div>
+    <div class="filtros"><span class="rot">Situação</span>${chips('flCal', Object.entries(calCont).map(([s, n]) => ({ v: s, t: esc(s) + `<small>${n}</small>` })), calSt)}</div>
+    <div class="tw solta" style="max-height:420px"><table class="t"><thead><tr><th>Setor final</th><th>Conta</th><th>Descrição</th><th class="n">Simulado</th><th class="n">Realizado médio jul–out</th><th class="n">Δ</th><th class="n">Δ %</th><th>Situação</th><th class="n">${esc((F.calibracao_mes || 'mês do quadro').replace(/^REALIZADO /i, 'Realizado '))}</th><th class="n">Δ × mês do quadro</th></tr></thead><tbody>
+    ${cal.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1])}</td><td>${esc(c[2])}</td>${tdN(c[3])}${tdN(c[4])}<td class="n ${cd(c[5], true)}">${fmt(c[5], { sinal: true })}</td><td class="n">${pc(c[6], 0)}</td><td><span class="tag ${c[7] === 'OK' ? 'g' : c[7] === 'ANALISAR' ? 'r' : c[7] === '—' ? '' : 'y'}">${esc(c[7])}</span></td>${tdN(c[8])}<td class="n ${cd(c[9], true)}">${fmt(c[9], { sinal: true })}</td></tr>`).join('')}
+    </tbody><tfoot><tr><td>Total</td><td></td><td></td>${tdN(soma(cal, c => c[3]))}${tdN(soma(cal, c => c[4]))}<td class="n">${fmt(soma(cal, c => c[5]), { sinal: true })}</td><td class="n">${pc(div(soma(cal, c => c[5]), Math.abs(soma(cal, c => c[4]))), 0)}</td><td></td>${tdN(soma(cal, c => c[8]))}<td class="n">${fmt(soma(cal, c => c[9]), { sinal: true })}</td></tr></tfoot></table></div></div>
+  <div class="row2">
+    <div class="card"><h3>Quadro de partida por área e função</h3><div class="csub">Sem nomes e sem salário individual: remuneração só no total da área. Clique na área para ver as funções.</div>
+      <div class="tw solta" style="max-height:420px"><table class="t"><thead><tr><th>Área / função</th><th class="n">Pessoas</th><th class="n">Plano de saúde</th><th class="n">Afastados</th><th class="n">Remuneração fixa (R$/mês)</th></tr></thead><tbody>
+      ${Object.entries(qa).map(([a, x]) => `<tr class="clic" data-flq="${esc(a)}"><td><span class="tgl">${abQ[a] ? '▾' : '▸'}</span> <b>${esc(a)}</b></td><td class="n">${x.p}</td><td class="n">${x.pl}</td><td class="n">${x.af || '–'}</td>${tdN(x.r)}</tr>` +
+        (abQ[a] ? x.fun.map(q => `<tr class="grade-sub"><td>${esc(q[1])}</td><td class="n">${q[2]}</td><td class="n">${q[4]}</td><td class="n">${q[5] || '–'}</td><td></td></tr>`).join('') : '')).join('')}</tbody></table></div></div>
+    <div class="card"><h3>Movimentações 2027 <small>admissões · desligamentos · promoções</small></h3><div class="csub">Informadas por posição (ID anônimo) ou vaga nova. Desligamento gera aviso prévio e multa do FGTS no mês; promoção muda o salário a partir do mês.</div>
+      ${F.movimentos.length ? `<div class="tw solta"><table class="t"><thead><tr><th>ID</th><th>Área</th><th>Função</th><th class="n">Qtd</th><th class="n">Admissão</th><th class="n">Desligamento</th><th>Tipo</th><th class="n">Promoção</th><th class="n">%</th><th>Justificativa</th></tr></thead><tbody>
+        ${F.movimentos.map(x => `<tr><td>${esc(x[0])}</td><td>${esc(x[1])}</td><td>${esc(x[2])}</td><td class="n">${x[3] || '–'}</td><td class="n">${x[4] ? MESES[x[4] - 1] : '–'}</td><td class="n">${x[5] ? MESES[x[5] - 1] : '–'}</td><td>${esc(x[6])}</td><td class="n">${x[7] ? MESES[x[7] - 1] : '–'}</td><td class="n">${x[8] ? pc(x[8]) : '–'}</td><td class="w">${esc(x[9])}</td></tr>`).join('')}</tbody></table></div>`
+        : '<div class="vazio">Nenhuma movimentação informada ainda — o cenário GESTOR = MODELO.</div>'}</div>
+  </div>
+  <div class="row2">
+    <div class="tw solta"><table class="t"><thead><tr><th>Premissa</th><th class="n ed">Valor</th><th>Observação</th></tr></thead><tbody>
+      ${F.parametros.map(p => `<tr><td>${esc(p[0])}</td><td class="n ed">${typeof p[1] === 'number' ? (p[1] > 0 && p[1] < 1 ? pc(p[1], 2) : fmt(p[1], { uni: 'R$', dec: 0 })) : esc(p[1])}</td><td class="w">${esc(p[2])}</td></tr>`).join('')}</tbody></table></div>
+    <div class="tw solta"><table class="t"><thead><tr><th>Benefício</th><th class="n ed">R$/pessoa/mês</th><th class="n ed">Reajuste</th><th class="n ed">Mês</th><th class="ed">Quem</th><th class="ed">Convenção</th><th class="ed">Conta</th></tr></thead><tbody>
+      ${F.beneficios.map(b => `<tr title="${esc(b[7])}"><td>${esc(b[0])}</td>${tdN(b[1], { uni: 'R$', dec: 2, cls: 'ed' })}<td class="n ed">${pc(b[2])}</td><td class="n ed">${b[3] ? MESES[b[3] - 1] : '—'}</td><td class="ed">${esc(b[4])}</td><td class="ed">${esc(b[5])}</td><td class="ed">${esc(b[6])}</td></tr>`).join('')}</tbody></table></div>
+  </div>
+  <div class="tw solta"><table class="t"><thead><tr><th>Curva mensal</th>${MESES.map(x => `<th class="n ed">${x}</th>`).join('')}</tr></thead><tbody>
+    <tr><td>Férias pagas no ano (caixa)</td>${F.curvas.ferias.map(x => `<td class="n ed">${pc(x)}</td>`).join('')}</tr>
+    <tr><td>Fator sazonal das horas extras</td>${F.curvas.he.map(x => `<td class="n ed">${x.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`).join('')}</tr></tbody></table></div>`;
+};
+POS.folha = () => {
+  document.querySelectorAll('#tela [data-flcen]').forEach(b => b.onclick = () => { est.f.flCen = b.dataset.flcen; desenha(); });
+  ligaChips('flCal');
+  document.querySelectorAll('#tela [data-flq]').forEach(tr => tr.onclick = () => { const k = tr.dataset.flq; est.f.flQ = est.f.flQ || {}; est.f.flQ[k] = !est.f.flQ[k]; desenha(); });
 };
 
 /* ---------------------------------------------------------------- MODELO × GESTOR */
