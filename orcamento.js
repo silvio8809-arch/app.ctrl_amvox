@@ -6,7 +6,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const soma = (a, f = x => x) => a.reduce((s, x) => s + (f(x) || 0), 0);
-let D = null, RAZAO = null;
+let D = null, RAZAO = null, FOLHA = null;
 
 /* ------------------------------------------------------------------------------------------- perfis e menu */
 const PAPEIS = {
@@ -24,7 +24,7 @@ const MENU = [
     { id: 'mensal', t: 'Mensal', ico: '▥', r: TODOS }] },
   { g: 'orc', t: 'Orçamento 2027', itens: [
     { id: 'ciclo', t: 'Ciclo do orçamento', ico: '◷', r: TODOS }, { id: 'meu', t: 'Meu orçamento', ico: '✎', r: TODOS },
-    { id: 'folha', t: 'Folha 2027 (simulador)', ico: '☷', r: CT_CEO },
+    { id: 'folha', t: 'Folha 2027 (simulador)', ico: '☷', r: TODOS },
     { id: 'mxg', t: 'Modelo × Gestor', ico: '⇄', r: TODOS }, { id: 'decisoes', t: 'Decisões por linha', ico: '✓', r: CT_CEO_DIR },
     { id: 'projecao', t: 'Projeção final', ico: '▧', r: TODOS }, { id: 'versoes', t: 'Versões e cenários', ico: '⧉', r: CT_CEO }] },
   { g: 'acomp', t: 'Acompanhamento 2027', itens: [
@@ -102,23 +102,15 @@ async function inicia() {
   window.PAPEL = papelApp;
   window.USUARIO_EMAIL = session.user.email;
   window.USUARIO_NOME = (session.user.user_metadata && session.user.user_metadata.nome) || '';
-  /* FASE 1: perfil do orçamento = ADM → Controladoria; demais → Gestor (o cadastro orc_usuario com perfil e áreas entra na fase 2) */
+  /* perfil do orçamento: do banco (orc_perfil, migração 048 — cadastro orc_usuario); sem a 048: ADM → Controladoria, demais → Gestor */
   est.papelReal = est.papel = papelApp === 'ADM' ? 'controladoria' : 'gestor';
+  if (!window.ORC_FONTE_LOCAL) {
+    try { const { data, error } = await SB.rpc('orc_perfil'); if (!error && data && PAPEIS[data]) est.papelReal = est.papel = data; } catch (e) { }
+  }
   if (document.readyState === 'loading') await new Promise(r => document.addEventListener('DOMContentLoaded', r, { once: true }));
   document.documentElement.style.visibility = 'visible';
   document.dispatchEvent(new CustomEvent('papel-pronto'));
-  try {
-    if (window.ORC_FONTE_LOCAL) {                                   // só na prévia local
-      D = await (await fetch(window.ORC_FONTE_LOCAL, { cache: 'no-store' })).json();
-      const p = D.meta.razao.partes; RAZAO = [];
-      for (let i = 1; i <= p; i++) RAZAO = RAZAO.concat(D['razao_' + i] || []), delete D['razao_' + i];
-    } else {
-      const { data, error } = await SB.from('orc_bloco').select('nome,dados').not('nome', 'like', 'razao_%').order('ordem');
-      if (error) throw error;
-      if (!data || !data.length) throw new Error('base vazia ou sem permissão');
-      D = {}; data.forEach(b => D[b.nome] = b.dados);
-    }
-  } catch (e) {
+  try { await carregaDados(); } catch (e) {
     $('status').innerHTML = '<span style="color:var(--brand)">Não foi possível carregar o orçamento (' + esc(e.message || e) +
       '). Saia e entre de novo; se continuar, avise a Controladoria.</span>';
     return;
@@ -132,9 +124,57 @@ async function inicia() {
   aplicaPapel(false);
   window.addEventListener('hashchange', () => { const t = location.hash.replace('#', ''); if (ITENS[t] && t !== est.tela) vai(t, false); });
 }
+/* carga de UMA versão (migração 048: orc_versao + orc_bloco por versão + folha com trava por área); sem a 048 = modo antigo */
+async function selTodos(fq) {                 // PostgREST devolve no máximo 1000 linhas por chamada → pagina
+  let out = [], i = 0;
+  for (;;) { const { data, error } = await fq().range(i, i + 999); if (error) throw error; out = out.concat(data || []); if (!data || data.length < 1000) return out; i += 1000; }
+}
+async function carregaDados() {
+  if (window.ORC_FONTE_LOCAL) {                                     // só na prévia local
+    D = await (await fetch(window.ORC_FONTE_LOCAL, { cache: 'no-store' })).json();
+    const p = D.meta.razao.partes; RAZAO = [];
+    for (let i = 1; i <= p; i++) RAZAO = RAZAO.concat(D['razao_' + i] || []), delete D['razao_' + i];
+    est.versoes = est.versoes || D.versoes || [{ codigo: 'V1', nome: D.meta.versao, status: 'RASCUNHO', origem: D.meta.arquivo }];
+    est.versao = est.versao || est.versoes[0].codigo; est.legado = false;
+    const fd = D.folha_dados;
+    FOLHA = fd ? { P: fd.premissa, pos: fd.posicoes.map(x => ({ ...x })), proj: fd.projecao, origem: 'carga do PT (' + D.meta.arquivo + ')', sujo: new Set(), noBanco: new Set(fd.posicoes.map(x => x.id)), premSuja: false } : null;
+    return;
+  }
+  const rv = await SB.from('orc_versao').select('*').order('codigo');
+  est.legado = !!rv.error;
+  est.versoes = rv.error ? [{ codigo: 'V1', nome: '', status: 'RASCUNHO' }] : rv.data;
+  if (!est.versao || !est.versoes.some(v => v.codigo === est.versao)) {
+    const f = est.versoes.find(v => v.status === 'APROVADA FINAL'); est.versao = (f || est.versoes[est.versoes.length - 1]).codigo;
+  }
+  let q = SB.from('orc_bloco').select('nome,dados').not('nome', 'like', 'razao_%').order('ordem');
+  if (!est.legado) q = q.eq('versao', est.versao);
+  const { data, error } = await q;
+  if (error) throw error;
+  if (!data || !data.length) throw new Error('base vazia ou sem permissão');
+  D = {}; data.forEach(b => D[b.nome] = b.dados); RAZAO = null; FOLHA = null;
+  if (est.legado) return;
+  const v = est.versao;
+  const [pos, prem, proj] = await Promise.all([
+    selTodos(() => SB.from('orc_folha_posicao').select('*').eq('versao', v).order('id')),
+    SB.from('orc_folha_premissa').select('dados,atualizado_em,atualizado_por').eq('versao', v).maybeSingle(),
+    selTodos(() => SB.from('orc_folha_projecao').select('*').eq('versao', v).order('area'))]);
+  if (prem.error || !prem.data) return;
+  const ult = proj.reduce((a, r) => (!a || r.projetado_em > a.projetado_em) ? r : a, null);
+  FOLHA = { P: prem.data.dados, pos: pos.map(x => ({ ...x, salario: +x.salario, adicional: +x.adicional, he_media: +x.he_media, qtd: +x.qtd, pct_promo: x.pct_promo == null ? null : +x.pct_promo })),
+    proj: proj.map(r => ({ ...r, conta: +r.conta, m: r.m.map(Number), base: r.base == null ? null : +r.base })),
+    origem: ult ? `${ult.projetado_por || ''} em ${new Date(ult.projetado_em).toLocaleString('pt-BR')}` : '—', sujo: new Set(), noBanco: new Set(pos.map(x => x.id)), premSuja: false };
+}
+const versaoAtual = () => (est.versoes || []).find(v => v.codigo === est.versao) || { codigo: est.versao, status: 'RASCUNHO' };
+const versaoEditavel = () => ['RASCUNHO', 'EM REVISÃO'].includes(versaoAtual().status);
+async function trocaVersao(v) {
+  est.versao = v; $('tela').innerHTML = '<div class="status">Carregando a versão ' + esc(v) + '…</div>';
+  try { await carregaDados(); prepara(); montaSeletores(); desenha(); } catch (e) { $('tela').innerHTML = `<div class="aviso">${esc(e.message || e)}</div>`; }
+}
 async function carregaRazao() {
   if (RAZAO) return RAZAO;
-  const { data, error } = await SB.from('orc_bloco').select('nome,dados').like('nome', 'razao_%').order('ordem');
+  let q = SB.from('orc_bloco').select('nome,dados').like('nome', 'razao_%').order('ordem');
+  if (!est.legado) q = q.eq('versao', est.versao);
+  const { data, error } = await q;
   if (error) throw error;
   RAZAO = []; (data || []).forEach(b => RAZAO = RAZAO.concat(b.dados));
   return RAZAO;
@@ -146,13 +186,16 @@ function prepara() {
   D.fat = D.premissas.receita['Adotado'].m;
   est.escDir = est.escDir || 'Diretoria Operacional';
   est.escSetor = est.escSetor || 'Facilities';
+  // gestor/diretor reais: as áreas são as que o banco libera na folha (RLS da orc_folha_posicao por orc_usuario.areas)
+  if (!window.ORC_FONTE_LOCAL && est.papelReal === 'gestor' && FOLHA && FOLHA.pos.length) est.escSetor = FOLHA.pos[0].area;
 }
 
 /* ------------------------------------------------------------------------------------------- seletores, menu, usuário */
 function montaSeletores() {
   $('selPer').innerHTML = '<option value="ano">Ano 2027</option>' + MESES.map((m, i) => `<option value="${i}">${m}/2027</option>`).join('');
   $('selCen').innerHTML = D.meta.cenarios.map(c => `<option value="${esc(c)}" ${c === D.meta.cenario ? '' : 'disabled'}>${esc(c)}${c === D.meta.cenario ? ' — ' + rsC(D.meta.receita) : ' (motor — fase 3)'}</option>`).join('');
-  $('selVer').innerHTML = `<option>${esc(D.meta.versao)}</option><option disabled>+ nova versão (fase 2)</option>`;
+  $('selVer').innerHTML = (est.versoes || []).map(v => `<option value="${esc(v.codigo)}" ${v.codigo === est.versao ? 'selected' : ''}>${esc(v.codigo)}${v.nome ? ' · ' + esc(v.nome.replace(/^V\d+\s*·\s*/, '')) : ''} — ${esc(v.status)}</option>`).join('');
+  $('selVer').onchange = e => trocaVersao(e.target.value);
   const u = lsGet('uni'); if (u) est.uni = u;
   $('selUni').value = est.uni;
   $('selPer').onchange = e => { est.per = e.target.value; desenha(); };
@@ -538,75 +581,198 @@ POS.meu = () => {
   document.querySelectorAll('#tela [data-lanc]').forEach(tr => tr.onclick = () => abreLancamentos(est.f.meuSetor, tr.dataset.lanc, 'Base 2026 — ' + tr.dataset.lanc));
 };
 
-/* ---------------------------------------------------------------- FOLHA 2027 (simulador) — 13/11/2026 */
+/* ---------------------------------------------------------------- FOLHA 2027 (simulador) — 13/11/2026
+   Por DEPARTAMENTO (área) e CONSOLIDADO. "Ver folha analítico": posição a posição — Controladoria e CEO veem tudo, gestores e demais só a
+   sua área (no banco: RLS da orc_folha_posicao). Edição → Salvar → PROJETAR FOLHA recalcula no navegador (orcamento_folha.js, mesmas
+   regras do PT) e grava a projeção da área; o consolidado soma as áreas. */
+const COMP_FOLHA_ORDEM = () => (FOLHA ? FOLHA.P.componentes.map(c => c[0]).concat(FOLHA.P.beneficios.map(b => b.nome)) : []);
+const areasFolha = () => { const v = setoresVisiveis(); return Object.keys(FOLHA.P.areas || {}).filter(a => v.has(a)); };
+const podeEditarFolha = a => versaoEditavel() && (est.papel === 'controladoria' || (est.papel === 'gestor' && setoresVisiveis().has(a)));
+const podeEditarPremissa = () => versaoEditavel() && est.papel === 'controladoria';
+function folhaSel() {
+  const vis = areasFolha(), a = est.f.flArea && vis.includes(est.f.flArea) ? est.f.flArea : null;
+  return { vis, area: a, areas: a ? [a] : vis };
+}
+async function salvaFolha() {
+  if (!FOLHA.sujo.size && !FOLHA.premSuja) return true;
+  if (window.ORC_FONTE_LOCAL) { FOLHA.sujo.forEach(id => FOLHA.noBanco.add(id)); FOLHA.sujo.clear(); FOLHA.premSuja = false; avisoFolha('Prévia local: alterações guardadas só nesta tela (no app publicado vão para o banco, com histórico).'); return true; }
+  try {
+    const campos = ['qtd', 'mes_adm', 'mes_desl', 'tipo_desl', 'mes_promo', 'pct_promo', 'justificativa', 'funcao', 'salario', 'convencao', 'tipo', 'plano'];
+    for (const id of FOLHA.sujo) {
+      const x = FOLHA.pos.find(p => p.id === id); if (!x) continue;
+      if (FOLHA.noBanco.has(id)) {
+        const upd = {}; campos.forEach(k => upd[k] = x[k] === '' ? null : x[k]);
+        const { error } = await SB.from('orc_folha_posicao').update(upd).eq('versao', est.versao).eq('id', id); if (error) throw error;
+      } else {
+        const { error } = await SB.from('orc_folha_posicao').insert({ ...x, versao: est.versao }); if (error) throw error;
+        FOLHA.noBanco.add(id);
+      }
+    }
+    FOLHA.sujo.clear();
+    if (FOLHA.premSuja) { const { error } = await SB.from('orc_folha_premissa').update({ dados: FOLHA.P }).eq('versao', est.versao); if (error) throw error; FOLHA.premSuja = false; }
+    avisoFolha('✓ Alterações salvas (com histórico de quem e quando).'); return true;
+  } catch (e) { avisoFolha('Não foi possível salvar: ' + (e.message || e), true); return false; }
+}
+async function projetaFolha() {
+  const { areas } = folhaSel(), ed = areas.filter(podeEditarFolha);
+  if (!ed.length) { avisoFolha('Seu perfil não projeta esta área (ou a versão está fechada).', true); return; }
+  if (!(await salvaFolha())) return;
+  const novo = projetarFolha(FOLHA.P, FOLHA.pos, ed);
+  FOLHA.proj = FOLHA.proj.filter(r => !ed.includes(r.area)).concat(novo);
+  const quem = window.USUARIO_EMAIL || 'prévia', quando = new Date();
+  if (!window.ORC_FONTE_LOCAL) {
+    try {
+      for (const a of ed) { const { error } = await SB.from('orc_folha_projecao').delete().eq('versao', est.versao).eq('area', a); if (error) throw error; }
+      const linhas = novo.map(r => ({ versao: est.versao, area: r.area, cenario: r.cenario, componente: r.componente, destino: r.destino, conta: r.conta,
+        setor_final: r.setor_final, m: r.m, base: r.base, projetado_por: quem }));
+      for (let i = 0; i < linhas.length; i += 500) { const { error } = await SB.from('orc_folha_projecao').insert(linhas.slice(i, i + 500)); if (error) throw error; }
+    } catch (e) { avisoFolha('Projeção calculada, mas não gravada: ' + (e.message || e), true); desenha(); return; }
+  }
+  FOLHA.origem = `${quem} em ${quando.toLocaleString('pt-BR')} (${ed.length === 1 ? ed[0] : ed.length + ' áreas'})`;
+  desenha(); avisoFolha(`✓ Folha projetada: ${ed.length === 1 ? ed[0] : ed.length + ' áreas'} — salários, encargos, provisões, benefícios e rescisões recalculados.`);
+}
+function avisoFolha(txt_, erro) { const el = $('flAviso'); if (el) { el.className = erro ? 'aviso' : 'ok-box'; el.textContent = txt_; el.hidden = false; } }
+function proximaVaga(area) {
+  const ai = Object.keys(FOLHA.P.areas).indexOf(area) + 1, pre = 'V' + String(ai).padStart(2, '0');
+  const n = FOLHA.pos.filter(x => x.id.startsWith(pre)).map(x => +x.id.slice(3) || 0);
+  return pre + (Math.max(0, ...n) + 1);
+}
 TELAS.folha = () => {
-  const F = D.folha;
-  if (!F) return `${cabecalho('Folha 2027 — simulador', '')}<div class="info">O simulador de folha entra com o PT gerado com o parâmetro <b>--folha</b> (quadro anônimo da folha do DP + premissas de dissídio, encargos, benefícios e movimentações).</div>`;
-  const cen = est.f.flCen || 'MODELO', m = est.per === 'ano' ? null : +est.per;
-  const R = F.resumo.filter(r => r[0] !== 'TOTAL'), T = F.resumo.find(r => r[0] === 'TOTAL') || ['', 0, 0, 0, 0, 0, 0, 0];
-  const comp = F.componentes[cen] || {}, totM = Array(12).fill(0); Object.values(comp).forEach(v => v.slice(0, 12).forEach((x, i) => totM[i] += x));
-  const outros = F.componentes[cen === 'MODELO' ? 'GESTOR' : 'MODELO'] || {}, totO = Array(12).fill(0); Object.values(outros).forEach(v => v.slice(0, 12).forEach((x, i) => totO[i] += x));
-  const ligado = F.chave === 'S';
-  const calSt = est.f.flCal || null, cal = F.calibracao.filter(c => !calSt || c[7] === calSt), calCont = {}; F.calibracao.forEach(c => calCont[c[7]] = (calCont[c[7]] || 0) + 1);
-  const qa = {}; F.quadro.forEach(q => { const x = qa[q[0]] ||= { p: 0, r: 0, pl: 0, af: 0, fun: [] }; x.p += q[2]; x.r += q[3]; x.pl += q[4]; x.af += q[5]; x.fun.push(q); });
-  const abQ = est.f.flQ || {};
-  const pct = v => v == null ? '—' : pc(v, 2);
-  return `${cabecalho('Folha 2027 — simulador (dissídio, movimentações e sazonalidade)', `Quadro de partida: <b>${esc(F.base_desc)}</b> (competência ${esc(F.competencia_base)}). MODELO = quadro atual + dissídio + benefícios + sazonalidade · GESTOR = MODELO + admissões, desligamentos e promoções. Na projeção do orçamento: <span class="tag ${ligado ? 'g' : 'y'}">${ligado ? 'LIGADO (cenário MODELO)' : 'DESLIGADO — vale a base 2026 até validar a calibração'}</span>`)}
-  ${trava('Premissas e movimentações serão editadas aqui (Controladoria; gestor informa admissões, desligamentos e promoções da sua área). Hoje: abas PREMISSAS_FOLHA e QUADRO_FOLHA do PT.')}
+  if (!FOLHA) return `${cabecalho('Folha 2027 — simulador', '')}<div class="info">A folha entra com a migração 048 (versões e folha por área) e a carga do PT com o simulador (<b>--folha</b>).</div>`;
+  const { vis, area, areas } = folhaSel(), cen = est.f.flCen || 'GESTOR', m = est.per === 'ano' ? null : +est.per;
+  const NPJ = FOLHA_NPJ, P = FOLHA.P;
+  const rows = FOLHA.proj.filter(r => areas.includes(r.area));
+  const somaComp = c => { const o = {}; rows.filter(r => r.cenario === c).forEach(r => { const a = o[r.componente] ||= Array(13).fill(0); r.m.forEach((v, i) => { a[i] += v; a[12] += v; }); }); return o; };
+  const CG = somaComp('GESTOR'), CM = somaComp('MODELO'), comp = cen === 'GESTOR' ? CG : CM;
+  const tot = (o, semPJ = true) => { const a = Array(12).fill(0); Object.entries(o).forEach(([n, v]) => { if (!semPJ || n !== NPJ) v.slice(0, 12).forEach((x, i) => a[i] += x); }); return a; };
+  const tG = tot(CG), tM = tot(CM), totC = cen === 'GESTOR' ? tG : tM;
+  const posA = FOLHA.pos.filter(x => areas.includes(x.area));
+  const calc = posA.map(x => folhaPosicao(x, P));
+  const pes = { fG: Array(12).fill(0), pjG: Array(12).fill(0), fM: Array(12).fill(0), adm: Array(12).fill(0), des: Array(12).fill(0), pro: Array(12).fill(0) };
+  calc.forEach(l => { for (let i = 0; i < 12; i++) { if (l.PJ) pes.pjG[i] += l.ativo[i]; else pes.fG[i] += l.ativo[i]; if (!l.PJ) pes.fM[i] += l.BK; }
+    const x = l.x; if (+x.mes_adm) pes.adm[x.mes_adm - 1] += +x.qtd || 0; if (+x.mes_desl) pes.des[x.mes_desl - 1]++; if (+x.mes_promo) pes.pro[x.mes_promo - 1]++; });
+  const nFolha = posA.filter(x => /^P/.test(x.id)).length, nPJ = posA.filter(x => /^J/.test(x.id)).length;
+  const vagas = posA.filter(x => /^V/.test(x.id) && (+x.qtd || 0) > 0 && +x.mes_adm).reduce((s, x) => s + (+x.qtd || 0), 0);
+  const orcG = (D.folha && D.folha.resumo || []).filter(r => areas.includes(r[0])).reduce((s, r) => s + (r[5] || 0), 0);
+  const pjH = (CG[NPJ] || [])[12] || 0;
+  const caixa = folhaCaixa(rows, P);
+  const ed = area ? podeEditarFolha(area) : vis.some(podeEditarFolha), anal = est.f.flAnal;
+  const pendentes = FOLHA.sujo.size + (FOLHA.premSuja ? 1 : 0);
+  const v = versaoAtual();
+  let html = `${cabecalho('Folha 2027 — por departamento e consolidado', `MODELO = quadro atual + dissídio + benefícios + sazonalidade · GESTOR = MODELO + admissões, desligamentos e promoções. Versão <b>${esc(v.codigo)}</b> (${esc(v.status)}). Última projeção: <b>${esc(FOLHA.origem)}</b>.`)}
+  <div class="filtros"><span class="rot">Departamento</span><select id="flArea"><option value="">Consolidado — ${vis.length} área(s)</option>${vis.map(a => `<option ${a === area ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select>
+    ${chips('flCen', [{ v: 'GESTOR', t: 'GESTOR' }, { v: 'MODELO', t: 'MODELO' }], cen)}
+    <button class="btn" id="flAnal">${anal ? '▾ Ocultar folha analítico' : '▸ Ver folha analítico'}</button>
+    ${ed ? `<button class="btn" id="flSalva" ${pendentes ? '' : 'disabled'}>Salvar alterações${pendentes ? ` (${pendentes})` : ''}</button><button class="btn primary" id="flProj">PROJETAR FOLHA — ${esc(area || (vis.length === 1 ? vis[0] : 'todas as áreas'))}</button>` : `<span class="tag">${versaoEditavel() ? 'somente leitura neste perfil' : 'versão fechada — somente leitura'}</span>`}
+  </div>
+  <div id="flAviso" hidden></div>
   <section class="kpis">
-    <div class="kpi k5"><div class="lab">Pessoas no quadro</div><div class="val">${fmt(T[1], { uni: 'R$' })}</div><div class="meta">competência ${esc(F.competencia_base)} · vagas novas: ${F.movimentos.filter(x => String(x[0]).startsWith('V')).length}</div></div>
-    <button class="kpi ${cen === 'MODELO' ? 'sel' : ''}" data-flcen="MODELO"><div class="lab">Folha 2027 — MODELO</div><div class="val">${rsC(T[2])}</div><div class="meta">quadro atual × dissídio · mês-base × 12 = ${rsC(T[7])}</div></button>
-    <button class="kpi k2 ${cen === 'GESTOR' ? 'sel' : ''}" data-flcen="GESTOR"><div class="lab">Folha 2027 — GESTOR</div><div class="val">${rsC(T[3])}</div><div class="meta">com movimentações · Δ ${rsC(T[4])}</div></button>
-    <div class="kpi k3"><div class="lab">Orçado pelos gestores (folha)</div><div class="val">${rsC(T[5])}</div><div class="meta">Δ sobre o MODELO <span class="${cd(T[6], true)}">${rsC(T[6])}</span> (${pc(div(T[6], T[2]))})</div></div>
+    <div class="kpi k5"><div class="lab">Pessoas na folha</div><div class="val">${nFolha}</div><div class="meta">+ ${nPJ} PJ (provisório) · vagas novas ${vagas} · desligamentos ${soma(pes.des)} · promoções ${soma(pes.pro)}</div></div>
+    <button class="kpi ${cen === 'MODELO' ? 'sel' : ''}" data-flcen="MODELO"><div class="lab">Folha 2027 — MODELO</div><div class="val">${rsC(soma(tM))}</div><div class="meta">quadro atual × dissídio · sem honorários PJ</div></button>
+    <button class="kpi k2 ${cen === 'GESTOR' ? 'sel' : ''}" data-flcen="GESTOR"><div class="lab">Folha 2027 — GESTOR</div><div class="val">${rsC(soma(tG))}</div><div class="meta">Δ sobre o modelo <span class="${cd(soma(tG) - soma(tM), true)}">${rsC(soma(tG) - soma(tM))}</span></div></button>
+    <div class="kpi k3"><div class="lab">Orçado pelo gestor (natureza Folha)</div><div class="val">${rsC(orcG)}</div><div class="meta">Δ sobre o GESTOR <span class="${cd(orcG - soma(tG), true)}">${rsC(orcG - soma(tG))}</span></div></div>
+    <div class="kpi k4"><div class="lab">PJ — honorários 2027</div><div class="val">${rsC(pjH)}</div><div class="meta">informativo · conta Assessoria (3120301001)</div></div>
   </section>
   <div class="row2">
-    <div class="card"><h3>Dissídio 2027 por convenção</h3><div class="csub">O reajuste entra no mês de APLICAÇÃO; o atraso desde a data-base é compensado por ABONO (único, sem encargos por padrão) ou RETROATIVO (com encargos). As provisões de férias e 13º são reavaliadas no mês da aplicação.</div>
-      <div class="tw solta"><table class="t"><thead><tr><th>Convenção</th><th class="n ed">% dissídio</th><th class="n ed">Data-base</th><th class="n ed">Aplicação</th><th class="ed">Compensação</th><th class="n">Meses de atraso</th></tr></thead><tbody>
-      ${F.dissidio.map(d => `<tr><td><b>${esc(d[0])}</b></td><td class="n ed">${pct(d[1])}</td><td class="n ed">${d[2] ? MESES[d[2] - 1] : '—'}</td><td class="n ed">${d[3] ? MESES[d[3] - 1] : '—'}</td><td class="ed">${esc(d[4])}</td><td class="n">${d[5] || '–'}</td></tr>`).join('')}</tbody></table></div>
-      ${F.dissidio[0] && F.dissidio[0][6] ? `<div class="csub" style="margin-top:8px">${esc(F.dissidio[0][6])}</div>` : ''}</div>
-    <div class="card"><h3>Folha mensal 2027 — ${esc(cen)} <small>barras</small> × ${cen === 'MODELO' ? 'GESTOR' : 'MODELO'} <small>linha azul</small></h3><div class="csub">R$ milhões · o pico do mês de aplicação traz o dissídio, o abono e o ajuste das provisões</div>
-      ${grafBarras(totM, { linha: totO, cor2: '#C8102E', zero: false, fmtY: v => fmt(v, { uni: 'mi', dec: 2 }) })}</div>
+    <div class="card"><h3>Folha mensal — ${esc(cen)} <small>barras</small> × ${cen === 'GESTOR' ? 'MODELO' : 'GESTOR'} <small>linha azul</small></h3><div class="csub">R$ milhões · sem honorários PJ · o mês de aplicação traz dissídio, abono e ajuste das provisões</div>
+      ${grafBarras(totC, { linha: cen === 'GESTOR' ? tM : tG, cor2: '#C8102E', zero: false, fmtY: x => fmt(x, { uni: 'mi', dec: 2 }) })}</div>
+    <div class="tw solta"><table class="t"><thead><tr><th>Pessoas e movimentações</th>${MESES.map(x => `<th class="n">${x}</th>`).join('')}</tr></thead><tbody>
+      <tr><td>Folha — GESTOR</td>${pes.fG.map(x => `<td class="n">${fmt(x, { uni: 'R$' })}</td>`).join('')}</tr>
+      <tr><td>PJ — GESTOR</td>${pes.pjG.map(x => `<td class="n">${fmt(x, { uni: 'R$' })}</td>`).join('')}</tr>
+      <tr><td>Folha — MODELO</td>${pes.fM.map(x => `<td class="n">${fmt(x, { uni: 'R$' })}</td>`).join('')}</tr>
+      <tr><td>Admissões (pessoas)</td>${pes.adm.map(x => `<td class="n">${x || '–'}</td>`).join('')}</tr>
+      <tr><td>Desligamentos</td>${pes.des.map(x => `<td class="n">${x || '–'}</td>`).join('')}</tr>
+      <tr><td>Promoções</td>${pes.pro.map(x => `<td class="n">${x || '–'}</td>`).join('')}</tr></tbody></table></div>
   </div>
-  <div class="tw solta"><table class="t"><thead><tr><th class="fx">Componente — ${esc(cen)}</th>${MESES.map((x, i) => `<th class="n ${i === m ? 'hl' : ''}">${x}/27</th>`).join('')}<th class="n">Total 2027</th><th class="n">part.</th>${cen === 'MODELO' ? '<th class="n">Mês-base</th>' : ''}</tr></thead><tbody>
-    ${Object.entries(comp).filter(([, v]) => v.some(x => Math.abs(x) > 0.5)).map(([n, v]) => `<tr><td class="fx">${esc(n)}</td>${v.slice(0, 12).map((x, i) => tdN(x, { cls: i === m ? 'hl' : '' })).join('')}${tdN(v[12])}${tdP(div(v[12], soma(totM)))}${cen === 'MODELO' ? tdN(v[13]) : ''}</tr>`).join('')}
-  </tbody><tfoot><tr><td class="fx">Total</td>${totM.map((x, i) => tdN(x, { cls: i === m ? 'hl' : '' })).join('')}${tdN(soma(totM))}<td class="n">100%</td>${cen === 'MODELO' ? tdN(soma(Object.values(comp), v => v[13])) : ''}</tr></tfoot></table></div>
-  <div class="row2">
-    <div class="tw solta"><table class="t"><thead><tr><th>Área</th><th class="n">Pessoas</th><th class="n">MODELO 2027</th><th class="n">part.</th><th class="n">GESTOR 2027</th><th class="n">Orçado pelo gestor</th><th class="n">Δ orçado − modelo</th></tr></thead><tbody>
-      ${R.filter(r => r[1] || r[2] || r[5]).map(r => `<tr><td>${esc(r[0])}</td><td class="n">${r[1] || '–'}</td>${tdN(r[2])}${tdP(div(r[2], T[2]))}${tdN(r[3])}${tdN(r[5])}<td class="n ${cd(r[6], true)}">${fmt(r[6], { sinal: true })}</td></tr>`).join('')}
-    </tbody><tfoot><tr><td>Total</td><td class="n">${T[1]}</td>${tdN(T[2])}<td class="n">100%</td>${tdN(T[3])}${tdN(T[5])}<td class="n">${fmt(T[6], { sinal: true })}</td></tr></tfoot></table></div>
-    <div class="card"><h3>Efeito de caixa — 13º e férias (cenário MODELO)</h3><div class="csub">A DRE provisiona todo mês; o caixa paga o 13º em duas parcelas e as férias conforme a curva do ano anterior.</div>
-      <div class="tw solta"><table class="t"><thead><tr><th>Linha</th>${MESES.map(x => `<th class="n">${x}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>
-      ${F.caixa.map((c, i) => `<tr ${i === 4 ? 'style="font-weight:700"' : ''}><td class="nw">${esc(c[0])}</td>${c.slice(1).map(x => tdN(x, { uni: 'mil', dec: 0 })).join('')}</tr>`).join('')}</tbody></table></div><div class="csub">valores em R$ mil</div></div>
+  <div class="tw solta"><table class="t"><thead><tr><th class="fx">Componente — ${esc(cen)}</th>${MESES.map((x, i) => `<th class="n ${i === m ? 'hl' : ''}">${x}/27</th>`).join('')}<th class="n">Total 2027</th><th class="n">part.</th><th class="n">${cen === 'GESTOR' ? 'MODELO' : 'GESTOR'}</th><th class="n">Δ</th></tr></thead><tbody>
+    ${COMP_FOLHA_ORDEM().filter(n => (comp[n] || []).some(x => Math.abs(x) > 0.5) || ((cen === 'GESTOR' ? CM : CG)[n] || []).some(x => Math.abs(x) > 0.5)).map(n => { const a = comp[n] || Array(13).fill(0), o = (cen === 'GESTOR' ? CM : CG)[n] || Array(13).fill(0), pj = n === NPJ;
+      return `<tr ${pj ? 'style="color:var(--ink3);font-style:italic"' : ''}><td class="fx">${esc(n)}</td>${a.slice(0, 12).map((x, i) => tdN(x, { cls: i === m ? 'hl' : '' })).join('')}${tdN(a[12])}${pj ? '<td class="n">—</td>' : tdP(div(a[12], soma(totC)))}${tdN(o[12])}<td class="n ${cd(a[12] - o[12], true)}">${fmt(a[12] - o[12], { sinal: true })}</td></tr>`; }).join('')}
+  </tbody><tfoot><tr><td class="fx">Total da folha (sem PJ)</td>${totC.map((x, i) => tdN(x, { cls: i === m ? 'hl' : '' })).join('')}${tdN(soma(totC))}<td class="n">100%</td>${tdN(soma(cen === 'GESTOR' ? tM : tG))}<td class="n">${fmt(soma(totC) - soma(cen === 'GESTOR' ? tM : tG), { sinal: true })}</td></tr></tfoot></table></div>`;
+  if (!area) {   // consolidado: uma linha por área
+    html += `<div class="tw solta"><table class="t"><thead><tr><th>Área</th><th class="n">Pessoas</th><th class="n">PJ</th><th class="n">MODELO 2027</th><th class="n">GESTOR 2027</th><th class="n">part.</th><th class="n">Δ GESTOR − MODELO</th><th class="n">Orçado pelo gestor</th><th class="n">PJ honorários</th></tr></thead><tbody>
+    ${vis.map(a => { const r = FOLHA.proj.filter(x => x.area === a), s = (c, pj) => r.filter(x => x.cenario === c && (pj ? x.componente === NPJ : x.componente !== NPJ)).reduce((t_, x) => t_ + soma(x.m), 0);
+      const o = ((D.folha && D.folha.resumo) || []).find(x => x[0] === a); const pa = FOLHA.pos.filter(x => x.area === a);
+      return `<tr class="clic" data-flarea="${esc(a)}"><td>${esc(a)}</td><td class="n">${pa.filter(x => /^P/.test(x.id)).length || '–'}</td><td class="n">${pa.filter(x => /^J/.test(x.id)).length || '–'}</td>${tdN(s('MODELO'))}${tdN(s('GESTOR'))}${tdP(div(s('GESTOR'), soma(tG)))}<td class="n ${cd(s('GESTOR') - s('MODELO'), true)}">${fmt(s('GESTOR') - s('MODELO'), { sinal: true })}</td>${tdN(o ? o[5] : 0)}${tdN(s('GESTOR', true))}</tr>`; }).join('')}
+    </tbody><tfoot><tr><td>Total</td><td class="n">${nFolha}</td><td class="n">${nPJ}</td>${tdN(soma(tM))}${tdN(soma(tG))}<td class="n">100%</td><td class="n">${fmt(soma(tG) - soma(tM), { sinal: true })}</td>${tdN(orcG)}${tdN(pjH)}</tr></tfoot></table></div>`;
+  }
+  if (anal) {
+    const lst = posA.slice().sort((a, b) => a.area.localeCompare(b.area) || a.id.localeCompare(b.id));
+    const sel = (id, k, ops, v_, dis) => `<select data-fid="${esc(id)}" data-fk="${k}" ${dis ? 'disabled' : ''}><option value=""></option>${ops.map(o => `<option ${String(v_ ?? '') === String(o) ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+    const inp = (id, k, v_, dis, w = 70, tp = 'number') => `<input type="${tp}" data-fid="${esc(id)}" data-fk="${k}" value="${esc(v_ ?? '')}" ${dis ? 'disabled' : ''} style="width:${w}px">`;
+    html += `<div class="card"><h3>Folha analítica — ${esc(area || 'todas as áreas visíveis')} <small>${lst.length} linha(s) · ID anônimo</small></h3>
+      <div class="csub">Controladoria e CEO veem todas as áreas; gestores e demais só a sua (trava no banco). Amarelo = movimentação (gestor da área e Controladoria); salário, função, convenção, tipo e plano de posição existente: só Controladoria. Depois de alterar: <b>Salvar</b> e <b>PROJETAR FOLHA</b>.</div>
+      ${area && podeEditarFolha(area) ? `<button class="btn" id="flVaga">+ Vaga nova em ${esc(area)}</button>` : ''}
+      <div class="tw" style="margin-top:8px"><table class="t" id="flTab"><thead><tr><th class="fx">ID</th><th>Área</th><th>Função</th><th>Tipo</th><th>Conv.</th><th>Admissão</th><th class="n">Salário</th><th class="n">Adicionais</th><th>Plano</th><th>Afast.</th>
+        <th class="ed">Qtd</th><th class="ed">Mês admissão</th><th class="ed">Mês desligamento</th><th class="ed">Tipo de desligamento</th><th class="ed">Mês promoção</th><th class="ed">% promoção</th><th class="ed">Justificativa</th></tr></thead><tbody>
+      ${lst.map(x => { const e = podeEditarFolha(x.area), vg = /^V/.test(x.id), ctl = est.papel === 'controladoria' && e, cad = e && (vg || ctl);
+        return `<tr ${FOLHA.sujo.has(x.id) ? 'style="background:#FFF7E6"' : ''}><td class="fx nw"><b>${esc(x.id)}</b></td><td class="nw">${esc(x.area)}</td>
+          <td>${cad ? inp(x.id, 'funcao', x.funcao, false, 180, 'text') : esc(x.funcao || '')}</td>
+          <td>${cad ? sel(x.id, 'tipo', ['CLT', 'APRENDIZ', 'ESTAGIÁRIO', 'PJ'], x.tipo) : esc(x.tipo)}</td>
+          <td>${cad ? sel(x.id, 'convencao', ['BA', 'SP'], x.convencao) : esc(x.convencao)}</td><td>${esc(x.admissao || '')}</td>
+          <td class="n">${cad ? inp(x.id, 'salario', x.salario, false, 90) : fmt(+x.salario, { uni: 'R$', dec: 2 })}</td>${tdN(+x.adicional, { uni: 'R$', dec: 2 })}
+          <td>${cad ? sel(x.id, 'plano', ['S', 'N'], x.plano) : esc(x.plano)}</td><td>${esc(x.afastado)}</td>
+          <td class="ed">${inp(x.id, 'qtd', x.qtd, !e, 55)}</td><td class="ed">${inp(x.id, 'mes_adm', x.mes_adm, !e, 55)}</td><td class="ed">${inp(x.id, 'mes_desl', x.mes_desl, !e, 55)}</td>
+          <td class="ed">${sel(x.id, 'tipo_desl', ['SEM JUSTA CAUSA', 'PEDIDO', 'ACORDO'], x.tipo_desl, !e)}</td><td class="ed">${inp(x.id, 'mes_promo', x.mes_promo, !e, 55)}</td>
+          <td class="ed">${inp(x.id, 'pct_promo', x.pct_promo == null ? '' : +(x.pct_promo * 100).toFixed(2), !e, 60)}</td><td class="ed">${inp(x.id, 'justificativa', x.justificativa, !e, 200, 'text')}</td></tr>`; }).join('')}
+      </tbody></table></div><div class="csub">% promoção em pontos percentuais (10 = 10%). Mês = 1 a 12.</div></div>`;
+  }
+  const pe = podeEditarPremissa(), pin = (path, v_, w = 70, tp = 'number') => `<input type="${tp}" data-fp="${path}" value="${esc(v_ ?? '')}" ${pe ? '' : 'disabled'} style="width:${w}px">`;
+  const ROT = { inss: 'INSS patronal', terceiros: 'Outras entidades (terceiros)', rat: 'RAT/SAT', fgts: 'FGTS', fgts_apr: 'FGTS do aprendiz', prov_fer: 'Provisão de férias (1/12 × 4/3)',
+    prov_13: 'Provisão de 13º (1/12)', enc_prov: 'Encargos sobre provisões (S/N)', meses_fer: 'Meses médios de férias em aberto', inss_pl: 'INSS sobre pró-labore',
+    enc_abono: 'Encargos sobre o abono (S/N) — testado: N', aviso_base: 'Aviso prévio — dias base', aviso_ano: 'Aviso — dias por ano', aviso_max: 'Aviso — máximo de dias',
+    multa_sjc: 'Multa FGTS sem justa causa', multa_acordo: 'Multa FGTS no acordo', aviso_acordo: 'Aviso no acordo (fração)', p13_mes1: 'Caixa: mês da 1ª parcela do 13º',
+    p13_pct1: 'Caixa: % na 1ª parcela', p13_mes2: 'Caixa: mês da 2ª parcela do 13º' };
+  html += `<div class="row2">
+    <div class="card"><h3>Dissídio 2027 por convenção ${pe ? '' : '<small>leitura</small>'}</h3><div class="csub">Entra no mês de APLICAÇÃO; o atraso desde a data-base é compensado por ABONO (sem encargos — testado na folha), RETROATIVO (com encargos) ou NENHUMA.</div>
+      <div class="tw solta"><table class="t"><thead><tr><th>Convenção</th><th class="ed">% dissídio</th><th class="ed">Mês data-base</th><th class="ed">Mês aplicação</th><th class="ed">Compensação</th><th class="n">Atraso</th></tr></thead><tbody>
+      ${P.dissidio.map((d, i) => `<tr><td><b>${esc(d.conv)}</b></td><td class="ed">${pin(`dissidio.${i}.pct%`, +(d.pct * 100).toFixed(4))}</td><td class="ed">${pin(`dissidio.${i}.db`, d.db, 55)}</td><td class="ed">${pin(`dissidio.${i}.ap`, d.ap, 55)}</td>
+        <td class="ed"><select data-fp="dissidio.${i}.comp" ${pe ? '' : 'disabled'}>${['ABONO', 'RETROATIVO', 'NENHUMA'].map(o => `<option ${o === d.comp ? 'selected' : ''}>${o}</option>`).join('')}</select></td><td class="n">${Math.max(0, d.ap - d.db)}</td></tr>`).join('')}
+      </tbody></table></div></div>
+    <div class="card"><h3>Encargos, provisões, rescisão e caixa</h3><div class="tw solta" style="max-height:330px"><table class="t"><tbody>
+      ${Object.entries(P.p).map(([k, v_]) => `<tr><td>${esc(ROT[k] || k)}</td><td class="ed n">${typeof v_ === 'string' ? `<select data-fp="p.${k}" ${pe ? '' : 'disabled'}><option ${v_ === 'S' ? 'selected' : ''}>S</option><option ${v_ === 'N' ? 'selected' : ''}>N</option></select>` : pin(`p.${k}${v_ > 0 && v_ < 1 ? '%' : ''}`, v_ > 0 && v_ < 1 ? +(v_ * 100).toFixed(4) : v_)}</td></tr>`).join('')}
+    </tbody></table></div><div class="csub">percentuais em pontos (20 = 20%)</div></div>
   </div>
-  <div class="card"><h3>Calibração — simulado no mês-base × realizado médio jul–out/26 <small>por setor final × conta (R$/mês)</small></h3><div class="csub">Antes de ligar o simulador na projeção, os Δ relevantes precisam de explicação (premissa de benefício, encargo, % MOD, HE ou evento do realizado: rescisão, estorno, reclassificação).</div>
-    <div class="filtros"><span class="rot">Situação</span>${chips('flCal', Object.entries(calCont).map(([s, n]) => ({ v: s, t: esc(s) + `<small>${n}</small>` })), calSt)}</div>
-    <div class="tw solta" style="max-height:420px"><table class="t"><thead><tr><th>Setor final</th><th>Conta</th><th>Descrição</th><th class="n">Simulado</th><th class="n">Realizado médio jul–out</th><th class="n">Δ</th><th class="n">Δ %</th><th>Situação</th><th class="n">${esc((F.calibracao_mes || 'mês do quadro').replace(/^REALIZADO /i, 'Realizado '))}</th><th class="n">Δ × mês do quadro</th></tr></thead><tbody>
-    ${cal.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1])}</td><td>${esc(c[2])}</td>${tdN(c[3])}${tdN(c[4])}<td class="n ${cd(c[5], true)}">${fmt(c[5], { sinal: true })}</td><td class="n">${pc(c[6], 0)}</td><td><span class="tag ${c[7] === 'OK' ? 'g' : c[7] === 'ANALISAR' ? 'r' : c[7] === '—' ? '' : 'y'}">${esc(c[7])}</span></td>${tdN(c[8])}<td class="n ${cd(c[9], true)}">${fmt(c[9], { sinal: true })}</td></tr>`).join('')}
-    </tbody><tfoot><tr><td>Total</td><td></td><td></td>${tdN(soma(cal, c => c[3]))}${tdN(soma(cal, c => c[4]))}<td class="n">${fmt(soma(cal, c => c[5]), { sinal: true })}</td><td class="n">${pc(div(soma(cal, c => c[5]), Math.abs(soma(cal, c => c[4]))), 0)}</td><td></td>${tdN(soma(cal, c => c[8]))}<td class="n">${fmt(soma(cal, c => c[9]), { sinal: true })}</td></tr></tfoot></table></div></div>
-  <div class="row2">
-    <div class="card"><h3>Quadro de partida por área e função</h3><div class="csub">Sem nomes e sem salário individual: remuneração só no total da área. Clique na área para ver as funções.</div>
-      <div class="tw solta" style="max-height:420px"><table class="t"><thead><tr><th>Área / função</th><th class="n">Pessoas</th><th class="n">Plano de saúde</th><th class="n">Afastados</th><th class="n">Remuneração fixa (R$/mês)</th></tr></thead><tbody>
-      ${Object.entries(qa).map(([a, x]) => `<tr class="clic" data-flq="${esc(a)}"><td><span class="tgl">${abQ[a] ? '▾' : '▸'}</span> <b>${esc(a)}</b></td><td class="n">${x.p}</td><td class="n">${x.pl}</td><td class="n">${x.af || '–'}</td>${tdN(x.r)}</tr>` +
-        (abQ[a] ? x.fun.map(q => `<tr class="grade-sub"><td>${esc(q[1])}</td><td class="n">${q[2]}</td><td class="n">${q[4]}</td><td class="n">${q[5] || '–'}</td><td></td></tr>`).join('') : '')).join('')}</tbody></table></div></div>
-    <div class="card"><h3>Movimentações 2027 <small>admissões · desligamentos · promoções</small></h3><div class="csub">Informadas por posição (ID anônimo) ou vaga nova. Desligamento gera aviso prévio e multa do FGTS no mês; promoção muda o salário a partir do mês.</div>
-      ${F.movimentos.length ? `<div class="tw solta"><table class="t"><thead><tr><th>ID</th><th>Área</th><th>Função</th><th class="n">Qtd</th><th class="n">Admissão</th><th class="n">Desligamento</th><th>Tipo</th><th class="n">Promoção</th><th class="n">%</th><th>Justificativa</th></tr></thead><tbody>
-        ${F.movimentos.map(x => `<tr><td>${esc(x[0])}</td><td>${esc(x[1])}</td><td>${esc(x[2])}</td><td class="n">${x[3] || '–'}</td><td class="n">${x[4] ? MESES[x[4] - 1] : '–'}</td><td class="n">${x[5] ? MESES[x[5] - 1] : '–'}</td><td>${esc(x[6])}</td><td class="n">${x[7] ? MESES[x[7] - 1] : '–'}</td><td class="n">${x[8] ? pc(x[8]) : '–'}</td><td class="w">${esc(x[9])}</td></tr>`).join('')}</tbody></table></div>`
-        : '<div class="vazio">Nenhuma movimentação informada ainda — o cenário GESTOR = MODELO.</div>'}</div>
-  </div>
-  <div class="row2">
-    <div class="tw solta"><table class="t"><thead><tr><th>Premissa</th><th class="n ed">Valor</th><th>Observação</th></tr></thead><tbody>
-      ${F.parametros.map(p => `<tr><td>${esc(p[0])}</td><td class="n ed">${typeof p[1] === 'number' ? (p[1] > 0 && p[1] < 1 ? pc(p[1], 2) : fmt(p[1], { uni: 'R$', dec: 0 })) : esc(p[1])}</td><td class="w">${esc(p[2])}</td></tr>`).join('')}</tbody></table></div>
-    <div class="tw solta"><table class="t"><thead><tr><th>Benefício</th><th class="n ed">R$/pessoa/mês</th><th class="n ed">Reajuste</th><th class="n ed">Mês</th><th class="ed">Quem</th><th class="ed">Convenção</th><th class="ed">Conta</th></tr></thead><tbody>
-      ${F.beneficios.map(b => `<tr title="${esc(b[7])}"><td>${esc(b[0])}</td>${tdN(b[1], { uni: 'R$', dec: 2, cls: 'ed' })}<td class="n ed">${pc(b[2])}</td><td class="n ed">${b[3] ? MESES[b[3] - 1] : '—'}</td><td class="ed">${esc(b[4])}</td><td class="ed">${esc(b[5])}</td><td class="ed">${esc(b[6])}</td></tr>`).join('')}</tbody></table></div>
-  </div>
-  <div class="tw solta"><table class="t"><thead><tr><th>Curva mensal</th>${MESES.map(x => `<th class="n ed">${x}</th>`).join('')}</tr></thead><tbody>
-    <tr><td>Férias pagas no ano (caixa)</td>${F.curvas.ferias.map(x => `<td class="n ed">${pc(x)}</td>`).join('')}</tr>
-    <tr><td>Fator sazonal das horas extras</td>${F.curvas.he.map(x => `<td class="n ed">${x.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>`).join('')}</tr></tbody></table></div>`;
+  <div class="tw solta"><table class="t"><thead><tr><th>Benefício</th><th class="ed n">R$/pessoa/mês</th><th class="ed n">Reajuste %</th><th class="ed n">Mês</th><th>Quem</th><th>Convenção</th><th>Conta</th></tr></thead><tbody>
+    ${P.beneficios.map((b, i) => `<tr><td>${esc(b.nome)}</td><td class="ed">${pin(`beneficios.${i}.valor`, +(+b.valor).toFixed(2), 90)}</td><td class="ed">${pin(`beneficios.${i}.reaj%`, +(b.reaj * 100).toFixed(2), 60)}</td><td class="ed">${pin(`beneficios.${i}.mes`, b.mes > 12 ? '' : b.mes, 50)}</td><td>${esc(b.quem)}</td><td>${esc(b.conv)}</td><td>${esc(b.conta)}</td></tr>`).join('')}
+  </tbody></table></div>
+  <div class="card"><h3>Efeito de caixa — 13º e férias <small>cenário MODELO · R$ mil</small></h3><div class="tw solta"><table class="t"><thead><tr><th>Linha</th>${MESES.map(x => `<th class="n">${x}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>
+    ${caixa.map(([n, a], i) => `<tr ${i === 4 ? 'style="font-weight:700"' : ''}><td class="nw">${esc(n)}</td>${a.map(x => tdN(x, { uni: 'mil', dec: 0 })).join('')}${tdN(soma(a), { uni: 'mil', dec: 0 })}</tr>`).join('')}</tbody></table></div></div>`;
+  if ((est.papel === 'controladoria' || est.papel === 'ceo') && D.folha && D.folha.calibracao) {
+    const F_ = D.folha, calSt = est.f.flCal || null, cal = F_.calibracao.filter(c => !calSt || c[7] === calSt), calCont = {}; F_.calibracao.forEach(c => calCont[c[7]] = (calCont[c[7]] || 0) + 1);
+    html += `<div class="card"><h3>Calibração — mês-base × realizado <small>da carga do PT · por setor final × conta (R$/mês)</small></h3><div class="csub">Δ relevante = premissa a revisar ou evento do realizado (rescisão, estorno). Benefícios dos PJ entram quando a lista oficial chegar.</div>
+      <div class="filtros"><span class="rot">Situação</span>${chips('flCal', Object.entries(calCont).map(([s, n]) => ({ v: s, t: esc(s) + `<small>${n}</small>` })), calSt)}</div>
+      <div class="tw solta" style="max-height:380px"><table class="t"><thead><tr><th>Setor final</th><th>Conta</th><th>Descrição</th><th class="n">Simulado</th><th class="n">Realizado médio jul–out</th><th class="n">Δ</th><th class="n">Δ %</th><th>Situação</th></tr></thead><tbody>
+      ${cal.map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1])}</td><td>${esc(c[2])}</td>${tdN(c[3])}${tdN(c[4])}<td class="n ${cd(c[5], true)}">${fmt(c[5], { sinal: true })}</td><td class="n">${pc(c[6], 0)}</td><td><span class="tag ${c[7] === 'OK' ? 'g' : c[7] === 'ANALISAR' ? 'r' : c[7] === '—' ? '' : 'y'}">${esc(c[7])}</span></td></tr>`).join('')}
+      </tbody></table></div></div>`;
+  }
+  return html;
 };
 POS.folha = () => {
+  const ar = $('flArea'); if (ar) ar.onchange = e => { est.f.flArea = e.target.value || null; desenha(); };
+  ligaChips('flCen'); ligaChips('flCal');
   document.querySelectorAll('#tela [data-flcen]').forEach(b => b.onclick = () => { est.f.flCen = b.dataset.flcen; desenha(); });
-  ligaChips('flCal');
-  document.querySelectorAll('#tela [data-flq]').forEach(tr => tr.onclick = () => { const k = tr.dataset.flq; est.f.flQ = est.f.flQ || {}; est.f.flQ[k] = !est.f.flQ[k]; desenha(); });
+  document.querySelectorAll('#tela [data-flarea]').forEach(tr => tr.onclick = () => { est.f.flArea = tr.dataset.flarea; desenha(); });
+  const an = $('flAnal'); if (an) an.onclick = () => { est.f.flAnal = !est.f.flAnal; desenha(); };
+  const sv = $('flSalva'); if (sv) sv.onclick = async () => { await salvaFolha(); desenha(); };
+  const pj = $('flProj'); if (pj) pj.onclick = async () => { pj.disabled = true; pj.textContent = 'Projetando…'; await projetaFolha(); };
+  const vg = $('flVaga'); if (vg) vg.onclick = () => { const a = est.f.flArea, id = proximaVaga(a);
+    FOLHA.pos.push({ id, area: a, funcao: '', filial: '', convencao: 'BA', tipo: 'CLT', admissao: '', meses_casa: 0, salario: 0, adicional: 0, plano: 'S', he_media: 0, afastado: 'N', qtd: 1, mes_adm: 1 });
+    FOLHA.sujo.add(id); desenha(); };
+  const marca = () => { const n = FOLHA.sujo.size + (FOLHA.premSuja ? 1 : 0), b = $('flSalva'); if (b) { b.disabled = !n; b.textContent = 'Salvar alterações' + (n ? ` (${n})` : ''); } };
+  document.querySelectorAll('#tela [data-fid]').forEach(el => el.onchange = () => {
+    const x = FOLHA.pos.find(p => p.id === el.dataset.fid), k = el.dataset.fk; let v = el.value;
+    if (['qtd', 'salario', 'mes_adm', 'mes_desl', 'mes_promo'].includes(k)) v = v === '' ? null : +v;
+    if (k === 'pct_promo') v = v === '' ? null : +v / 100;
+    if (['mes_adm', 'mes_desl', 'mes_promo'].includes(k) && v != null && (v < 1 || v > 12)) { el.value = ''; v = null; }
+    x[k] = v === '' ? null : v; FOLHA.sujo.add(x.id); el.closest('tr').style.background = '#FFF7E6'; marca();
+  });
+  document.querySelectorAll('#tela [data-fp]').forEach(el => el.onchange = () => {
+    let path = el.dataset.fp, pct = path.endsWith('%'); if (pct) path = path.slice(0, -1);
+    const ks = path.split('.'); let o = FOLHA.P; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]];
+    const k = ks[ks.length - 1], v = el.tagName === 'SELECT' ? el.value : (el.value === '' ? (k === 'mes' ? 13 : 0) : (pct ? +el.value / 100 : +el.value));
+    o[k] = v; if (path.startsWith('dissidio')) { const d = FOLHA.P.dissidio[+ks[1]]; d.atraso = Math.max(0, (+d.ap || 0) - (+d.db || 0)); }
+    FOLHA.premSuja = true; marca();
+  });
 };
 
 /* ---------------------------------------------------------------- MODELO × GESTOR */
@@ -679,17 +845,25 @@ POS.projecao = () => { $('pjSetor').onchange = e => { est.f.pjSetor = e.target.v
 
 /* ---------------------------------------------------------------- VERSÕES E CENÁRIOS */
 TELAS.versoes = () => {
-  const rec = D.premissas.receita, sel = D.dre.linhas.filter(l => l.t !== 'd' && l.t !== 'p');
-  return `${cabecalho('Versões e cenários', 'Cada versão congela premissas, de-paras, orçado e decisões; cada cenário de receita recalcula DRE e caixa. Nesta fase há uma versão (a do PT aprovado) e o cenário P&D calculado.')}
+  const rec = D.premissas.receita, sel = D.dre.linhas.filter(l => l.t !== 'd' && l.t !== 'p'), ctl = est.papelReal === 'controladoria' && est.papel === 'controladoria';
+  const fin = (est.versoes || []).find(v => v.status === 'APROVADA FINAL');
+  const tagSt = s => `<span class="tag ${s === 'APROVADA FINAL' ? 'g' : s === 'EM REVISÃO' ? 'b' : s === 'SUBSTITUÍDA' ? '' : 'y'}">${esc(s)}</span>`;
+  const dt_ = x => x ? new Date(x).toLocaleString('pt-BR') : '—';
+  return `${cabecalho('Versões (rodadas) e cenários', 'Cada rodada guarda o orçamento inteiro (DRE, linhas, folha, premissas, decisões). A Controladoria cria nova rodada a partir de uma versão, coloca em revisão e aprova a FINAL — só ela vale no Orçado × Realizado mensal. Versão aprovada fica fechada para edição.')}
+  ${fin ? `<div class="ok-box">✓ Versão FINAL aprovada: <b>${esc(fin.codigo)} · ${esc(fin.nome || '')}</b> em ${dt_(fin.aprovada_em)} por ${esc(fin.aprovada_por || '')} — referência do acompanhamento mensal.</div>`
+        : '<div class="aviso">Nenhuma versão aprovada como FINAL ainda — o acompanhamento usa a versão selecionada como referência provisória.</div>'}
+  <div id="vrAviso" hidden></div>
+  <div class="tw solta"><table class="t"><thead><tr><th>Versão</th><th>Nome</th><th>Situação</th><th>Origem</th><th>Criada</th><th>Aprovada</th><th></th></tr></thead><tbody>
+    ${(est.versoes || []).map(v => `<tr ${v.codigo === est.versao ? 'class="hl"' : ''}><td><b>${esc(v.codigo)}</b>${v.codigo === est.versao ? ' <span class="tag b">aberta</span>' : ''}</td><td>${esc(v.nome || '')}</td><td>${tagSt(v.status)}</td><td class="w">${esc(v.origem || '')}</td>
+      <td class="nw">${dt_(v.criada_em)}<br><small style="color:var(--ink3)">${esc(v.criada_por || '')}</small></td><td class="nw">${dt_(v.aprovada_em)}</td>
+      <td class="nw">${v.codigo !== est.versao ? `<button class="btn" data-vabre="${esc(v.codigo)}">Abrir</button> ` : ''}${ctl ? `<button class="btn" data-vnova="${esc(v.codigo)}">Nova rodada a partir desta</button> ` +
+        (['RASCUNHO'].includes(v.status) ? `<button class="btn" data-vst="${esc(v.codigo)}|EM REVISÃO">Em revisão</button> ` : '') +
+        (['RASCUNHO', 'EM REVISÃO'].includes(v.status) ? `<button class="btn primary" data-vst="${esc(v.codigo)}|APROVADA FINAL">Aprovar como FINAL</button>` : '') : ''}</td></tr>`).join('')}
+  </tbody></table></div>
   <div class="row2">
-   <div class="card"><h3>Versões do orçamento 2027</h3><div class="csub">A nova versão nasce de uma cópia da vigente (fase 2), com registro de quem criou e quando.</div>
-    <div class="tw solta"><table class="t"><thead><tr><th>Versão</th><th>Origem</th><th>Data</th><th>Situação</th></tr></thead><tbody>
-     <tr><td><b>${esc(D.meta.versao)}</b></td><td>${esc(D.meta.arquivo)}</td><td>${esc(D.meta.arquivo_mod)}</td><td><span class="tag g">em uso</span></td></tr>
-     <tr><td style="color:var(--ink3)">V2 · revisão inicial</td><td style="color:var(--ink3)">após 15/11</td><td>—</td><td><span class="tag">prevista</span></td></tr>
-     <tr><td style="color:var(--ink3)">V3 · revisão final</td><td style="color:var(--ink3)">até 30/11</td><td>—</td><td><span class="tag">prevista</span></td></tr></tbody></table></div></div>
    <div class="card"><h3>Cenários de receita 2027</h3><div class="csub">Curva mensal do faturamento</div>
-    ${Object.entries(rec).filter(([k]) => k !== 'Adotado').map(([k, r]) => `<div class="sumline"><span class="t">${esc(k)} ${k === D.meta.cenario ? '<span class="tag g">calculado</span>' : '<span class="tag">motor — fase 3</span>'}<br><small style="color:var(--ink3)">${esc(r.rotulo)}</small></span><span class="v">${rsC(r.tot)}</span></div>`).join('')}
-    <div class="legend"><i><span class="sw" style="background:#C8102E"></span>P&amp;D</i><i><span class="sw" style="background:#1F6FEB"></span>Plano TCP</i></div>
+    ${Object.entries(rec).filter(([k]) => k !== 'Adotado').map(([k, r]) => `<div class="sumline"><span class="t">${esc(k)} ${k === D.meta.cenario ? '<span class="tag g">calculado</span>' : '<span class="tag">motor — fase 3</span>'}<br><small style="color:var(--ink3)">${esc(r.rotulo)}</small></span><span class="v">${rsC(r.tot)}</span></div>`).join('')}</div>
+   <div class="card"><div class="legend"><i><span class="sw" style="background:#C8102E"></span>P&amp;D</i><i><span class="sw" style="background:#1F6FEB"></span>Plano TCP</i></div>
     ${grafLinhas([{ t: 'P&D', v: rec['P&D'].m, cor: '#C8102E' }, { t: 'Plano TCP', v: rec['Plano TCP'].m, cor: '#1F6FEB', tr: true }])}</div>
   </div>
   <div class="tw solta"><table class="t dre"><thead><tr><th class="fx">DRE — lado a lado</th><th class="n">Base 2026</th><th class="n">Orçado 2027 (${esc(D.meta.cenario)})</th><th class="n">Plano TCP 2027</th><th class="n">Δ orçado × TCP</th><th class="n">Δ orçado × base</th></tr></thead><tbody>
@@ -697,11 +871,33 @@ TELAS.versoes = () => {
   </tbody></table></div>`;
 };
 
+POS.versoes = () => {
+  const aviso = (x, erro) => { const el = $('vrAviso'); el.hidden = false; el.className = erro ? 'aviso' : 'ok-box'; el.textContent = x; };
+  document.querySelectorAll('#tela [data-vabre]').forEach(b => b.onclick = () => trocaVersao(b.dataset.vabre));
+  document.querySelectorAll('#tela [data-vnova]').forEach(b => b.onclick = async () => {
+    const base = b.dataset.vnova, prox = 'V' + (Math.max(0, ...est.versoes.map(v => +v.codigo.slice(1) || 0)) + 1);
+    const nome = prompt(`Nome da nova rodada ${prox} (cópia de ${base}):`, `${prox} · revisão`); if (!nome) return;
+    if (window.ORC_FONTE_LOCAL) { est.versoes.push({ codigo: prox, nome, status: 'RASCUNHO', origem: 'cópia de ' + base, criada_em: new Date().toISOString(), criada_por: 'prévia' }); montaSeletores(); desenha(); aviso('Prévia local: rodada criada só nesta tela.'); return; }
+    const { error } = await SB.rpc('orc_nova_versao', { p_codigo: prox, p_nome: nome, p_base: base });
+    if (error) return aviso('Não foi possível criar: ' + error.message, true);
+    await trocaVersao(prox);
+  });
+  document.querySelectorAll('#tela [data-vst]').forEach(b => b.onclick = async () => {
+    const [cod, st] = b.dataset.vst.split('|');
+    if (st === 'APROVADA FINAL' && !confirm(`Aprovar ${cod} como versão FINAL do orçamento 2027? Ela passa a ser a referência do Orçado × Realizado e fica fechada para edição (a final anterior vira SUBSTITUÍDA).`)) return;
+    if (window.ORC_FONTE_LOCAL) { est.versoes.forEach(v => { if (st === 'APROVADA FINAL' && v.status === 'APROVADA FINAL') v.status = 'SUBSTITUÍDA'; if (v.codigo === cod) { v.status = st; if (st === 'APROVADA FINAL') { v.aprovada_em = new Date().toISOString(); v.aprovada_por = 'prévia'; } } }); montaSeletores(); desenha(); return; }
+    const { error } = await SB.rpc('orc_status_versao', { p_codigo: cod, p_status: st });
+    if (error) return aviso('Não foi possível mudar a situação: ' + error.message, true);
+    await trocaVersao(est.versao);
+  });
+};
+
 /* ---------------------------------------------------------------- ACOMPANHAMENTO */
 TELAS.orcreal = () => {
   const m = est.per === 'ano' ? 0 : +est.per, L = linhasVis(), tol = D.meta.tolerancia;
   const g = {}; L.forEach(l => { const x = g[l.gc] ||= { om: 0, oa: 0 }; x.om += l.mf[m]; x.oa += soma(l.mf.slice(0, m + 1)); });
   return `${cabecalho('Orçado × Realizado — ' + mesTxt(m), `Semáforo pela tolerância (${pc(tol, 2)}): <span class="sem g"></span> dentro · <span class="sem y"></span> até 2× a tolerância · <span class="sem r"></span> acima de 2× · <span class="sem c"></span> aguardando realizado. Abertura: área → conta → lançamento.`)}
+  <div class="info">Versão de referência: ${(() => { const f = (est.versoes || []).find(v => v.status === 'APROVADA FINAL'); return f ? `<b>${esc(f.codigo)} · ${esc(f.nome || '')}</b> (FINAL aprovada)` : `<b>${esc(est.versao)}</b> — provisória (nenhuma versão aprovada como FINAL)`; })()}</div>
   <div class="aviso">O realizado de 2027 entra com a carga do Protheus a partir do fechamento de <b>jan/2027</b>. A grade abaixo já mostra o orçado (final pela decisão) do mês e do acumulado; escolha o mês no seletor <b>Período</b>.</div>
   <div class="tw solta"><table class="t"><thead><tr><th></th><th>Área</th><th class="n">Orçado ${mesTxt(m)}</th><th class="n">Realizado</th><th class="n">Δ</th><th class="n">Δ %</th><th class="n">Orçado acum. jan–${MESES[m]}</th><th class="n">Realizado acum.</th><th class="n">Δ acum.</th><th>Explicação</th></tr></thead><tbody>
   ${Object.entries(g).map(([k, x]) => `<tr><td><span class="sem c"></span></td><td>${esc(k)}</td>${tdN(x.om)}<td class="n">—</td><td class="n">—</td><td class="n">—</td>${tdN(x.oa)}<td class="n">—</td><td class="n">—</td><td style="color:var(--ink3)">—</td></tr>`).join('')}
