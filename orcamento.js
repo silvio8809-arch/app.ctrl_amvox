@@ -1082,7 +1082,7 @@ TELAS.sis_checks = () => {
   const C = D.checks, fil = est.f.ckSt, rows = C.rows.filter(r => !fil || r[3] === fil), cont = {}; C.rows.forEach(r => cont[r[3]] = (cont[r[3]] || 0) + 1);
   const A = checksApp(), aOk = A.every(x => x[2]);
   if (!RAZAO) carregaRazao().then(() => est.tela === 'sis_checks' && desenha()).catch(() => { });
-  return `${cabecalho('Checks de integridade', 'Duas camadas: (1) o app refaz no navegador as somas a partir das linhas e compara com o PT; (2) os 54 testes do PT (integridade, pendências e auditorias).')}
+  return `${cabecalho('Checks de integridade', `Duas camadas: (1) o app refaz no navegador as somas a partir das linhas e compara com o PT; (2) os ${C.rows.length} testes do PT (integridade, pendências e auditorias).`)}
   <div class="${aOk ? 'ok-box' : 'aviso'}"><b>${aOk ? '✓ O app confere com o PT em todos os testes.' : '⚠️ Há divergência entre o app e o PT — ver abaixo.'}</b></div>
   <div class="tw solta"><table class="t"><thead><tr><th>Conferência app × PT</th><th class="n">Diferença</th><th>Resultado</th></tr></thead><tbody>
    ${A.map(([n, v, k]) => `<tr><td>${esc(n)}</td><td class="n">${typeof v === 'number' ? v.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) : esc(v)}</td><td class="nw"><span class="ck ${k ? 'ok' : 'no'}">${k ? '✓ CONFERE' : '✗ DIVERGE'}</span></td></tr>`).join('')}
@@ -1115,4 +1115,5 @@ TELAS.sis_bases = () => {
    ${cargas.map(c => `<tr><td>${esc(c[0])}</td><td><code>${esc(c[1])}</code></td><td>${esc(c[2])}</td><td>${esc(c[3])}</td></tr>`).join('')}</tbody></table></div>`;
 };
 
+if (typeof instalaOrcDre === 'function') instalaOrcDre();   // 13/11/2026: DRE (rótulos + detalhe por linha) e Premissas orçamentárias — orcamento_dre.js
 inicia();
