@@ -708,7 +708,7 @@ TELAS.folha = () => {
         return `<tr ${FOLHA.sujo.has(x.id) ? 'style="background:#FFF7E6"' : ''}><td class="fx nw"><b>${esc(x.id)}</b></td><td class="nw">${esc(x.area)}</td>
           <td>${cad ? inp(x.id, 'funcao', x.funcao, false, 180, 'text') : esc(x.funcao || '')}</td>
           <td>${cad ? sel(x.id, 'tipo', ['CLT', 'APRENDIZ', 'ESTAGIÁRIO', 'PJ'], x.tipo) : esc(x.tipo)}</td>
-          <td>${cad ? sel(x.id, 'convencao', ['BA', 'SP'], x.convencao) : esc(x.convencao)}</td><td>${esc(x.admissao || '')}</td>
+          <td>${cad ? sel(x.id, 'convencao', ['BA', 'SP', 'SEM BENEFÍCIO'], x.convencao) : esc(x.convencao)}</td><td>${esc(x.admissao || '')}</td>
           <td class="n">${cad ? inp(x.id, 'salario', x.salario, false, 90) : fmt(+x.salario, { uni: 'R$', dec: 2 })}</td>${tdN(+x.adicional, { uni: 'R$', dec: 2 })}
           <td>${cad ? sel(x.id, 'plano', ['S', 'N'], x.plano) : esc(x.plano)}</td><td>${esc(x.afastado)}</td>
           <td class="ed">${inp(x.id, 'qtd', x.qtd, !e, 55)}</td><td class="ed">${inp(x.id, 'mes_adm', x.mes_adm, !e, 55)}</td><td class="ed">${inp(x.id, 'mes_desl', x.mes_desl, !e, 55)}</td>
@@ -995,7 +995,7 @@ POS.aud_anom = () => { $('anArea').onchange = e => { est.f.anArea = e.target.val
   document.querySelectorAll('#tela tr[data-area]').forEach(tr => tr.onclick = () => { est.f.anArea = tr.dataset.area; desenha(); }); };
 
 /* ---------------------------------------------------------------- CONFIGURAÇÃO (tabelas genéricas) */
-const FILTRAVEIS = /^(STATUS|SITUAÇÃO|RUBRICA|NATUREZA|CENTRALIZADA|DEPTO GESTOR|LINHA DA DRE|MÉTODO|SETOR|SETOR ORÇAMENTÁRIO|ÁREA RESPONSÁVEL|ÁREA PREDOMINANTE|LINHA DRE TCP|GRUPO|LISTA DO COMUNICADO|REAJUSTE|RATEIO|PREVALECE|CAIXA|AUDITAR)/;
+const FILTRAVEIS = /^(TIPO DE PJ|CONTA × TIPO|BENEFÍCIO|ÁREA PELO TIPO|STATUS|SITUAÇÃO|RUBRICA|NATUREZA|CENTRALIZADA|DEPTO GESTOR|LINHA DA DRE|MÉTODO|SETOR|SETOR ORÇAMENTÁRIO|ÁREA RESPONSÁVEL|ÁREA PREDOMINANTE|LINHA DRE TCP|GRUPO|LISTA DO COMUNICADO|REAJUSTE|RATEIO|PREVALECE|CAIXA|AUDITAR)/;
 function telaCfg(chave, titulo, desc) {
   const b = D['cfg_' + chave], fk = 'cfg_' + chave, f = est.f[fk] ||= { filtros: {}, ord: null, lim: 200 };
   const filtraveis = b.cols.map((c, i) => [c, i]).filter(([c, i]) => FILTRAVEIS.test(c) && new Set(b.rows.map(r => r[i])).size <= 60);
