@@ -1120,4 +1120,5 @@ TELAS.sis_bases = () => {
 };
 
 if (typeof instalaOrcDre === 'function') instalaOrcDre();   // 13/11/2026: DRE (rótulos + detalhe por linha) e Premissas orçamentárias — orcamento_dre.js
+if (typeof instalaOrcContratos === 'function') instalaOrcContratos();   // 13/11/2026: Contratos recorrentes 2027 (inclusão/alteração/exclusão) — orcamento_contratos.js
 inicia();
