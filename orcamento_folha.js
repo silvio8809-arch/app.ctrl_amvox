@@ -42,7 +42,8 @@ function folhaPosicao(x, P) {
 function folhaDirecionadores(linhas, area, cen, P) {
   const L = linhas.filter(l => l.x.area === area), z = () => Array(12).fill(0);
   const D = { REM: z(), REM_APR: z(), PL: z(), PJ: z(), HE: z(), ABONO: z(), RETRO: z(), AVISO: z(), MULTA: z(), AJ13: z(), AJFER: z(),
-    HC_BA: z(), HC_SP: z(), HCP_BA: z(), HCP_SP: z(), HCO_BA: z(), HCO_SP: z() };
+    HC_BA: z(), HC_SP: z(), HCP_BA: z(), HCP_SP: z(), HCO_BA: z(), HCO_SP: z(), HCG_BA: z(), HCG_SP: z() };
+  const ger = l => /^GERENTE/.test(String(l.x.funcao || '').toUpperCase());   // 13/11/2026: Flash dos gerentes (combustível + refeição)
   // Silvio 13/11/2026: diretores (reembolso de combustível) e gerentes (benefícios no cartão Flash) não recebem o benefício OPERACIONAL (fretado)
   const oper = l => !/^(DIRETOR|GERENTE)/.test(String(l.x.funcao || '').toUpperCase());
   const ar = (P.areas || {})[area] || {}, he = +ar.he || 0;
@@ -69,12 +70,14 @@ function folhaDirecionadores(linhas, area, cen, P) {
       if (cv === 'SP' && pl) D.HCP_SP[i] += at[i];
       if (cv === 'BA' && !l.PL && oper(l)) D.HCO_BA[i] += at[i];
       if (cv === 'SP' && !l.PL && oper(l)) D.HCO_SP[i] += at[i];
+      if (cv === 'BA' && !l.PL && ger(l)) D.HCG_BA[i] += at[i];
+      if (cv === 'SP' && !l.PL && ger(l)) D.HCG_SP[i] += at[i];
     }
   }
   for (let i = 0; i < 12; i++) D.HE[i] = D.REM[i] * he * (+P.curvas.he[i] || 0);
   // mês-base (calibração): quadro atual sem dissídio, HE real jul–out, sem eventos
   const B = { REM: 0, REM_APR: 0, PL: 0, PJ: 0, HE: 0, ABONO: 0, RETRO: 0, AVISO: 0, MULTA: 0, AJ13: 0, AJFER: 0, HC_BA: 0, HC_SP: 0, HCP_BA: 0, HCP_SP: 0,
-    HCO_BA: 0, HCO_SP: 0 };
+    HCO_BA: 0, HCO_SP: 0, HCG_BA: 0, HCG_SP: 0 };
   for (const l of L) {
     B.REM += l.BW; if (l.x.tipo === 'APRENDIZ') B.REM_APR += l.BW;
     if (l.PL) B.PL += l.Z; if (l.PJ) B.PJ += l.Z;
@@ -83,6 +86,7 @@ function folhaDirecionadores(linhas, area, cen, P) {
     if (cv === 'BA' && !l.PL) B.HC_BA += l.BK; if (cv === 'SP' && !l.PL) B.HC_SP += l.BK;
     if (cv === 'BA' && pl) B.HCP_BA += l.BK; if (cv === 'SP' && pl) B.HCP_SP += l.BK;
     if (cv === 'BA' && !l.PL && oper(l)) B.HCO_BA += l.BK; if (cv === 'SP' && !l.PL && oper(l)) B.HCO_SP += l.BK;
+    if (cv === 'BA' && !l.PL && ger(l)) B.HCG_BA += l.BK; if (cv === 'SP' && !l.PL && ger(l)) B.HCG_SP += l.BK;
   }
   D.base = B;
   return D;
@@ -126,8 +130,8 @@ function folhaComponentes(D, area, cen, P) {
     }
   }
   for (const b of P.beneficios) {
-    const hc = k => (b.conv === 'SP' ? 0 : (b.quem === 'PLANO' ? val('HCP_BA', k) : b.quem === 'OPERACIONAL' ? val('HCO_BA', k) : val('HC_BA', k)))
-      + (b.conv === 'BA' ? 0 : (b.quem === 'PLANO' ? val('HCP_SP', k) : b.quem === 'OPERACIONAL' ? val('HCO_SP', k) : val('HC_SP', k)));
+    const hc = k => (b.conv === 'SP' ? 0 : (b.quem === 'PLANO' ? val('HCP_BA', k) : b.quem === 'OPERACIONAL' ? val('HCO_BA', k) : b.quem === 'GERENTE' ? val('HCG_BA', k) : val('HC_BA', k)))
+      + (b.conv === 'BA' ? 0 : (b.quem === 'PLANO' ? val('HCP_SP', k) : b.quem === 'OPERACIONAL' ? val('HCO_SP', k) : b.quem === 'GERENTE' ? val('HCG_SP', k) : val('HC_SP', k)));
     const m = []; for (let i = 0; i < 12; i++) m.push(hc(i) * (+b.valor || 0) * (1 + ((i + 1) >= (+b.mes || 13) ? (+b.reaj || 0) : 0)));
     out.push({ cenario: cen, area, componente: b.nome, destino: 'DESPESA', conta: +b.conta, setor_final: setorFinal(b.conta), m,
       base: cen === 'MODELO' ? hc('base') * (+b.valor || 0) : null });
