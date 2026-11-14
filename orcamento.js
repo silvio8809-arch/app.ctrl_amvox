@@ -739,8 +739,8 @@ TELAS.folha = () => {
       ${Object.entries(P.p).map(([k, v_]) => `<tr><td>${esc(ROT[k] || k)}</td><td class="ed n">${typeof v_ === 'string' ? `<select data-fp="p.${k}" ${pe ? '' : 'disabled'}><option ${v_ === 'S' ? 'selected' : ''}>S</option><option ${v_ === 'N' ? 'selected' : ''}>N</option></select>` : pin(`p.${k}${v_ > 0 && v_ < 1 ? '%' : ''}`, v_ > 0 && v_ < 1 ? +(v_ * 100).toFixed(4) : v_)}</td></tr>`).join('')}
     </tbody></table></div><div class="csub">percentuais em pontos (20 = 20%)</div></div>
   </div>
-  <div class="tw solta"><table class="t"><thead><tr><th>Benefício</th><th class="ed n">R$/pessoa/mês</th><th class="ed n">Reajuste %</th><th class="ed n">Mês</th><th>Quem</th><th>Convenção</th><th>Conta</th></tr></thead><tbody>
-    ${P.beneficios.map((b, i) => `<tr><td>${esc(b.nome)}</td><td class="ed">${pin(`beneficios.${i}.valor`, +(+b.valor).toFixed(2), 90)}</td><td class="ed">${pin(`beneficios.${i}.reaj%`, +(b.reaj * 100).toFixed(2), 60)}</td><td class="ed">${pin(`beneficios.${i}.mes`, b.mes > 12 ? '' : b.mes, 50)}</td><td>${esc(b.quem)}</td><td>${esc(b.conv)}</td><td>${esc(b.conta)}</td></tr>`).join('')}
+  <div class="tw solta"><table class="t"><thead><tr><th>Benefício</th><th class="ed n">R$/pessoa/mês</th><th class="ed n">Reajuste %</th><th class="ed n">Mês</th><th>Quem</th><th>Convenção</th><th>Conta</th><th class="ed" title="Raiz do CNPJ (8 dígitos) do fornecedor deste benefício; vários separados por ponto e vírgula. No painel Fornecedores × meses, o esperado desse fornecedor passa a ser o do simulador (quadro da área × valor por pessoa).">Fornecedor do benefício (raiz do CNPJ)</th></tr></thead><tbody>
+    ${P.beneficios.map((b, i) => `<tr><td>${esc(b.nome)}</td><td class="ed">${pin(`beneficios.${i}.valor`, +(+b.valor).toFixed(2), 90)}</td><td class="ed">${pin(`beneficios.${i}.reaj%`, +(b.reaj * 100).toFixed(2), 60)}</td><td class="ed">${pin(`beneficios.${i}.mes`, b.mes > 12 ? '' : b.mes, 50)}</td><td>${esc(b.quem)}</td><td>${esc(b.conv)}</td><td>${esc(b.conta)}</td><td class="ed">${pin(`beneficios.${i}.forn`, (b.forn || []).join('; '), 150, 'text')}</td></tr>`).join('')}
   </tbody></table></div>
   <div class="card"><h3>Efeito de caixa — 13º e férias <small>cenário MODELO · R$ mil</small></h3><div class="tw solta"><table class="t"><thead><tr><th>Linha</th>${MESES.map(x => `<th class="n">${x}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>
     ${caixa.map(([n, a], i) => `<tr ${i === 4 ? 'style="font-weight:700"' : ''}><td class="nw">${esc(n)}</td>${a.map(x => tdN(x, { uni: 'mil', dec: 0 })).join('')}${tdN(soma(a), { uni: 'mil', dec: 0 })}</tr>`).join('')}</tbody></table></div></div>`;
@@ -777,6 +777,12 @@ POS.folha = () => {
     let path = el.dataset.fp, pct = path.endsWith('%'); if (pct) path = path.slice(0, -1);
     const ks = path.split('.'); let o = FOLHA.P; for (let i = 0; i < ks.length - 1; i++) o = o[ks[i]];
     const k = ks[ks.length - 1], v = el.tagName === 'SELECT' ? el.value : (el.value === '' ? (k === 'mes' ? 13 : 0) : (pct ? +el.value / 100 : +el.value));
+    if (k === 'forn') {   // 14/11/2026: fornecedor do benefício (painel Fornecedores × meses) = raízes de CNPJ; aceita o CNPJ inteiro
+      const L = [...new Set(String(el.value).split(/[;,\s]+/).filter(Boolean).map(c => { c = c.replace(/\D/g, ''); return c.length === 14 ? c.slice(0, 8) : c; }))];
+      if (L.some(c => c.length !== 8)) { alert('Informe a raiz do CNPJ (os 8 primeiros dígitos) ou o CNPJ inteiro; vários separados por ponto e vírgula.'); el.value = (o.forn || []).join('; '); return; }
+      if (L.length) o.forn = L; else delete o.forn;
+      el.value = L.join('; '); FOLHA.premSuja = true; marca(); return;
+    }
     o[k] = v; if (path.startsWith('dissidio')) { const d = FOLHA.P.dissidio[+ks[1]]; d.atraso = Math.max(0, (+d.ap || 0) - (+d.db || 0)); }
     FOLHA.premSuja = true; marca();
   });
@@ -1129,4 +1135,5 @@ if (typeof instalaOrcDre === 'function') instalaOrcDre();   // 13/11/2026: DRE (
 if (typeof instalaOrcContratos === 'function') instalaOrcContratos();   // 13/11/2026: Contratos recorrentes 2027 (inclusão/alteração/exclusão) — orcamento_contratos.js
 if (typeof instalaOrcDepara === 'function') instalaOrcDepara();         // 13/11/2026: Central de de-para por fornecedor + auditoria CC × conta — orcamento_depara.js
 if (typeof instalaOrcExporta === 'function') instalaOrcExporta();       // 14/11/2026: Excel e PDF da DRE 2027, da DRE TCP e da Folha 2027 (simulador) — orcamento_exporta.js
+if (typeof instalaOrcFornecedores === 'function') instalaOrcFornecedores();   // 14/11/2026: painel Fornecedores × meses (lacunas do orçado por fornecedor) — orcamento_fornecedores.js
 inicia();
