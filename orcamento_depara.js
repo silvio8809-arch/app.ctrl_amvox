@@ -7,9 +7,13 @@
    Dados: tabelas orc_depara_fornecedor / orc_depara_excecao (migração 050; GLOBAIS — não são por versão; só a Controladoria altera; histórico em
    orc_alteracao). Prévia local: D.central_dados (alterações só na tela).
    🔴 Desde 14/11/2026 esta central é a MESTRA: o gerador do PT a lê a cada geração e a grava no PT (não há planilha à parte); só regra VALIDADA
-   entra na alocação. central_depara.py --grava só INCLUI fornecedor novo como sugestão (não altera linha existente). */
+   entra na alocação. central_depara.py --grava só INCLUI fornecedor novo como sugestão (não altera linha existente).
+   🔴 14/11/2026 — APELIDOS DE FORNECEDOR (tabela orc_fornecedor_apelido, migração 051; cartão "Apelidos" desta tela): o nome que o gestor escreve no
+   orçamento (nome fantasia, nome antigo, abreviação) → fornecedor da base. O painel Fornecedores × meses casa os nomes com esta lista na hora (CONFIRMADO casa;
+   PENDENTE fica registrado, com a observação, e não casa); o gerador do PT a lê a cada geração. Nada de planilha nem de constante. */
 const CEN = { pronto: false, carregando: false, erro: null, rows: [], exc: [], sujo: new Set(), sujoExc: new Set(), apagar: new Set(), apagarExc: new Set(),
-  noBanco: new Set(), noBancoExc: new Set(), msg: null, aud: null, audRev: -1, audRz: null, rev: 0 };
+  noBanco: new Set(), noBancoExc: new Set(), msg: null, aud: null, audRev: -1, audRz: null, rev: 0,
+  ap: [], apP: null, apPronto: false, apErro: null, sujoAp: new Set(), apagarAp: new Set(), noBancoAp: new Set() };
 const CEN_CAMPOS = ['modo', 'cc_exclusivo', 'todos_ccs', 'ccs_permitidos', 'conta', 'status', 'observacao'];
 
 const cenEq = c => { c = String(c ?? ''); return c.startsWith('3110301') ? '3120101' + c.slice(-3) : c; };   // custo × despesa do mesmo item = mesma conta
@@ -24,6 +28,25 @@ const cenCC = cc => cenCCs().find(x => x.cc === String(cc)) || null;
 const cenNorm = x => ({ ...x, conta: x.conta == null || x.conta === '' ? null : +x.conta, ccs_permitidos: [...(x.ccs_permitidos || [])], todos_ccs: !!x.todos_ccs });
 const cenRegraTxt = r => r.modo === 'EXCLUSIVO' ? `EXCLUSIVO ${r.cc_exclusivo || '—'}` : (r.todos_ccs ? 'MÚLTIPLO — todos' : `MÚLTIPLO — ${(r.ccs_permitidos || []).length} CC(s)`);
 const cenRegraOk = r => (r.modo === 'EXCLUSIVO' && !!r.cc_exclusivo) || (r.modo === 'MÚLTIPLO' && (r.todos_ccs || (r.ccs_permitidos || []).length > 0));
+const cenPend = () => CEN.sujo.size + CEN.sujoExc.size + CEN.apagar.size + CEN.apagarExc.size + CEN.sujoAp.size + CEN.apagarAp.size;
+// apelido normalizado: MAIÚSCULAS, sem acento, só letras, números e espaço (mesma regra do casamento do painel e do gerador do PT)
+const cenApId = s => String(s || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+const cenApCnpjs = v => [...new Set(String(v || '').split(/[;,\s]+/).filter(Boolean).map(c => { c = c.replace(/\D/g, ''); return c.length === 14 ? c.slice(0, 8) : c; }))];   // CNPJ inteiro → raiz
+
+function cenCarregaApelidos() {                            // leve (não depende do razão); global, não é por versão do orçamento
+  if (CEN.apP) return CEN.apP;
+  return CEN.apP = (async () => {
+    try {
+      const L = window.ORC_FONTE_LOCAL ? (D.apelidos_dados || []) : await selTodos(() => SB.from('orc_fornecedor_apelido').select('*').order('id'));
+      CEN.ap = L.map(a => ({ ...a, cnpjs: [...(a.cnpjs || [])] })); CEN.apErro = null;
+    } catch (e) {
+      CEN.apErro = /orc_fornecedor_apelido/.test(e.message || '') || e.code === '42P01' || e.code === 'PGRST205'
+        ? 'A lista de apelidos ainda não existe no banco (migração 051 pendente): por enquanto os nomes digitados pelos gestores são casados só pela razão social.' : (e.message || String(e));
+      CEN.ap = [];
+    }
+    CEN.noBancoAp = new Set(CEN.ap.map(a => a.id)); CEN.sujoAp.clear(); CEN.apagarAp.clear(); CEN.apPronto = true; CEN.rev++;
+  })();
+}
 
 async function cenCarrega() {
   if (CEN.carregando) return;
@@ -44,6 +67,7 @@ async function cenCarrega() {
   }
   CEN.noBanco = new Set(CEN.rows.map(r => r.id)); CEN.noBancoExc = new Set(CEN.exc.map(e => e.id));
   CEN.sujo.clear(); CEN.sujoExc.clear(); CEN.apagar.clear(); CEN.apagarExc.clear();
+  await cenCarregaApelidos();
   CEN.pronto = true; CEN.carregando = false; CEN.rev++;
   if (est.tela === 'cfg_central' || est.tela === 'aud_central') desenha();
 }
@@ -92,14 +116,16 @@ function cenMuda(id, exc = false) { (exc ? CEN.sujoExc : CEN.sujo).add(id); CEN.
 async function cenSalva() {
   const ruins = CEN.rows.filter(r => CEN.sujo.has(r.id) && !cenRegraOk(r)).concat(CEN.exc.filter(e => CEN.sujoExc.has(e.id) && !cenRegraOk(e)));
   if (ruins.length) { cenAviso(`Regra incompleta em ${ruins.length} linha(s): EXCLUSIVO precisa do centro de custo; MÚLTIPLO precisa de TODOS ou de pelo menos um CC (${ruins[0].nome || ruins[0].id}).`, true); return false; }
-  const n = CEN.sujo.size + CEN.sujoExc.size + CEN.apagar.size + CEN.apagarExc.size;
+  const apRuim = CEN.ap.find(a => CEN.sujoAp.has(a.id) && (!String(a.fornecedor || '').trim() || (a.cnpjs || []).some(c => !/^\d{8}$/.test(c))));
+  if (apRuim) { cenAviso(`Apelido ${apRuim.id}: informe a razão social e, se houver CNPJ, a raiz com 8 dígitos.`, true); return false; }
+  const n = cenPend(), nAp = CEN.sujoAp.size + CEN.apagarAp.size;
   if (!n) return true;
   if (window.ORC_FONTE_LOCAL) {
     const agora_ = new Date().toISOString();
     CEN.rows.forEach(r => { if (CEN.sujo.has(r.id)) r.atualizado_em = agora_; }); CEN.exc.forEach(e => { if (CEN.sujoExc.has(e.id)) e.atualizado_em = agora_; });
     CEN.apagados = (CEN.apagados || 0) + CEN.apagar.size + CEN.apagarExc.size;
-    CEN.sujo.forEach(id => CEN.noBanco.add(id)); CEN.sujoExc.forEach(id => CEN.noBancoExc.add(id));
-    CEN.sujo.clear(); CEN.sujoExc.clear(); CEN.apagar.clear(); CEN.apagarExc.clear();
+    CEN.sujo.forEach(id => CEN.noBanco.add(id)); CEN.sujoExc.forEach(id => CEN.noBancoExc.add(id)); CEN.sujoAp.forEach(id => CEN.noBancoAp.add(id));
+    CEN.sujo.clear(); CEN.sujoExc.clear(); CEN.apagar.clear(); CEN.apagarExc.clear(); CEN.sujoAp.clear(); CEN.apagarAp.clear();
     cenAviso('Prévia local: alterações guardadas só nesta tela (no app publicado vão para o banco, com histórico de quem e quando).'); return true;
   }
   try {
@@ -121,7 +147,17 @@ async function cenSalva() {
       else { const { error } = await SB.from('orc_depara_excecao').insert({ id: e.id, fornecedor: e.fornecedor, conta: e.conta, origem_regra: e.origem_regra, ...campos }); if (error) throw error; CEN.noBancoExc.add(id); }
       e.atualizado_em = new Date().toISOString(); CEN.sujoExc.delete(id);
     }
-    cenAviso('✓ Alterações salvas (com histórico de quem e quando). A alocação do orçamento muda na próxima geração do PT, que lê esta central.'); return true;
+    for (const id of CEN.apagarAp) { if (CEN.noBancoAp.has(id)) { const { error } = await SB.from('orc_fornecedor_apelido').delete().eq('id', id); if (error) throw error; } CEN.noBancoAp.delete(id); }
+    CEN.apagarAp.clear();
+    for (const id of [...CEN.sujoAp]) {
+      const a = CEN.ap.find(x => x.id === id); if (!a) { CEN.sujoAp.delete(id); continue; }
+      const campos = { fornecedor: String(a.fornecedor).trim(), cnpjs: a.cnpjs || [], situacao: a.situacao || 'CONFIRMADO', observacao: a.observacao || null, fonte: a.fonte || null };
+      if (CEN.noBancoAp.has(id)) { const { error } = await SB.from('orc_fornecedor_apelido').update(campos).eq('id', id); if (error) throw error; }
+      else { const { error } = await SB.from('orc_fornecedor_apelido').insert({ id, ...campos }); if (error) throw error; CEN.noBancoAp.add(id); }
+      a.atualizado_em = new Date().toISOString(); CEN.sujoAp.delete(id);
+    }
+    cenAviso('✓ Alterações salvas (com histórico de quem e quando).' + (n > nAp ? ' A alocação do orçamento muda na próxima geração do PT, que lê esta central.' : '')
+      + (nAp ? ' Os apelidos já valem no painel Fornecedores × meses; o PT os lê na próxima geração.' : '')); return true;
   } catch (e) { cenAviso('Não foi possível salvar: ' + (e.message || e), true); return false; }
 }
 
@@ -150,11 +186,11 @@ function telaCentral() {
   const base = CEN.rows.filter(r => casa(r, aud.forn.get(r.id)));
   const cont = k => base.filter(filtros[k]).length;
   const foraL = [...aud.fora.values()].filter(a => !busca || `${a.nome} ${a.id}`.toUpperCase().includes(busca)).sort((x, y) => Math.abs(y.v) - Math.abs(x.v));
-  let L_ = card && card !== 'fora' ? base.filter(filtros[card]) : base;
+  let L_ = card && card !== 'fora' && card !== 'apel' ? base.filter(filtros[card]) : base;
   const val = r => (aud.forn.get(r.id) || { v: 0 }).v;
   L_ = L_.slice().sort((x, y) => Math.abs(val(y)) - Math.abs(val(x)) || x.nome.localeCompare(y.nome));
   const ccs = cenCCs(), nAn = soma(base, r => ((aud.forn.get(r.id) || {}).anom || []).length), vAn = soma(base, r => (aud.forn.get(r.id) || {}).vAnom || 0);
-  const pend = CEN.sujo.size + CEN.sujoExc.size + CEN.apagar.size + CEN.apagarExc.size;
+  const pend = cenPend();
   const kp = (k, lab, v, meta, cls = '') => `<button class="kpi ${cls} ${card === k ? 'sel' : ''}" data-cencard="${k}"><div class="lab">${lab}</div><div class="val">${v}</div><div class="meta">${meta}</div></button>`;
   const linha = r => {
     const a = aud.forn.get(r.id) || { v: 0, n: 0, ccs: {}, contas: {}, anom: [], vAnom: 0 }, usados = cenTop(a.ccs).filter(([, v]) => Math.abs(v) >= 0.01);
@@ -187,8 +223,9 @@ function telaCentral() {
     ${kp('alguns', 'Múltiplo — alguns', cont('alguns'), 'lista de centros de custo', 'k5')}${kp('validar', 'A validar', cont('validar'), 'sugestão ainda não confirmada', 'k2')}
     ${kp('anom', 'Com anomalia', cont('anom'), `${nAn} lançamento(s) · ${rsC(vAn)}`, 'k3')}
     ${kp('fora', 'Fora da central', foraL.length, `${rsC(soma(foraL, a => a.v))} · seguem a conta e o CC`)}
+    ${kp('apel', 'Apelidos', CEN.ap.length, `como os gestores escrevem${CEN.ap.some(a => a.situacao === 'PENDENTE') ? ` · ${CEN.ap.filter(a => a.situacao === 'PENDENTE').length} pendente(s)` : ''}`, 'k2')}
   </section>
-  ${card === 'fora' ? `<div class="card"><h3>Fornecedores fora da central <small>${foraL.length} · seguem a regra da conta e do centro de custo</small></h3>
+  ${card === 'apel' ? cenApelidosHTML(ed, pend) : card === 'fora' ? `<div class="card"><h3>Fornecedores fora da central <small>${foraL.length} · seguem a regra da conta e do centro de custo</small></h3>
     <div class="csub">Para auditar um fornecedor por centro de custo e conta, inclua-o na central (a sugestão vem do comportamento de jul–out: 90% ou mais num CC = exclusivo).</div>
     <div class="tw" style="margin-top:6px"><table class="t"><thead><tr><th class="fx">Fornecedor</th><th class="n">Valor jul–out</th><th>Meses</th><th>CCs usados</th><th>Contas</th><th>Sugestão</th><th></th></tr></thead><tbody>
     ${foraL.slice(0, 200).map(a => { const s = cenSugere(a); return `<tr><td class="fx w"><b>${esc(a.nome || a.id)}</b><br><small style="color:var(--ink3)">${esc(a.id.slice(1))}</small></td>${tdN(a.v)}<td>${a.meses.size}</td>
@@ -204,6 +241,30 @@ function telaCentral() {
       <th class="ed">Conta adequada</th><th>Anomalias</th><th>Status</th><th></th><th class="ed">Observação</th></tr></thead><tbody>
     ${L_.slice(0, 300).map(linha).join('') || '<tr><td colspan="10" class="vazio">Nenhum fornecedor neste filtro.</td></tr>'}
     </tbody></table></div>${L_.length > 300 ? '<div class="csub">Mostrando 300 linhas — use os cartões ou a busca.</div>' : ''}</div>`}`;
+}
+
+/* quadro dos APELIDOS (cartão "Apelidos"): o nome que o gestor escreve → fornecedor; editável pela Controladoria, salvo junto com a central */
+function cenApelidosHTML(ed, pend) {
+  const L = CEN.ap.slice().sort((a, b) => a.id.localeCompare(b.id)), dis = ed ? '' : 'disabled';
+  return `<div class="card"><h3>Apelidos de fornecedor <small>${L.length} · o nome que o gestor escreve no orçamento → fornecedor da base</small></h3>
+    <div class="csub">O painel <a href="#forn_mes">Fornecedores × meses</a> usa esta lista para casar o nome digitado pelo gestor com o fornecedor. <b>CONFIRMADO</b> vale no casamento; <b>PENDENTE</b> fica registrado e não casa — o nome continua como “sem correspondência”, com a observação. Nome novo que não casa: pesquisar nos históricos do razão do ano antes de incluir. O gerador do PT lê esta lista a cada geração.${ed ? '' : ' <b>Somente leitura neste perfil.</b>'}</div>
+    ${CEN.apErro ? `<div class="aviso" style="margin-top:8px">${esc(CEN.apErro)}</div>` : ''}
+    ${ed ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0"><button class="btn primary" id="cenSalvar" ${pend ? '' : 'disabled'}>Salvar alterações${pend ? ` (${pend})` : ''}</button></div>` : ''}
+    <div class="tw" style="margin-top:6px"><table class="t" id="cenApTab"><thead><tr><th class="fx">Apelido</th><th class="ed">Fornecedor (razão social)</th><th class="ed">Raiz do CNPJ (8 dígitos; vários com ;)</th>
+      <th class="ed">Situação</th><th class="ed">Observação</th><th class="ed">Informado por</th><th>Atualizado</th><th></th></tr></thead><tbody>
+    ${L.map(a => `<tr ${CEN.sujoAp.has(a.id) ? 'style="background:#FFF7E6"' : ''}><td class="fx nw"><b>${esc(a.id)}</b></td>
+      <td class="ed"><input type="text" data-apid="${esc(a.id)}" data-apk="fornecedor" value="${esc(a.fornecedor || '')}" style="width:300px" ${dis}></td>
+      <td class="ed"><input type="text" data-apid="${esc(a.id)}" data-apk="cnpjs" value="${esc((a.cnpjs || []).join('; '))}" placeholder="a localizar" style="width:150px" ${dis}></td>
+      <td class="ed"><select data-apid="${esc(a.id)}" data-apk="situacao" ${dis}>${['CONFIRMADO', 'PENDENTE'].map(o => `<option ${a.situacao === o ? 'selected' : ''}>${o}</option>`).join('')}</select></td>
+      <td class="ed"><input type="text" data-apid="${esc(a.id)}" data-apk="observacao" value="${esc(a.observacao || '')}" style="width:330px" ${dis}></td>
+      <td class="ed"><input type="text" data-apid="${esc(a.id)}" data-apk="fonte" value="${esc(a.fonte || '')}" style="width:150px" ${dis}></td>
+      <td class="nw"><small style="color:var(--ink3)">${a.atualizado_em ? esc(new Date(a.atualizado_em).toLocaleDateString('pt-BR')) : '—'}${a.atualizado_por && !/^rotina/.test(a.atualizado_por) ? '<br>' + esc(a.atualizado_por) : ''}</small></td>
+      <td>${ed ? `<button class="btn" data-apdel="${esc(a.id)}">Remover</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="8" class="vazio">Nenhum apelido cadastrado.</td></tr>'}
+    </tbody></table></div>
+    ${ed ? `<div class="filtros" style="flex-wrap:wrap;gap:8px;margin:10px 0 0"><span class="rot">Novo apelido</span><input id="cenApNovo" placeholder="como o gestor escreve" style="width:170px">
+      <span class="rot">Fornecedor</span><input id="cenApForn" placeholder="razão social" style="width:260px"><span class="rot">CNPJ raiz</span><input id="cenApCnpj" placeholder="raiz ou CNPJ inteiro" style="width:150px">
+      <button class="btn" id="cenApAdd">Incluir apelido</button></div>
+      <div class="csub">O apelido é guardado em maiúsculas e sem acento. Vale o texto inteiro que o gestor escreveu ou o começo dele (“ACME” casa “Acme Telecom”). Lembre de <b>Salvar alterações</b>.</div>` : ''}</div>`;
 }
 
 /* painel: seleção dos centros de custo permitidos (todos ou alguns) — fornecedor ou exceção por conta */
@@ -311,9 +372,35 @@ function posCentral() {
     const s = cenSugere(a); CEN.rows.push(s); CEN.apagar.delete(s.id); cenMuda(s.id); f.cenCard = null; f.cenBusca = s.nome; desenha();
     cenAviso(`${s.nome} incluído na central (${cenRegraTxt(s)}). Confira a regra e clique em Salvar alterações.`);
   });
+  document.querySelectorAll('#cenApTab [data-apid]').forEach(el => el.onchange = () => {
+    const a = CEN.ap.find(x => x.id === el.dataset.apid); if (!a) return;
+    const k = el.dataset.apk, v = String(el.value).trim();
+    if (k === 'cnpjs') {
+      const L = cenApCnpjs(v);
+      if (L.some(c => c.length !== 8)) { cenAviso('Informe a raiz do CNPJ (os 8 primeiros dígitos) ou o CNPJ inteiro; vários separados por ponto e vírgula.', true); el.value = (a.cnpjs || []).join('; '); return; }
+      a.cnpjs = L;
+    } else if (k === 'fornecedor') {
+      if (!v) { cenAviso('Informe a razão social do fornecedor.', true); el.value = a.fornecedor || ''; return; }
+      a.fornecedor = v;
+    } else a[k] = v || null;
+    CEN.sujoAp.add(a.id); CEN.rev++; desenha();
+  });
+  document.querySelectorAll('#cenApTab [data-apdel]').forEach(b => b.onclick = () => {
+    const id = b.dataset.apdel; if (!confirm(`Remover o apelido ${id}? O nome volta a aparecer como sem correspondência.`)) return;
+    CEN.ap = CEN.ap.filter(a => a.id !== id); CEN.sujoAp.delete(id); if (CEN.noBancoAp.has(id)) CEN.apagarAp.add(id); CEN.rev++; desenha();
+  });
+  const apAdd = $('cenApAdd'); if (apAdd) apAdd.onclick = () => {
+    const id = cenApId($('cenApNovo').value), forn = String($('cenApForn').value).trim(), cn = cenApCnpjs($('cenApCnpj').value);
+    if (!id) { cenAviso('Informe o apelido (como o gestor escreve).', true); return; }
+    if (CEN.ap.some(a => a.id === id)) { cenAviso(`O apelido ${id} já existe.`, true); return; }
+    if (!forn) { cenAviso('Informe a razão social do fornecedor.', true); return; }
+    if (cn.some(c => c.length !== 8)) { cenAviso('Informe a raiz do CNPJ (os 8 primeiros dígitos) ou o CNPJ inteiro.', true); return; }
+    CEN.ap.push({ id, fornecedor: forn, cnpjs: cn, situacao: 'CONFIRMADO', observacao: null, fonte: null }); CEN.apagarAp.delete(id); CEN.sujoAp.add(id); CEN.rev++;
+    desenha(); cenAviso(`Apelido ${id} incluído. Clique em Salvar alterações.`);
+  };
   const vt = $('cenValidarTodos'); if (vt) vt.onclick = () => {
     const aud = cenAud(), filtros = cenFiltros(aud), busca = (f.cenBusca || '').toUpperCase().trim(), card = f.cenCard;
-    const L_ = CEN.rows.filter(r => r.status !== 'VALIDADO' && cenRegraOk(r) && (!card || card === 'fora' || filtros[card](r)) && (!busca || `${r.nome} ${r.id} ${r.tipo || ''} ${r.conta || ''}`.toUpperCase().includes(busca)));
+    const L_ = CEN.rows.filter(r => r.status !== 'VALIDADO' && cenRegraOk(r) && (!card || card === 'fora' || card === 'apel' || filtros[card](r)) && (!busca || `${r.nome} ${r.id} ${r.tipo || ''} ${r.conta || ''}`.toUpperCase().includes(busca)));
     if (!L_.length || !confirm(`Validar ${L_.length} fornecedor(es) com a regra que está na tela?`)) return;
     L_.forEach(r => { r.status = 'VALIDADO'; CEN.sujo.add(r.id); }); CEN.rev++; desenha(); cenAviso(`${L_.length} regra(s) marcadas como validadas. Clique em Salvar alterações.`);
   };
@@ -362,5 +449,5 @@ function instalaOrcDepara() {
   poe('cfg', { id: 'cfg_central', t: 'Central de de-para (fornecedores)', ico: '⚙', r: CT_CEO }, 'cfg_conta');
   poe('aud', { id: 'aud_central', t: 'Fornecedor × CC × conta', ico: '⚑', r: CT_CEO }, 'aud_aloc');
   TELAS.cfg_central = telaCentral; POS.cfg_central = posCentral; TELAS.aud_central = telaAudCentral; POS.aud_central = posAudCentral;
-  window.addEventListener('beforeunload', e => { if (CEN.sujo.size || CEN.sujoExc.size || CEN.apagar.size || CEN.apagarExc.size) { e.preventDefault(); e.returnValue = ''; } });
+  window.addEventListener('beforeunload', e => { if (cenPend()) { e.preventDefault(); e.returnValue = ''; } });
 }
