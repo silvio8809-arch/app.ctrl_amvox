@@ -5,7 +5,9 @@
    Lançamento do razão fora da regra = ANOMALIA (mesma conta da planilha CLAUDE_CENTRAL_DE_PARA: custo 3110301NNN e despesa 3120101NNN = mesma conta;
    ajuste gerencial fica fora). Carregado ANTES do orcamento.js; instalado pelo gancho instalaOrcDepara() (usa TELAS, POS, MENU, ITENS, D, RAZAO, est, SB…).
    Dados: tabelas orc_depara_fornecedor / orc_depara_excecao (migração 050; GLOBAIS — não são por versão; só a Controladoria altera; histórico em
-   orc_alteracao). Prévia local: D.central_dados (alterações só na tela). Carga das sugestões: .claude/scripts/central_depara.py --grava. */
+   orc_alteracao). Prévia local: D.central_dados (alterações só na tela).
+   🔴 Desde 14/11/2026 esta central é a MESTRA: o gerador do PT a lê a cada geração e a grava no PT (não há planilha à parte); só regra VALIDADA
+   entra na alocação. central_depara.py --grava só INCLUI fornecedor novo como sugestão (não altera linha existente). */
 const CEN = { pronto: false, carregando: false, erro: null, rows: [], exc: [], sujo: new Set(), sujoExc: new Set(), apagar: new Set(), apagarExc: new Set(),
   noBanco: new Set(), noBancoExc: new Set(), msg: null, aud: null, audRev: -1, audRz: null, rev: 0 };
 const CEN_CAMPOS = ['modo', 'cc_exclusivo', 'todos_ccs', 'ccs_permitidos', 'conta', 'status', 'observacao'];
@@ -93,31 +95,45 @@ async function cenSalva() {
   const n = CEN.sujo.size + CEN.sujoExc.size + CEN.apagar.size + CEN.apagarExc.size;
   if (!n) return true;
   if (window.ORC_FONTE_LOCAL) {
+    const agora_ = new Date().toISOString();
+    CEN.rows.forEach(r => { if (CEN.sujo.has(r.id)) r.atualizado_em = agora_; }); CEN.exc.forEach(e => { if (CEN.sujoExc.has(e.id)) e.atualizado_em = agora_; });
+    CEN.apagados = (CEN.apagados || 0) + CEN.apagar.size + CEN.apagarExc.size;
     CEN.sujo.forEach(id => CEN.noBanco.add(id)); CEN.sujoExc.forEach(id => CEN.noBancoExc.add(id));
     CEN.sujo.clear(); CEN.sujoExc.clear(); CEN.apagar.clear(); CEN.apagarExc.clear();
     cenAviso('Prévia local: alterações guardadas só nesta tela (no app publicado vão para o banco, com histórico de quem e quando).'); return true;
   }
   try {
-    for (const id of CEN.apagarExc) { if (CEN.noBancoExc.has(id)) { const { error } = await SB.from('orc_depara_excecao').delete().eq('id', id); if (error) throw error; } CEN.noBancoExc.delete(id); }
+    for (const id of CEN.apagarExc) { if (CEN.noBancoExc.has(id)) { const { error } = await SB.from('orc_depara_excecao').delete().eq('id', id); if (error) throw error; CEN.apagados = (CEN.apagados || 0) + 1; } CEN.noBancoExc.delete(id); }
     CEN.apagarExc.clear();
-    for (const id of CEN.apagar) { if (CEN.noBanco.has(id)) { const { error } = await SB.from('orc_depara_fornecedor').delete().eq('id', id); if (error) throw error; } CEN.noBanco.delete(id); }
+    for (const id of CEN.apagar) { if (CEN.noBanco.has(id)) { const { error } = await SB.from('orc_depara_fornecedor').delete().eq('id', id); if (error) throw error; CEN.apagados = (CEN.apagados || 0) + 1; } CEN.noBanco.delete(id); }
     CEN.apagar.clear();
     for (const id of [...CEN.sujo]) {
       const r = CEN.rows.find(x => x.id === id); if (!r) { CEN.sujo.delete(id); continue; }
       const campos = {}; CEN_CAMPOS.forEach(k => campos[k] = r[k] === '' ? null : r[k]);
       if (CEN.noBanco.has(id)) { const { error } = await SB.from('orc_depara_fornecedor').update(campos).eq('id', id); if (error) throw error; }
       else { const { error } = await SB.from('orc_depara_fornecedor').insert({ id: r.id, cnpj: r.cnpj, nome: r.nome, tipo: r.tipo, politica: r.politica, fonte: r.fonte, origem: 'MANUAL', ...campos }); if (error) throw error; CEN.noBanco.add(id); }
-      CEN.sujo.delete(id);
+      r.atualizado_em = new Date().toISOString(); CEN.sujo.delete(id);
     }
     for (const id of [...CEN.sujoExc]) {
       const e = CEN.exc.find(x => x.id === id); if (!e) { CEN.sujoExc.delete(id); continue; }
       const campos = { modo: e.modo, cc_exclusivo: e.cc_exclusivo || null, todos_ccs: e.todos_ccs, ccs_permitidos: e.ccs_permitidos, status: e.status, observacao: e.observacao || null };
       if (CEN.noBancoExc.has(id)) { const { error } = await SB.from('orc_depara_excecao').update(campos).eq('id', id); if (error) throw error; }
       else { const { error } = await SB.from('orc_depara_excecao').insert({ id: e.id, fornecedor: e.fornecedor, conta: e.conta, origem_regra: e.origem_regra, ...campos }); if (error) throw error; CEN.noBancoExc.add(id); }
-      CEN.sujoExc.delete(id);
+      e.atualizado_em = new Date().toISOString(); CEN.sujoExc.delete(id);
     }
-    cenAviso('✓ Alterações salvas (com histórico de quem e quando).'); return true;
+    cenAviso('✓ Alterações salvas (com histórico de quem e quando). A alocação do orçamento muda na próxima geração do PT, que lê esta central.'); return true;
   } catch (e) { cenAviso('Não foi possível salvar: ' + (e.message || e), true); return false; }
+}
+
+/* PT × central (Silvio 14/11/2026): o gerador do PT lê a central do app A CADA geração e a grava no PT (abas CENTRAL_FORNECEDORES / CENTRAL_EXCECOES);
+   só regra VALIDADA entra na alocação. Aqui a tela diz com que leitura o PT desta versão foi gerado e avisa quando a central mudou depois dela. */
+function cenAvisoPT() {
+  const c = D.meta && D.meta.central; if (!c) return '';
+  const m = /^(\d\d)\/(\d\d)\/(\d{4}) (\d\d):(\d\d)/.exec(c.lida_em || ''), lida = m ? new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], 59) : null;
+  const depois = (lida ? [...CEN.rows, ...CEN.exc].filter(r => { const d = new Date(r.atualizado_em); return !isNaN(d) && d > lida; }).length : 0) + (CEN.apagados || 0);
+  return depois
+    ? `<div class="aviso">⚠ <b>${depois} regra(s) alterada(s) depois da leitura do PT desta versão</b> (central lida do app em ${esc(c.lida_em)}). A alocação do orçamento só muda quando o PT for gerado de novo — o gerador lê esta central a cada geração e só usa regra <b>VALIDADA</b>.</div>`
+    : `<div class="info">O PT desta versão foi gerado com esta central (lida do app em <b>${esc(c.lida_em)}</b> · ${c.validados} de ${c.fornecedores} fornecedores validados · ${c.excecoes} exceção(ões) por conta). Só regra <b>VALIDADA</b> entra na alocação do orçamento; o que for alterado aqui entra na próxima geração do PT, que lê a central a cada vez.</div>`;
 }
 
 const cenFiltros = aud => ({
@@ -162,6 +178,7 @@ function telaCentral() {
   return `${cabecalho(tit, 'Uma linha por fornecedor: <b>EXCLUSIVO</b> (um centro de custo — lançado em outro CC vira anomalia) ou <b>MÚLTIPLO</b> (todos ou alguns centros de custo) e a <b>conta contábil adequada</b>. É a base das auditorias e do relatório de anomalias. O que o fornecedor não resolve segue a conta e o centro de custo.',
     `<div class="filtros" style="margin-left:auto"><input id="cenBusca" placeholder="Fornecedor, CNPJ, conta ou CC" value="${esc(f.cenBusca || '')}" style="width:230px"></div>`)}
   <div id="cenAviso" class="${CEN.msg && CEN.msg.erro ? 'aviso' : 'ok-box'}" ${CEN.msg ? '' : 'hidden'}>${CEN.msg ? esc(CEN.msg.t) : ''}</div>
+  ${cenAvisoPT()}
   <datalist id="cenListaCC">${ccs.map(c => `<option value="${esc(c.cc)}">${esc(c.desc)} · ${esc(c.area)}</option>`).join('')}</datalist>
   <datalist id="cenListaConta">${Object.entries(D.contaDesc).map(([c, d]) => `<option value="${esc(c)}">${esc(d)}</option>`).join('')}</datalist>
   <section class="kpis">
