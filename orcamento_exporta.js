@@ -139,13 +139,14 @@ function expPdf(M) {
     doc.setTextColor(23, 24, 26); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text(expPdfT(q.titulo || q.nome), MG, y + 3);
     if (q.nota) { doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8); doc.setTextColor(95); const ln = doc.splitTextToSize(expPdfT(q.nota), W - 2 * MG); doc.text(ln, MG, y + 6.8); y += ln.length * 2.9; }
     const util = W - 2 * MG, w0 = Math.min(q.w0 || (nCol >= 13 ? 62 : 80), util * 0.45), colunas = { 0: { halign: 'left', cellWidth: w0 } };
-    const soNum = q.cols.slice(1).every(c => c.tipo !== 't'), wNum = (util - w0) / Math.max(1, nCol - 1);        // só números: colunas de largura igual
+    const larg = nCol <= 4 ? Math.min(util, w0 + (nCol - 1) * 32) : util;                                     // quadro de poucas colunas não se estica pela página
+    const soNum = q.cols.slice(1).every(c => c.tipo !== 't'), wNum = (larg - w0) / Math.max(1, nCol - 1);        // só números: colunas de largura igual
     q.cols.forEach((c, j) => { if (j) colunas[j] = soNum ? { halign: 'right', cellWidth: wNum } : { halign: c.tipo === 't' ? 'left' : 'right' }; });
     // quadro que cabe numa página só em modo compacto (ex.: DRE de 46 linhas): aperta o espaçamento e, se preciso, a letra — sem quebrar a tabela
     const disp = H - (y + 5) - 13, nLin = q.linhas.length + 1, hLin = (f, p_) => f * 0.3528 * 1.15 + 2 * p_;
     if (hLin(fs, pad) * nLin > disp) { if (hLin(fs, 0.45) * nLin <= disp) pad = 0.45; else if (hLin(Math.max(5.2, fs - 0.8), 0.45) * nLin <= disp) { fs = Math.max(5.2, fs - 0.8); pad = 0.45; } }
     doc.autoTable({
-      startY: y + 5, margin: { left: MG, right: MG, top: yTopo + 2, bottom: 12 }, theme: 'plain', tableWidth: util,
+      startY: y + 5, margin: { left: MG, right: MG, top: yTopo + 2, bottom: 12 }, theme: 'plain', tableWidth: larg,
       head: [q.cols.map(c => expPdfT(c.t))],
       body: q.linhas.map(l => q.cols.map((c, j) => expCelPdf(l.c[j], l.e === 'p' && c.tipo === 'n' ? 'p' : c.tipo, c))),
       styles: { font: 'helvetica', fontSize: fs, cellPadding: { top: pad, bottom: pad, left: 1, right: 1 }, textColor: [30, 32, 36], lineColor: [222, 226, 232], lineWidth: { bottom: 0.1 }, overflow: 'linebreak' },
