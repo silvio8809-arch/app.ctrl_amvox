@@ -10,7 +10,8 @@ function folhaPosicao(x, P) {
   const dis = P._dis || (P._dis = Object.fromEntries((P.dissidio || []).filter(d => d.conv).map(d => [d.conv, d])));
   const p = P.p, d = dis[x.convencao];
   const U = /^[PJ]/.test(x.id), PJ = x.tipo === 'PJ', PL = x.tipo === 'PRÓ-LABORE', AF = x.afastado === 'S';
-  const V = PJ ? 0 : (d ? +d.pct || 0 : 0), W = d ? (+d.ap || 13) : 13, X = d ? +d.atraso || 0 : 0, Y = d ? d.comp : 'NENHUMA';
+  // 13/11/2026: pró-labore sem dissídio (padrão observado na folha: o pró-labore vigente não teve dissídio em out/26)
+  const V = (PJ || PL) ? 0 : (d ? +d.pct || 0 : 0), W = d ? (+d.ap || 13) : 13, X = d ? +d.atraso || 0 : 0, Y = d ? d.comp : 'NENHUMA';
   const Z = (+x.salario || 0) + (+x.adicional || 0);
   const adm = +x.mes_adm || 0, desl = +x.mes_desl || 0, prom = +x.mes_promo || 0, pp = +x.pct_promo || 0, qtd = +x.qtd || 0;
   const ativo = [], remG = [], remM = [];
