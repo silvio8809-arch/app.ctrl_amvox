@@ -30,13 +30,13 @@ const MENU = [
   { g: 'acomp', t: 'Acompanhamento 2027', itens: [
     { id: 'orcreal', t: 'Orçado × Realizado', ico: '◔', r: TODOS }, { id: 'desvios', t: 'Explicações de desvio', ico: '✍', r: TODOS }] },
   { g: 'aud', t: 'Auditorias mensais', itens: [
-    { id: 'aud_aloc', t: 'Alocação × política', ico: '⚑', r: CT_CEO }, { id: 'aud_forn', t: 'Fornecedor fora da área', ico: '⚑', r: CT_CEO },
+    { id: 'aud_aloc', t: 'Alocação × política', ico: '⚑', r: CT_CEO }, { id: 'aud_forn', t: 'Fornecedor fora da regra (PT)', ico: '⚑', r: CT_CEO },
     { id: 'aud_troca', t: 'Comissões × assessoria', ico: '⚑', r: CT_CEO }, { id: 'aud_recor', t: 'Contratos e licenças', ico: '⚑', r: CT_CEO },
     { id: 'aud_mapa', t: 'Mapa de anomalias contábeis', ico: '⚑', r: CT_CEO }, { id: 'aud_ajustes', t: 'Ajustes gerenciais', ico: '⚑', r: CT_CEO },
     { id: 'aud_anom', t: 'Anomalias por área (Thor)', ico: '⚑', r: CT_CEO }] },
   { g: 'cfg', t: 'Configuração', itens: [
     { id: 'cfg_premissas', t: 'Premissas', ico: '⚙', r: CT }, { id: 'cfg_conta', t: 'De-para de contas', ico: '⚙', r: CT },
-    { id: 'cfg_tcp', t: 'De-para DRE TCP', ico: '⚙', r: CT }, { id: 'cfg_fornecedor', t: 'De-para de fornecedores', ico: '⚙', r: CT },
+    { id: 'cfg_tcp', t: 'De-para DRE TCP', ico: '⚙', r: CT }, { id: 'cfg_fornecedor', t: 'Fornecedor × conta (visão da central)', ico: '⚙', r: CT },
     { id: 'cfg_representantes', t: 'Representantes (comissão % RB)', ico: '⚙', r: CT },
     { id: 'cfg_cc', t: 'De-para de CC', ico: '⚙', r: CT }, { id: 'cfg_arvore', t: 'Árvore de CC', ico: '⚙', r: CT },
     { id: 'cfg_excecoes', t: 'Exceções', ico: '⚙', r: CT }, { id: 'cfg_setores', t: 'Setores e usuários', ico: '⚙', r: CT },
@@ -642,6 +642,12 @@ function proximaVaga(area) {
   const n = FOLHA.pos.filter(x => x.id.startsWith(pre)).map(x => +x.id.slice(3) || 0);
   return pre + (Math.max(0, ...n) + 1);
 }
+/* rótulos dos parâmetros de encargos / provisões / rescisão (tela da folha e exportação em Excel/PDF) */
+const FOLHA_ROT = { inss: 'INSS patronal', terceiros: 'Outras entidades (terceiros)', rat: 'RAT/SAT', fgts: 'FGTS', fgts_apr: 'FGTS do aprendiz', prov_fer: 'Provisão de férias (1/12 × 4/3)',
+  prov_13: 'Provisão de 13º (1/12)', enc_prov: 'Encargos sobre provisões (S/N)', meses_fer: 'Meses médios de férias em aberto', inss_pl: 'INSS sobre pró-labore',
+  enc_abono: 'Encargos sobre o abono (S/N) — testado: N', aviso_base: 'Aviso prévio — dias base', aviso_ano: 'Aviso — dias por ano', aviso_max: 'Aviso — máximo de dias',
+  multa_sjc: 'Multa FGTS sem justa causa', multa_acordo: 'Multa FGTS no acordo', aviso_acordo: 'Aviso no acordo (fração)', p13_mes1: 'Caixa: mês da 1ª parcela do 13º',
+  p13_pct1: 'Caixa: % na 1ª parcela', p13_mes2: 'Caixa: mês da 2ª parcela do 13º' };
 TELAS.folha = () => {
   if (!FOLHA) return `${cabecalho('Folha 2027 — simulador', '')}<div class="info">A folha entra com a migração 048 (versões e folha por área) e a carga do PT com o simulador (<b>--folha</b>).</div>`;
   const { vis, area, areas } = folhaSel(), cen = est.f.flCen || 'GESTOR', m = est.per === 'ano' ? null : +est.per;
@@ -722,11 +728,7 @@ TELAS.folha = () => {
       </tbody></table></div><div class="csub">% promoção em pontos percentuais (10 = 10%). Mês = 1 a 12.</div></div>`;
   }
   const pe = podeEditarPremissa(), pin = (path, v_, w = 70, tp = 'number') => `<input type="${tp}" data-fp="${path}" value="${esc(v_ ?? '')}" ${pe ? '' : 'disabled'} style="width:${w}px">`;
-  const ROT = { inss: 'INSS patronal', terceiros: 'Outras entidades (terceiros)', rat: 'RAT/SAT', fgts: 'FGTS', fgts_apr: 'FGTS do aprendiz', prov_fer: 'Provisão de férias (1/12 × 4/3)',
-    prov_13: 'Provisão de 13º (1/12)', enc_prov: 'Encargos sobre provisões (S/N)', meses_fer: 'Meses médios de férias em aberto', inss_pl: 'INSS sobre pró-labore',
-    enc_abono: 'Encargos sobre o abono (S/N) — testado: N', aviso_base: 'Aviso prévio — dias base', aviso_ano: 'Aviso — dias por ano', aviso_max: 'Aviso — máximo de dias',
-    multa_sjc: 'Multa FGTS sem justa causa', multa_acordo: 'Multa FGTS no acordo', aviso_acordo: 'Aviso no acordo (fração)', p13_mes1: 'Caixa: mês da 1ª parcela do 13º',
-    p13_pct1: 'Caixa: % na 1ª parcela', p13_mes2: 'Caixa: mês da 2ª parcela do 13º' };
+  const ROT = FOLHA_ROT;
   html += `<div class="row2">
     <div class="card"><h3>Dissídio 2027 por convenção ${pe ? '' : '<small>leitura</small>'}</h3><div class="csub">Entra no mês de APLICAÇÃO; o atraso desde a data-base é compensado por ABONO (sem encargos — testado na folha), RETROATIVO (com encargos) ou NENHUMA.</div>
       <div class="tw solta"><table class="t"><thead><tr><th>Convenção</th><th class="ed">% dissídio</th><th class="ed">Mês data-base</th><th class="ed">Mês aplicação</th><th class="ed">Compensação</th><th class="n">Atraso</th></tr></thead><tbody>
@@ -943,13 +945,13 @@ TELAS.aud_forn = () => {
   if (!RAZAO) { carregaRazao().then(desenha); return '<div class="status">Carregando o razão…</div>'; }
   const dic = D.meta.razao.dic, F = RAZAO.filter(r => /^FORA/.test(dic.conf[r[15]] || ''));
   const cf = D.cfg_fornecedor, iS = cf.cols.indexOf('SITUAÇÃO'), pares = cf.rows.filter(r => /^FORA/.test(String(r[iS] || '')));
-  return `${cabecalho('Auditoria — fornecedor lançado fora da área responsável', 'Confronto do de-para de fornecedores (área responsável, rateio, prevalece sobre o CC) com o CC do lançamento. Janela jul–out/26.')}
-  <section class="kpis"><div class="kpi"><div class="lab">Lançamentos fora da área</div><div class="val down">${F.length}</div><div class="meta">${rs(soma(F, r => r[6]))}</div></div>
-   <div class="kpi k3"><div class="lab">Pares fornecedor × conta fora</div><div class="val">${pares.length}</div><div class="meta">no de-para de fornecedores</div></div></section>
+  return `${cabecalho('Auditoria — fornecedor lançado fora da regra validada', 'Confronto do PT: regras VALIDADAS da central de de-para (centro de custo exclusivo ou permitidos e conta adequada) × lançamentos de jul–out/26. A auditoria ao vivo, que inclui as regras ainda a validar, está em Fornecedor × CC × conta.')}
+  <section class="kpis"><div class="kpi"><div class="lab">Lançamentos fora da regra validada</div><div class="val down">${F.length}</div><div class="meta">${rs(soma(F, r => r[6]))}</div></div>
+   <div class="kpi k3"><div class="lab">Pares fornecedor × conta fora</div><div class="val">${pares.length}</div><div class="meta">na visão fornecedor × conta do PT</div></div></section>
   <div class="tw solta"><table class="t"><thead><tr><th>Mês</th><th>Fornecedor</th><th>Conta</th><th>CC</th><th>Área do CC</th><th>Histórico</th><th class="n">D − C</th><th>Confronto</th></tr></thead><tbody>
    ${F.sort((a, b) => Math.abs(b[6]) - Math.abs(a[6])).map(r => `<tr><td>${MESES[+String(r[0]).slice(4) - 1]}/26</td><td class="w">${esc(dic.nome[r[14]])}</td><td>${esc(r[4])}</td><td>${esc(r[5])}</td><td>${esc(dic.setor[r[10]])}</td><td class="w">${esc(r[7])}</td>${tdN(r[6], { uni: 'R$', dec: 2 })}<td class="w"><span class="tag r">${esc(dic.conf[r[15]])}</span></td></tr>`).join('')}
   </tbody></table></div>
-  <div class="card"><h3>Pares no de-para de fornecedores com situação FORA</h3>${tabelaSimples(cf, pares, [1, 2, 3, 5, 9, 10, 11, 13, 14, 20])}</div>`;
+  <div class="card"><h3>Pares fornecedor × conta com lançamento fora da regra validada</h3>${tabelaSimples(cf, pares, [1, 2, 3, 5, 9, 10, 11, 13, 14, 20])}</div>`;
 };
 function tabelaSimples(b, rows, idx) {
   const tipos = b.tipos || [];
@@ -1114,7 +1116,8 @@ TELAS.sis_bases = () => {
     ['Realizado 2027 (CT2)', 'carga mensal (fase 2)', 'acompanhamento', 'mensal a partir de jan/2027']];
   return `${cabecalho('Bases e cargas', 'O app lê o Protheus (somente leitura) por extração para o Supabase — como os demais apps. O PT Excel é só referência de conferência.')}
   <div class="row2"><div class="card"><h3>Origem dos números desta prévia</h3>
-   ${[['Fonte', M.fonte_desc], ['Arquivo', M.arquivo], ['Salvo em', M.arquivo_mod], ['Blocos gerados em', M.gerado_em], ['Data-base do realizado', M.data_base + ' (jul–out/26 × ' + M.fator + ')'], ['Cenário', M.cenario + ' — ' + rs(M.receita)], ['Razão por lançamento', M.razao.linhas.toLocaleString('pt-BR') + ' lançamentos em ' + M.razao.partes + ' bloco(s)'], ['Contrato de dados', M.contrato]]
+   ${[['Fonte', M.fonte_desc], ['Arquivo', M.arquivo], ['Salvo em', M.arquivo_mod], ['Blocos gerados em', M.gerado_em], ['Data-base do realizado', M.data_base + ' (jul–out/26 × ' + M.fator + ')'], ['Cenário', M.cenario + ' — ' + rs(M.receita)], ['Razão por lançamento', M.razao.linhas.toLocaleString('pt-BR') + ' lançamentos em ' + M.razao.partes + ' bloco(s)'],
+     ...(M.central ? [['Central de de-para (fornecedores)', 'lida do app pelo gerador do PT em ' + M.central.lida_em + ' · última alteração ' + M.central.ultima + ' · ' + M.central.validados + ' de ' + M.central.fornecedores + ' validados · ' + M.central.excecoes + ' exceção(ões)']] : []), ['Contrato de dados', M.contrato]]
      .map(([t, v]) => `<div class="sumline"><span class="t">${esc(t)}</span><span class="v" style="max-width:62%;font-weight:500">${esc(v)}</span></div>`).join('')}</div>
    <div class="card"><h3>Blocos (orc_bloco) <small>assinatura SHA-256</small></h3><div class="tw solta" style="max-height:330px"><table class="t"><thead><tr><th>Bloco</th><th>SHA-256 (12)</th></tr></thead><tbody>
     ${Object.entries(M.sha || {}).map(([k, v]) => `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td></tr>`).join('')}</tbody></table></div></div></div>
@@ -1125,4 +1128,5 @@ TELAS.sis_bases = () => {
 if (typeof instalaOrcDre === 'function') instalaOrcDre();   // 13/11/2026: DRE (rótulos + detalhe por linha) e Premissas orçamentárias — orcamento_dre.js
 if (typeof instalaOrcContratos === 'function') instalaOrcContratos();   // 13/11/2026: Contratos recorrentes 2027 (inclusão/alteração/exclusão) — orcamento_contratos.js
 if (typeof instalaOrcDepara === 'function') instalaOrcDepara();         // 13/11/2026: Central de de-para por fornecedor + auditoria CC × conta — orcamento_depara.js
+if (typeof instalaOrcExporta === 'function') instalaOrcExporta();       // 14/11/2026: Excel e PDF da DRE 2027, da DRE TCP e da Folha 2027 (simulador) — orcamento_exporta.js
 inicia();
