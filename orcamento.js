@@ -37,6 +37,7 @@ const MENU = [
   { g: 'cfg', t: 'Configuração', itens: [
     { id: 'cfg_premissas', t: 'Premissas', ico: '⚙', r: CT }, { id: 'cfg_conta', t: 'De-para de contas', ico: '⚙', r: CT },
     { id: 'cfg_tcp', t: 'De-para DRE TCP', ico: '⚙', r: CT }, { id: 'cfg_fornecedor', t: 'De-para de fornecedores', ico: '⚙', r: CT },
+    { id: 'cfg_representantes', t: 'Representantes (comissão % RB)', ico: '⚙', r: CT },
     { id: 'cfg_cc', t: 'De-para de CC', ico: '⚙', r: CT }, { id: 'cfg_arvore', t: 'Árvore de CC', ico: '⚙', r: CT },
     { id: 'cfg_excecoes', t: 'Exceções', ico: '⚙', r: CT }, { id: 'cfg_setores', t: 'Setores e usuários', ico: '⚙', r: CT },
     { id: 'cfg_rubricas', t: 'Rubricas e linhas da DRE', ico: '⚙', r: CT }] },
@@ -999,7 +1000,7 @@ POS.aud_anom = () => { $('anArea').onchange = e => { est.f.anArea = e.target.val
   document.querySelectorAll('#tela tr[data-area]').forEach(tr => tr.onclick = () => { est.f.anArea = tr.dataset.area; desenha(); }); };
 
 /* ---------------------------------------------------------------- CONFIGURAÇÃO (tabelas genéricas) */
-const FILTRAVEIS = /^(TIPO DE PJ|CONTA × TIPO|BENEFÍCIO|ÁREA PELO TIPO|STATUS|SITUAÇÃO|RUBRICA|NATUREZA|CENTRALIZADA|DEPTO GESTOR|LINHA DA DRE|MÉTODO|SETOR|SETOR ORÇAMENTÁRIO|ÁREA RESPONSÁVEL|ÁREA PREDOMINANTE|LINHA DRE TCP|GRUPO|LISTA DO COMUNICADO|REAJUSTE|RATEIO|PREVALECE|CAIXA|AUDITAR)/;
+const FILTRAVEIS = /^(TIPO DE PJ|CONTA × TIPO|BENEFÍCIO|ÁREA PELO TIPO|STATUS|SITUAÇÃO|RUBRICA|NATUREZA|CENTRALIZADA|DEPTO GESTOR|LINHA DA DRE|MÉTODO|SETOR|SETOR ORÇAMENTÁRIO|ÁREA RESPONSÁVEL|ÁREA PREDOMINANTE|LINHA DRE TCP|GRUPO|LISTA DO COMUNICADO|REAJUSTE|RATEIO|PREVALECE|CAIXA|AUDITAR|CLASSIFICAÇÃO|GERENTE|UF)/;
 function telaCfg(chave, titulo, desc) {
   const b = D['cfg_' + chave], fk = 'cfg_' + chave, f = est.f[fk] ||= { filtros: {}, ord: null, lim: 200 };
   const filtraveis = b.cols.map((c, i) => [c, i]).filter(([c, i]) => FILTRAVEIS.test(c) && new Set(b.rows.map(r => r[i])).size <= 60);
@@ -1024,8 +1025,10 @@ function posCfg(chave) {
 }
 [['conta', 'De-para de contas', 'Conta contábil → rubrica, gestão (centralizada ou por CC), natureza, linha da DRE, método de projeção, caixa e reajuste pela inflação.'],
  ['tcp', 'De-para conta → linha da DRE TCP', null], ['fornecedor', 'De-para de fornecedores', 'Fornecedor × conta → área responsável, rateio e se prevalece sobre o CC (regra 1b do setor final: Localiza, Movida e Sem Parar → Facilities; Serasa → TI).'],
- ['cc', 'De-para de centros de custo', 'CC → setor orçamentário (validado pela árvore de CC em 11/11/2026).'], ['excecoes', 'Exceções conta × CC / TAG → setor', 'Prioridade máxima na regra do setor final.']].forEach(([k, t, d]) => {
-  TELAS['cfg_' + k] = () => telaCfg(k, t, d); POS['cfg_' + k] = () => posCfg(k); });
+ ['cc', 'De-para de centros de custo', 'CC → setor orçamentário (validado pela árvore de CC em 11/11/2026).'],
+ ['representantes', 'Representantes — comissão = % da receita bruta', '🔴 REGRA DURA (Silvio 13/11/2026): a linha de comissões é estimada em % da receita bruta; contratos e despesas de representante são ignorados no orçamento, exceto os contratos dos gerentes comerciais. Lista de representantes do app Comercial.'], ['excecoes', 'Exceções conta × CC / TAG → setor', 'Prioridade máxima na regra do setor final.']].forEach(([k, t, d]) => {
+  TELAS['cfg_' + k] = () => D['cfg_' + k] ? telaCfg(k, t, d) : `${cabecalho(t, d || '')}<p class="nota">Sem dados nesta versão (regerar os blocos do PT).</p>`;
+  POS['cfg_' + k] = () => { if (D['cfg_' + k]) posCfg(k); }; });
 
 TELAS.cfg_premissas = () => {
   const P = D.premissas, val = v => typeof v === 'number' ? (Math.abs(v) < 1 && v !== 0 ? pc(v, 2) : fmt(v, { uni: 'R$' })) : esc(v);
