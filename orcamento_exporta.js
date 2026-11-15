@@ -453,7 +453,7 @@ function expModeloFolha() {
   quadros.push({ nome: 'Benefícios', titulo: 'Premissas — benefícios por pessoa', cong: 1, w0: 86,
     cols: [{ t: 'Benefício', tipo: 't', w: 46 }, { t: 'R$/pessoa/mês', tipo: 'n', w: 14, dec: 2, uni: 'R$' }, { t: 'Reajuste %', tipo: 'p', w: 11, dec: 2 }, { t: 'Mês do reajuste', tipo: 'i', w: 10 }, { t: 'Quem', tipo: 't', w: 16 },
       { t: 'Convenção', tipo: 't', w: 14 }, { t: 'Conta', tipo: 't', w: 14 }],
-    linhas: (P.beneficios || []).map(b => ({ c: [b.nome, +b.valor, b.reaj, b.mes > 12 ? null : b.mes, b.quem, b.conv, String(b.conta ?? '')] })) });
+    linhas: (P.beneficios || []).map(b => ({ c: [b.nome, b.quem === 'HISTÓRICO' ? null : +b.valor, b.reaj, b.mes > 12 ? null : b.mes, b.quem, b.conv, String(b.conta ?? '')] })) });
   quadros.push({ nome: 'Projeção detalhada', titulo: 'Projeção detalhada — área × cenário × componente × conta (base para tabela dinâmica)', cong: 3, pdf: false,
     cols: [{ t: 'Área', tipo: 't', w: 26 }, { t: 'Cenário', tipo: 't', w: 10 }, { t: 'Componente', tipo: 't', w: 40 }, { t: 'Destino', tipo: 't', w: 12 }, { t: 'Conta', tipo: 't', w: 13 },
       { t: 'Setor final', tipo: 't', w: 26 }, ...expMesesCols(), { t: 'Total 2027', tipo: 'n' }],
