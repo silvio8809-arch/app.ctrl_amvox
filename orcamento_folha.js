@@ -133,8 +133,9 @@ function folhaComponentes(D, area, cen, P) {
   for (const b of P.beneficios) {
     // 15/11/2026: QUEM = HISTÓRICO — não é valor × pessoas: vale a média mensal da janela do fornecedor do benefício na área (b.hist[área], R$/mês,
     // calculada pelo PT a partir do razão), igual nos dois cenários; o reajuste, se houver, entra a partir do mês de aplicação
-    const H = b.quem === 'HISTÓRICO', vb = H ? 1 : (+b.valor || 0);
-    const hc = k => H ? (+(b.hist || {})[area] || 0) : (b.conv === 'SP' ? 0 : (b.quem === 'PLANO' ? val('HCP_BA', k) : b.quem === 'OPERACIONAL' ? val('HCO_BA', k) : b.quem === 'GERENTE' ? val('HCG_BA', k) : val('HC_BA', k)))
+    // 15/11/2026: QUEM = PESSOAS — nº de pessoas INFORMADO por área (b.pessoas[área], tabela do PT) × valor por pessoa do fornecedor, igual nos dois cenários
+    const H = b.quem === 'HISTÓRICO', PS = b.quem === 'PESSOAS', vb = H ? 1 : (+b.valor || 0);
+    const hc = k => H ? (+(b.hist || {})[area] || 0) : PS ? (+(b.pessoas || {})[area] || 0) : (b.conv === 'SP' ? 0 : (b.quem === 'PLANO' ? val('HCP_BA', k) : b.quem === 'OPERACIONAL' ? val('HCO_BA', k) : b.quem === 'GERENTE' ? val('HCG_BA', k) : val('HC_BA', k)))
       + (b.conv === 'BA' ? 0 : (b.quem === 'PLANO' ? val('HCP_SP', k) : b.quem === 'OPERACIONAL' ? val('HCO_SP', k) : b.quem === 'GERENTE' ? val('HCG_SP', k) : val('HC_SP', k)));
     const m = []; for (let i = 0; i < 12; i++) m.push(hc(i) * vb * (1 + ((i + 1) >= (+b.mes || 13) ? (+b.reaj || 0) : 0)));
     out.push({ cenario: cen, area, componente: b.nome, destino: 'DESPESA', conta: +b.conta, setor_final: setorFinal(b.conta), m,
