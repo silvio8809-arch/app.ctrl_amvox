@@ -19,7 +19,11 @@
      apelido PENDENTE = informado mas com divergência → NÃO casa: segue SEM_COR com a observação, e o valor continua no saldo da conta);
    (b) BENEFÍCIO DA FOLHA — fornecedor amarrado a um benefício do simulador (premissas da folha: FOLHA.P.beneficios[].forn — hoje refeitório e
      vale-refeição): o ESPERADO é o do simulador de folha (quadro da área × valor por pessoa, cenário do gestor) e não o contrato/histórico; na conta do
-     benefício a cobertura das linhas "na conta" é saldo ÷ simulador; a parcela lançada na conta gêmea de custo soma na cobertura (x.totG). */
+     benefício a cobertura das linhas "na conta" é saldo ÷ simulador; a parcela lançada na conta gêmea de custo soma na cobertura (x.totG).
+   3ª RODADA (Silvio 14/11/2026: cartão de benefícios, transporte fretado, exames e plano de saúde também pela lógica do simulador): (c) RATEIO — benefício
+     com mais de um fornecedor na mesma área × conta tem o previsto no simulador rateado entre eles pelo histórico da janela (x.simRat); (d) área COM
+     simulador: o esperado do fornecedor de benefício é o do simulador mesmo quando é zero (nunca o contrato) e a linha fica coberta, com ▲ no histórico;
+     (e) na conta de benefício o saldo precisa cobrir o simulador MAIS os recorrentes que não são do simulador (P.extra). */
 const FM = { rz: null, agg: null, rows: [], vis: [] };
 const FM_OG = {
   CONTRATO: { t: 'Contrato', cor: '#1F6FEB', cel: 'ct', d: 'linha decidida por contrato' },
@@ -82,17 +86,19 @@ function fmAgrega() {                                        // razão líquido 
 }
 
 function fmSimFolha() {                                      // benefícios do simulador de folha nas contas que têm benefício amarrado a fornecedor
-  const F_ = typeof FOLHA !== 'undefined' && FOLHA ? FOLHA : null, proj = (F_ && F_.proj) || [], bf = {};
-  ((F_ && F_.P && F_.P.beneficios) || []).forEach(b => { const f = (b.forn || []).filter(Boolean); if (f.length) bf[b.nome] = f.map(c => 'F' + c); });
+  const F_ = typeof FOLHA !== 'undefined' && FOLHA ? FOLHA : null, proj = (F_ && F_.proj) || [], bf = {}, bc = {};
+  ((F_ && F_.P && F_.P.beneficios) || []).forEach(b => { const f = (b.forn || []).filter(Boolean); if (f.length) { bf[b.nome] = f.map(c => 'F' + c); bc[b.nome] = String(b.conta); } });
   const cen = proj.some(p => p.cenario === 'GESTOR') ? 'GESTOR' : 'MODELO';   // cenário do gestor = quadro atual + movimentações da área
-  const contas = new Set(proj.filter(p => bf[p.componente]).map(p => String(p.conta))), ben = new Map(), tie = {};
+  const contas = new Set([...Object.values(bc), ...proj.filter(p => bf[p.componente]).map(p => String(p.conta))]), ben = new Map(), tie = {}, totA = {};
   for (const p of proj) {
-    if (p.cenario !== cen || !contas.has(String(p.conta))) continue;
+    if (p.cenario !== cen) continue;
+    totA[p.setor_final] = (totA[p.setor_final] || 0) + soma(p.m, v => +v || 0);   // área com quadro no simulador = projeção com valor
+    if (!contas.has(String(p.conta))) continue;
     const k = p.setor_final + '|' + p.conta; let m = ben.get(k); if (!m) ben.set(k, m = {});
     const a = m[p.componente] || (m[p.componente] = Array(12).fill(0)); for (let i = 0; i < 12; i++) a[i] += +p.m[i] || 0;
   }
   Object.entries(bf).forEach(([b, cls]) => cls.forEach(cl => (tie[cl] = tie[cl] || []).push(b)));
-  return { ben, tie };
+  return { ben, tie, bc, areas: new Set(Object.keys(totA).filter(s => totA[s] > 0.005)) };   // bc = conta de cada benefício amarrado · areas = áreas que têm simulador
 }
 
 function fmMonta() {
@@ -120,8 +126,9 @@ function fmMonta() {
     const s = l.s, c = String(l.c), k = s + '|' + c, H = A.porLinha.get(k) || new Map(), CL = ctPorLinha.get(k) || new Map();
     const ctDe = f => CL.get(f) || [];
     const pct = l.me === '% FATURAMENTO', da = l.da, pa = l.pa || 0, histModel = Math.abs(l.mo - l.b * (1 + pa)) < 1;
-    const simL = SIM.ben.get(k) || {}, simTot = soma(Object.values(simL), v => soma(v));   // benefícios do simulador de folha nesta conta e área
-    const bens = fs => [...new Set([...fs].flatMap(f => (SIM.tie[f] || []).filter(b => simL[b])))].sort();
+    const simL = SIM.ben.get(k) || {}, simTot = soma(Object.values(simL), v => soma(v)), temSim = SIM.areas.has(s);   // benefícios do simulador de folha nesta conta e área
+    const bens = fs => temSim ? [...new Set([...fs].flatMap(f => (SIM.tie[f] || []).filter(b => SIM.bc[b] === c)))].sort() : [];   // benefícios do fornecedor NESTA conta
+    const simB = b => simL[b] || z12();
     const grupos = [];                                       // fornecedores nomeados pelo gestor (valem quando o final da linha é o valor dele)
     if ((da === 'GESTOR' || da === 'OUTRO') && Math.abs(l.vf) > 0.005 && !pct)
       (orcPor[k] || []).forEach(o => {
@@ -144,9 +151,17 @@ function fmMonta() {
       usados.add(ocF); nomeado = add(nomeado, m); nomeadosFs.add(ocF);
     }
     const saldo = l.mf.map((v, i) => v - nomeado[i]);
-    let histNomeado = 0, histNT = 0; usados.forEach(f => { const h = soma(H.get(f) || []) * fator * (1 + pa); histNomeado += h; if (!bens([f]).length) histNT += h; });
-    // conta de benefício da folha: o saldo precisa cobrir o SIMULADOR (menos os benefícios dos fornecedores nomeados); senão, o histórico
-    const P = simTot > 0.005 ? { saldo, esperado: Math.max(0, simTot - soma(bens(nomeadosFs), b => soma(simL[b])) - histNT), espF: FM_SIMF }
+    let histNomeado = 0; usados.forEach(f => { histNomeado += soma(H.get(f) || []) * fator * (1 + pa); });
+    const gemC = gemDe(c), Hg = gemC ? A.porLinha.get(s + '|' + gemC) : null;
+    // conta de benefício da folha: o saldo precisa cobrir o SIMULADOR (menos os benefícios dos fornecedores nomeados) MAIS os recorrentes que não são
+    // do simulador (fornecedor sem benefício amarrado nesta conta e não nomeado: histórico + inflação); nas demais contas, o histórico
+    let extra = 0;
+    if (simTot > 0.005) for (const [f, r4] of H) {
+      if (!f || usados.has(f) || bens([f]).length) continue;
+      const rg = (Hg && Hg.get(f)) || zM();
+      if (r4.filter((v, i) => Math.abs(v) > 0.005 || Math.abs(rg[i]) > 0.005).length >= minRec && soma(r4) > 0.005) extra += soma(r4) * fator * (1 + pa);
+    }
+    const P = simTot > 0.005 ? { saldo, esperado: Math.max(0, simTot - soma(bens(nomeadosFs), b => soma(simB(b)))) + extra, espF: FM_SIMF, extra }
       : { saldo, esperado: histModel ? l.mo - histNomeado : null, espF: 'histórico' };
     for (const [f, r4] of H) {
       if (!f || usados.has(f)) continue;
@@ -165,7 +180,6 @@ function fmMonta() {
       const m = ctM(cts); if (Math.abs(soma(m)) < 0.005) continue;
       LR.push({ fs: [f], nome: nome[f] || f, c, s, r: zM(), o: da === 'CONTRATO' ? m : null, og: da === 'CONTRATO' ? 'CONTRATO' : 'CONTA', cts, l, soCt: true });
     }
-    const gemC = gemDe(c), Hg = gemC ? A.porLinha.get(s + '|' + gemC) : null;
     for (const x of LR) {                                    // campos de base de cada linha do painel
       const r4 = x.r, rg = x.rg = Hg ? x.fs.reduce((a, f) => add(a, Hg.get(f) || zM()), zM()) : zM();
       x.nm = r4.filter((v, i) => Math.abs(v) > 0.005 || Math.abs(rg[i]) > 0.005).length; x.rec = x.nm >= minRec; x.nmc = r4.filter(v => Math.abs(v) > 0.005).length;
@@ -173,14 +187,23 @@ function fmMonta() {
       const ctm = x.cts.length ? ctM(x.cts) : null;
       x.ct = ctm ? soma(ctm) : null; x.esp = x.cts.length ? x.ct : (x.rec ? x.hist : null); x.espF = x.cts.length ? 'contrato' : (x.rec ? 'histórico' : '');
       x.nec = x.cts.length ? ctm : (x.rec ? Array(12).fill(x.hist / 12) : null);
-      const bs = bens(x.fs); x.sim = false; x.simG = false; x.totG = 0;
-      if (bs.length && soma(bs, b => soma(simL[b])) > 0.005) {   // benefício da folha: o esperado é o do simulador (quadro da área × valor por pessoa)
-        const sf = bs.reduce((a, b) => add(a, simL[b]), z12());
-        x.sim = true; x.simB = bs; x.esp = soma(sf); x.espF = FM_SIMF; x.nec = sf;
-        x.simH = (x.jan + soma(rg)) * fator * (1 + pa);          // histórico anualizado (conta + gêmea de custo), para comparar com o simulador
-      }
+      x.bs = bens(x.fs); x.w = Math.max(0, x.jan + soma(rg)); x.sim = false; x.simG = false; x.totG = 0;
       x.tot = x.o ? soma(x.o) : null; x.cob = null; x.vazios = []; x.P = P;
       x.k = x.fs.length ? x.fs.join('+') : 'N:' + fmNz(x.nome);
+    }
+    // benefício da folha: o esperado é o do simulador (quadro da área × valor por pessoa), mesmo quando ele é zero na área. Benefício com mais de um
+    // fornecedor na linha (transporte: duas empresas) é rateado entre eles pelo histórico da janela (conta + gêmea de custo); sem histórico, em partes iguais
+    for (const x of LR) {
+      if (x.bs.length) {
+        let sf = z12(), rat = false;
+        for (const b of x.bs) {
+          const grupo = LR.filter(y => y.bs.includes(b)), tw = soma(grupo, y => y.w), part = tw > 0.005 ? x.w / tw : 1 / grupo.length;
+          if (grupo.length > 1) rat = true;
+          sf = sf.map((v, i) => v + part * simB(b)[i]);
+        }
+        x.sim = true; x.simB = x.bs; x.simRat = rat; x.esp = soma(sf); x.espF = FM_SIMF; x.nec = sf;
+        x.simH = (x.jan + soma(x.rg)) * fator * (1 + pa);        // histórico anualizado (conta + gêmea de custo), para comparar com o simulador
+      }
       rows.push(x);
     }
     const idn = og => soma(LR.filter(x => x.og === og && x.fk !== 'N'), x => x.tot || 0);
@@ -222,6 +245,7 @@ function fmMonta() {
       else if (x.cob != null && x.cob < 1 - tol) sit = x.vazios.length > 0 && x.vazios.length < 12 ? 'LAC_MES' : 'ABAIXO';
       else sit = 'OK';                                       // coberta no ano; mês sem saldo aparece na grade (tracejado vermelho) e no detalhe
     }
+    if (x.sim && Math.abs(x.esp) < 0.005 && (sit === 'LAC_SEM' || sit === 'LAC_MES' || sit === 'ABAIXO')) sit = 'OK';   // o simulador não prevê o benefício para a área: nada a cobrir (▲ marca o histórico)
     x.sit = sit; x.g = FM_SIT[sit].g;
     x.simAc = !!(x.sim && x.rec && x.simH > x.esp * (1 + tol));   // histórico do benefício acima do que o simulador prevê para a área
     // quanto falta (para ordenar e para os cartões)
@@ -238,7 +262,9 @@ function fmMonta() {
 function fmLeitura(x) {
   const l = x.l, A = fmAgrega(), nM = A.meses.length, P = x.P, tolTxt = pc(FM.tol), mes = i => MESES[i] + '/27';
   const rec = `faturou em ${x.nm} de ${nM} meses da janela (${rs(x.jan)}${x.nmc !== x.nm ? `; ${x.nmc} nesta conta, o restante na conta gêmea de custo/despesa` : ''})`;
-  const conta = P.esperado != null && P.esperado > 0.005 ? (P.espF === FM_SIMF ? `O saldo da conta sem fornecedor nomeado é ${rs(soma(P.saldo))} para ${rs(P.esperado)} previstos no simulador de folha para esta área (${pc(x.cob, 0)}).`
+  const conta = P.esperado != null && P.esperado > 0.005 ? (P.espF === FM_SIMF ? (P.extra > 0.005
+      ? `O saldo da conta sem fornecedor nomeado é ${rs(soma(P.saldo))} para ${rs(P.esperado)} a cobrir: ${rs(P.esperado - P.extra)} previstos no simulador de folha para esta área mais ${rs(P.extra)} de fornecedores recorrentes que não são do simulador (${pc(x.cob, 0)}).`
+      : `O saldo da conta sem fornecedor nomeado é ${rs(soma(P.saldo))} para ${rs(P.esperado)} previstos no simulador de folha para esta área (${pc(x.cob, 0)}).`)
     : `O saldo da conta sem fornecedor nomeado é ${rs(soma(P.saldo))} para um histórico de ${rs(P.esperado)} a cobrir (${pc(x.cob, 0)}).`) : `O saldo da conta sem fornecedor nomeado é ${rs(soma(P.saldo))}.`;
   switch (x.sit) {
     case 'LAC_SEM': return x.og === 'MODELO' ? `Fornecedor recorrente — ${rec} — e a linha ficou com valor zero no orçado final.`
@@ -254,7 +280,8 @@ function fmLeitura(x) {
     case 'SEM_COR': return `O gestor escreveu “${esc(x.gnome)}” e não há fornecedor com esse nome na base (pode ser nome fantasia ou nome antigo). O valor (${rs(x.tot)}) continua contando no saldo da conta.${x.fa ? fmApObs(x.fa) : ' Para amarrar: pesquisar o nome nos históricos do razão do ano e confirmar o apelido do fornecedor.'}`;
     case 'EV_MOD': return x.jan < 0 ? `A base deste fornecedor na janela é um crédito (estorno) de ${rs(x.jan)}. A linha é decidida pelo MODELO, que o projeta como recorrente: ${rs(x.tot)} em 2027. Conferir se cabe normalizar (ajuste gerencial).`
       : `Só ${x.nm} mês(es) com lançamento na janela (${rs(x.jan)}), mas a linha é decidida pelo MODELO, que anualiza a janela (× ${D.meta.fator || 3}) e aplica ${pc(l.pa || 0)}: vira ${rs(x.tot)} em 2027. Se não for recorrente, cabe normalizar (ajuste gerencial).`;
-    case 'OK': return x.og === 'CONTRATO' ? `Contrato fixo e linha decidida por contrato: ${rs(x.tot)} em 2027.`
+    case 'OK': if (x.sim && Math.abs(x.esp) < 0.005) return `O simulador de folha não prevê ${esc(x.simB.join(' + '))} para esta área, então não há valor a cobrir. O histórico anualizado deste fornecedor aqui é ${rs(x.simH)} — conferir no simulador quem recebe o benefício.`;
+      return x.og === 'CONTRATO' ? `Contrato fixo e linha decidida por contrato: ${rs(x.tot)} em 2027.`
       : x.og === 'GESTOR' ? `O gestor nomeou o fornecedor: ${rs(x.tot)} em 2027${x.cob != null ? ` (${pc(x.cob, 0)} do esperado pelo ${x.espF})` : ''}.`
       : x.og === 'MODELO' ? `Linha decidida pelo MODELO: histórico do fornecedor (${rs(x.jan)} na janela × ${D.meta.fator || 3}) + ${pc(l.pa || 0)} = ${rs(x.tot)}.${x.sim && x.cob != null ? ` ${x.totG ? `Com ${rs(x.totG)} da conta gêmea de custo, cobre` : 'Cobre'} ${pc(x.cob, 0)} do previsto no simulador de folha (${rs(x.esp)}).` : ''}`
       : `O gestor orçou a conta sem nomear fornecedores. ${conta} Este fornecedor está dentro desse valor.${x.vazios.length ? ` <b>Atenção:</b> a conta não tem valor em ${x.vazios.map(mes).join(', ')} — no acompanhamento mensal de 2027 esses meses vão aparecer acima do orçado.` : ''}`;
@@ -396,7 +423,7 @@ function fmDetalhe(i) {
   abrePainel(`<div class="pl-top"><div><h3>${esc(x.nome)}</h3><p>${esc(x.c)} ${esc(D.contaDesc[x.c] || '')} · ${esc(x.s)} · ${esc(x.fs.join(', ') || (x.fk === 'A' ? 'CNPJ a localizar' : 'nome digitado pelo gestor'))}${x.fa && x.gnome && x.fk !== 'N' ? ` · o gestor escreveu “${esc(x.gnome)}”` : ''}</p></div><button class="x" data-fecha>Fechar ✕</button></div>
    <div class="pl-corpo">
     <div class="${caixa}"><b>${esc(st.tl)}.</b> ${fmLeitura(x)}</div>
-    ${x.sim ? `<div class="info"><b>Benefício da folha: ${esc(x.simB.join(' + '))}.</b> É gerido pelo RH e rateado por área: cada área paga o equivalente aos seus colaboradores. Por isso o esperado (${rs(x.esp)}) vem do <a href="#folha" data-fecha>simulador de folha</a> — quadro da área × valor por pessoa — e não do contrato nem do histórico. Histórico deste fornecedor nesta área, anualizado: ${rs(x.simH)}${x.simAc ? ` — <b>${pc(x.simH / x.esp - 1, 0)} acima do simulador</b>: conferir o quadro da área e o valor por pessoa do benefício` : ''}.</div>` : ''}
+    ${x.sim ? `<div class="info"><b>Benefício da folha: ${esc(x.simB.join(' + '))}.</b> É gerido pelo RH e rateado por área: cada área paga o equivalente aos seus colaboradores. Por isso o esperado (${rs(x.esp)}) vem do <a href="#folha" data-fecha>simulador de folha</a> — quadro da área × valor por pessoa — e não do contrato nem do histórico.${x.simRat ? ' O benefício tem mais de um fornecedor nesta área: o previsto no simulador foi rateado entre eles pelo histórico da janela.' : ''} Histórico deste fornecedor nesta área, anualizado: ${rs(x.simH)}${x.simAc ? (x.esp > 0.005 ? ` — <b>${pc(x.simH / x.esp - 1, 0)} acima do simulador</b>: conferir o quadro da área e o valor por pessoa do benefício` : ' — <b>o simulador não prevê este benefício para a área</b>: conferir no simulador quem recebe') : ''}.</div>` : ''}
     ${x.simG ? `<div class="info"><b>Benefício da folha.</b> O simulador de folha prevê este benefício na conta de despesa (${esc(x.simDe)}); o orçado desta conta de custo entra na cobertura daquela linha.</div>` : ''}
     <div class="kpis"><div class="kpi k5"><div class="lab">Realizado jul–out/26</div><div class="val">${R$(x.jan)}</div><div class="meta">${x.nm} de ${A.meses.length} meses com lançamento</div></div>
       <div class="kpi k2"><div class="lab">Esperado 2027</div><div class="val">${x.esp != null ? R$(x.esp) : '—'}</div><div class="meta">${x.espF ? 'pelo ' + x.espF : 'não recorrente: sem expectativa'}</div></div>
@@ -409,7 +436,7 @@ function fmDetalhe(i) {
       <tr><td class="nw">Orçado final da conta nesta área</td>${l.mf.map(v => tdN(v, { uni: 'R$' })).join('')}${tdN(l.vf, { uni: 'R$' })}</tr>
       ${l.da === 'GESTOR' || l.da === 'OUTRO' ? `<tr><td class="nw">Saldo da conta sem fornecedor nomeado</td>${P.saldo.map(v => tdN(v, { uni: 'R$', cls: v < 0.005 ? 'down' : '' })).join('')}${tdN(soma(P.saldo), { uni: 'R$' })}</tr>` : ''}
     </tbody></table></div>
-    ${P.esperado != null && (l.da === 'GESTOR' || l.da === 'OUTRO') ? `<div class="csub">${P.espF === FM_SIMF ? 'Previsto no simulador de folha para esta conta e área, menos os benefícios dos fornecedores nomeados' : 'Histórico que o saldo da conta precisa cobrir (modelo da linha menos os fornecedores nomeados)'}: <b>${rs(P.esperado)}</b> · saldo <b>${rs(soma(P.saldo))}</b>.</div>` : ''}
+    ${P.esperado != null && (l.da === 'GESTOR' || l.da === 'OUTRO') ? `<div class="csub">${P.espF === FM_SIMF ? 'Previsto no simulador de folha para esta conta e área, menos os benefícios dos fornecedores nomeados' + (P.extra > 0.005 ? `, mais ${rs(P.extra)} de recorrentes que não são do simulador` : '') : 'Histórico que o saldo da conta precisa cobrir (modelo da linha menos os fornecedores nomeados)'}: <b>${rs(P.esperado)}</b> · saldo <b>${rs(soma(P.saldo))}</b>.</div>` : ''}
     ${x.cts.length ? `<h4 style="margin:6px 0 -6px">Contrato(s) deste fornecedor nesta conta</h4><div class="tw solta" style="flex:none"><table class="t"><thead><tr><th>Contrato</th><th>Situação</th><th>Fim</th><th class="n">Valor mensal 2027</th><th>Ação</th><th>Reajuste</th><th class="n">Total 2027</th><th>Existe em 2027</th></tr></thead><tbody>
       ${x.cts.map(q => `<tr><td class="nw">${esc(q.contrato || q.origem || '—')}</td><td>${esc(q.situacao || '')}</td><td class="nw">${q.fim ? esc(q.fim.split('-').reverse().join('/')) : '—'}</td>${tdN(+q.valor_2027 || 0, { uni: 'R$', dec: 2 })}<td class="nw">${esc(ctAcao(q))}${q.mes_acao ? ' · mês ' + esc(q.mes_acao) : ''}</td><td class="nw">${q.mes_reajuste ? pc(q.pct_reajuste || 0) + ' em ' + MESES[q.mes_reajuste - 1] : '—'}</td>${tdN(soma(ctMeses(q)), { uni: 'R$' })}<td class="w"><small>${esc(q.existe_2027 || '')}</small></td></tr>`).join('')}
       </tbody></table></div><div class="csub">Alterar em <a href="#contratos" data-fecha>Contratos recorrentes</a>. O contrato só entra no orçado final quando a decisão da linha é CONTRATO.</div>` : ''}
