@@ -11,7 +11,7 @@
    p = linha de percentual (as colunas de valor viram %) · c = conferência · '' = normal.
    · PREMISSAS ORÇAMENTÁRIAS (14/11/2026, Silvio: "gerar um PDF com as premissas orçamentárias, para levar para discussão com a TCP/Diretoria"): só PDF.
      O modelo sai do MESMO HTML que a tela desenha (TELAS.premissas_orc()) — uma fonte só, o PDF não diverge da tela. Tela de texto não cabe no quadro
-     numérico: o modelo traz `abertura` { titulo, texto, indice[{ id, t }], cartoes[{ rot, valor, meta, barra, tom }] } e quadros com `secao: true`
+     numérico: o modelo traz `abertura` { avisos[], titulo, texto, indice[{ id, t }], cartoes[{ rot, valor, meta, barra, tom }] } e quadros com `secao: true`
      { id, titulo, valor, texto, cols[{ t, tipo ('v' = valor em destaque), w (peso da largura), cor }], linhas[{ c[] }], discutir { t, itens[] }, notas[] }.
      Quadro de detalhe (<details>) da tela só entra, como anexo no fim, se estiver ABERTO na tela na hora da emissão. */
 "use strict";
@@ -133,7 +133,7 @@ function expCelPdf(v, tipo, c) {
    largura real da letra; as larguras calculadas aqui só decidem a quebra e o alinhamento. Sinais que a Helvetica não tem (≈ → Δ ≤ ≥ ≠) saem na fonte
    Symbol; travessão, aspas e reticências saem como na tela (a Helvetica do PDF tem); o sinal de menos vira meia-risca. */
 const EXP_COR = { tinta: [22, 32, 46], tinta2: [74, 84, 98], rot: [107, 116, 128], fio: [214, 219, 226], banda: [238, 241, 245], marca: [200, 16, 46],
-  campo: [255, 246, 214], disc: [255, 248, 240], discB: [243, 217, 191], neg: [192, 57, 43], pos: [26, 127, 75] };
+  campo: [255, 246, 214], disc: [255, 248, 240], discB: [243, 217, 191], neg: [192, 57, 43], pos: [26, 127, 75], aviso: [254, 243, 199], avisoB: [240, 219, 168], avisoT: [107, 78, 0] };
 const EXP_MM = 25.4 / 72;                                                                                  // 1 pt em mm
 const EXP_SIMB = { '≈': [187, 549], '→': [174, 987], 'Δ': [68, 612], '≤': [163, 549], '≥': [179, 549], '≠': [185, 549] };   // sinal → [código na Symbol, largura em milésimos]
 const EXP_CP = { '—': 151, '–': 150, '…': 133, '“': 147, '”': 148, '‘': 145, '’': 146, '•': 149, '›': 155, '€': 128 };     // o que a Helvetica tem fora do Latin-1 (código WinAnsi)
@@ -195,6 +195,11 @@ function expRicoDesenha(doc, linhas, x, y, fs, cor, lh, alinha) {     // y = lin
 }
 function expPdfAbertura(doc, M, y, g) {                     // 1ª página: título, texto de abertura, índice das seções (com a página de cada uma) e cartões
   const a = M.abertura, { W, MG } = g, util = W - 2 * MG, C = EXP_COR, L = (r, larg, fs, b) => expRicoLinhas(doc, typeof r === 'string' ? [{ t: r }] : r || [], larg, fs, b);
+  (a.avisos || []).forEach(av => {                        // faixa de aviso que a tela põe acima do título (ex.: premissa alterada no app que o PT carregado ainda não reflete)
+    const fs = 8.5, k = fs * EXP_MM, lh = k * 1.34, ls = L(av, util - 5.6, fs), h = (ls.length - 1) * lh + k + 3.4;
+    doc.setFillColor(...C.aviso); doc.setDrawColor(...C.avisoB); doc.setLineWidth(0.2); doc.roundedRect(MG, y, util, h, 1.4, 1.4, 'FD');
+    expRicoDesenha(doc, ls, MG + 2.8, y + 1.7 + k * 0.78, fs, C.avisoT, lh); y += h + 2.6;
+  });
   if (a.titulo) { expRicoDesenha(doc, L(a.titulo, util, 14, true), MG, y + 4.6, 14, C.tinta, 6); y += 7.4; }
   if (a.texto && a.texto.length) { const fs = 8.5, lh = fs * EXP_MM * 1.34, ls = L(a.texto, util, fs); expRicoDesenha(doc, ls, MG, y + fs * EXP_MM * 0.9, fs, C.tinta2, lh); y += ls.length * lh + 2.4; }
   if (a.indice && a.indice.length) {                        // a página de cada seção só é conhecida no fim: o texto é escrito depois (g.depois)
@@ -466,8 +471,8 @@ function expModeloFolha() {
 }
 
 /* PREMISSAS ORÇAMENTÁRIAS — o modelo é lido do HTML que a própria tela desenha (TELAS.premissas_orc()): título, texto, índice, cartões e, por seção,
-   título, valor, texto, quadro de premissas e "para discutir". Nada é recalculado aqui. Bloco que a tela ganhe depois e que não seja reconhecido sai
-   como texto (não se perde). Quadro de detalhe (<details>): aberto na tela = anexo no fim; fechado = só a menção de que existe no app. */
+   título, valor, texto, quadro de premissas e "para discutir". Nada é recalculado aqui. Bloco que a tela ganhe depois e que não seja reconhecido não se
+   perde: antes do cabeçalho da tela sai como faixa de aviso no topo do PDF (é onde entra o aviso de premissa alterada no app); depois dele, como texto. Quadro de detalhe (<details>): aberto na tela = anexo no fim; fechado = só a menção de que existe no app. */
 const expTabTela = tb => {                                  // <table> da tela → quadro de tabela do modelo (texto como está na tela; coluna numérica à direita)
   const cel = td => expRicoTxt(expRico(td)), linhas = [...tb.querySelectorAll('tbody tr')].map(tr => ({ c: [...tr.cells].map(cel) }));
   tb.querySelectorAll('tfoot tr').forEach(tr => linhas.push({ e: 't', c: [...tr.cells].map(cel) }));
@@ -478,9 +483,9 @@ function expModeloPremissas() {
   const raiz = new DOMParser().parseFromString('<!doctype html><body>' + TELAS.premissas_orc(), 'text/html').body;
   const vivos = [...document.querySelectorAll('#tela > details')], T = n => n ? expRicoTxt(expRico(n)) : '', R = n => n ? expRico(n) : [];
   const BARRA = { k2: [31, 111, 235], k3: [138, 90, 0], k4: [26, 127, 75], k5: [107, 118, 134] }, PESO = [30, 0, 33, 37];
-  const ab = { titulo: '', texto: [], indice: [], cartoes: [] }, secs = [], anexos = []; let sec = null, nDet = 0, nAnexo = 0, fechados = 0;
+  const ab = { avisos: [], titulo: '', texto: [], indice: [], cartoes: [] }, secs = [], anexos = []; let sec = null, nDet = 0, nAnexo = 0, fechados = 0, cab = false;
   [...raiz.children].forEach(el => {
-    if (el.matches('.head-row')) { ab.titulo = T(el.querySelector('h2')); ab.texto = R(el.querySelector('.title p')); }
+    if (el.matches('.head-row')) { cab = true; ab.titulo = T(el.querySelector('h2')); ab.texto = R(el.querySelector('.title p')); }
     else if (el.matches('.prem-indice')) ab.indice = [...el.querySelectorAll('[data-ir-prem]')].map(a => ({ id: a.dataset.irPrem, t: T(a) }));
     else if (el.matches('.kpis')) ab.cartoes = [...el.querySelectorAll('.kpi')].map(k => {
       const v = k.querySelector('.val');
@@ -502,7 +507,7 @@ function expModeloPremissas() {
         q.nota = [sec && sec.titulo ? `Detalhe da seção “${sec.titulo}”` : '', 'valores em ' + uniTxt(), ...(i ? [] : obs)].filter(Boolean).join(' · ');
         anexos.push(q); if (!i && sec) sec.notas.push({ t: 'Detalhe no Anexo ' + n, ref: q, fim: ': ' + titulo });
       });
-    } else if (T(el)) secs.push(sec = { secao: true, id: '', nome: '', titulo: '', valor: [], texto: R(el), cols: [], linhas: [], discutir: null, notas: [] });
+    } else if (T(el)) { if (!cab) ab.avisos.push(R(el)); else secs.push(sec = { secao: true, id: '', nome: '', titulo: '', valor: [], texto: R(el), cols: [], linhas: [], discutir: null, notas: [] }); }
   });
   const h = expHoje(), v = versaoAtual(), cen = D.meta.cenario || '—', uniA = anexos.length ? 'anexos em ' + uniTxt() : '';
   const M = expBase('PREMISSAS', ab.titulo || 'Premissas orçamentárias 2027', secs.concat(anexos),
