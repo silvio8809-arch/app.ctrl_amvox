@@ -257,7 +257,14 @@ const PREM_SECOES = [['receita', 'Receita (cenário de faturamento)'], ['imposto
   ['despesas', 'Despesas com vendas, operacionais e G&A'], ['decisao', 'Regra de decisão por linha · inflação · tolerância'], ['folha', 'Folha (simulador)'],
   ['pcld', 'PCLD / inadimplência'], ['naorec', 'Abaixo do EBITDA: importação, reestruturação, D&A, financeiro, IR'], ['caixa', 'Caixa: recebimentos, impostos, saldo inicial'],
   ['compras', 'Compras do P&D × adiantamentos (PA)'], ['rj', 'Plano da RJ e parcelamentos']];
-const onde = (pt, app) => `<span class="onde"><b>PT</b> ${esc(pt)}${app ? ` · <b>App</b> ${esc(app)}` : ''}</span>`;
+/* 14/11/2026: premissas gerais editáveis no app (orcamento_premissas.js, migração 052). Com a tabela no ar (prmAtiva) o "onde se muda" das células de
+   entrada da PREMISSAS aponta para a tela; sem ela, só o PT. Não entram: fórmula (F5), meses da base (B6/B7) e o plano de compras do P&D (linhas 22–23). */
+const premNoApp = () => typeof prmAtiva === 'function' && prmAtiva();
+const onde = (pt, app) => {
+  const prem = app === 'Configuração › Premissas' || app === 'Versões e cenários' || (!app && /^PREMISSAS(?!_FOLHA)/.test(pt) && !/F5|B6\/B7|linha 22|linha 23/.test(pt));
+  if (!prem) return `<span class="onde"><b>PT</b> ${esc(pt)}${app ? ` · <b>App</b> ${esc(app)}` : ''}</span>`;
+  return `<span class="onde">${premNoApp() ? '<b>App</b> Configuração › Premissas · ' : ''}<b>PT</b> ${esc(pt)}</span>`;
+};
 function tabPrem(rows) {
   return `<div class="tw solta"><table class="t prem-tab"><thead><tr><th>Parâmetro</th><th class="n">Valor atual</th><th>Onde se muda</th><th>Peso no resultado</th></tr></thead><tbody>
     ${rows.map(r => `<tr><td class="w">${r[0]}</td><td class="n nw"><span class="pv">${r[1]}</span></td><td class="w">${r[2]}</td><td class="w"><small>${r[3] || ''}</small></td></tr>`).join('')}</tbody></table></div>`;
@@ -283,7 +290,9 @@ function telaPremissas() {
   const despDRE = (D.dre.composicao[3] || [])[1] || 0;
   const pctFat = D.linhas.filter(l => l.me === '% FATURAMENTO');
   let h = `${cabecalho('Premissas orçamentárias 2027', 'O porquê de cada número: para cada grupo da DRE e do caixa, as premissas que montaram o valor, onde se mudam e quanto pesam no resultado. ' +
-    'Objetivo: provocar a discussão interna e a mudança de parâmetro. Todo parâmetro fica numa aba própria do PT (PREMISSAS / PREMISSAS_FOLHA) e, no app, em Configuração › Premissas.')}
+    'Objetivo: provocar a discussão interna e a mudança de parâmetro. ' + (premNoApp()
+      ? 'As premissas gerais se alteram no app, em Configuração › Premissas (com histórico de quem mudou) — o PT lê de lá a cada geração; as da folha, em Folha 2027.'
+      : 'Todo parâmetro fica numa aba própria do PT (PREMISSAS / PREMISSAS_FOLHA); no app, Configuração › Premissas mostra os valores e a alteração é feita no PT.'))}
   <div class="filtros prem-indice">${PREM_SECOES.map(([k, t]) => `<a class="chip" href="#premissas_orc" data-ir-prem="${k}">${esc(t)}</a>`).join('')}</div>
   <section class="kpis">
     <div class="kpi"><div class="lab">Faturamento 2027</div><div class="val">${rsC(fT)}</div><div class="meta">cenário ${esc(D.meta.cenario)} · base 2026 ${rsC(fatBase)}</div></div>
