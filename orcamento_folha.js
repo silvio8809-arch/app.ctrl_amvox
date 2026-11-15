@@ -44,8 +44,8 @@ function folhaDirecionadores(linhas, area, cen, P) {
   const L = linhas.filter(l => l.x.area === area), z = () => Array(12).fill(0);
   const D = { REM: z(), REM_APR: z(), PL: z(), PJ: z(), HE: z(), ABONO: z(), RETRO: z(), AVISO: z(), MULTA: z(), AJ13: z(), AJFER: z(),
     HC_BA: z(), HC_SP: z(), HCP_BA: z(), HCP_SP: z(), HCO_BA: z(), HCO_SP: z(), HCG_BA: z(), HCG_SP: z() };
-  const ger = l => /^GERENTE/.test(String(l.x.funcao || '').toUpperCase());   // 13/11/2026: Flash dos gerentes (combustível + refeição)
-  // Silvio 13/11/2026: diretores (reembolso de combustível) e gerentes (benefícios no cartão Flash) não recebem o benefício OPERACIONAL (fretado)
+  const ger = l => /^GERENTE/.test(String(l.x.funcao || '').toUpperCase());   // 13/11/2026: benefício pago só a gerentes
+  // 13/11/2026: diretores (reembolso de combustível) e gerentes (benefícios no cartão) não recebem o benefício OPERACIONAL (fretado)
   const oper = l => !/^(DIRETOR|GERENTE)/.test(String(l.x.funcao || '').toUpperCase());
   const ar = (P.areas || {})[area] || {}, he = +ar.he || 0;
   for (const l of L) {
@@ -131,11 +131,14 @@ function folhaComponentes(D, area, cen, P) {
     }
   }
   for (const b of P.beneficios) {
-    const hc = k => (b.conv === 'SP' ? 0 : (b.quem === 'PLANO' ? val('HCP_BA', k) : b.quem === 'OPERACIONAL' ? val('HCO_BA', k) : b.quem === 'GERENTE' ? val('HCG_BA', k) : val('HC_BA', k)))
+    // 15/11/2026: QUEM = HISTÓRICO — não é valor × pessoas: vale a média mensal da janela do fornecedor do benefício na área (b.hist[área], R$/mês,
+    // calculada pelo PT a partir do razão), igual nos dois cenários; o reajuste, se houver, entra a partir do mês de aplicação
+    const H = b.quem === 'HISTÓRICO', vb = H ? 1 : (+b.valor || 0);
+    const hc = k => H ? (+(b.hist || {})[area] || 0) : (b.conv === 'SP' ? 0 : (b.quem === 'PLANO' ? val('HCP_BA', k) : b.quem === 'OPERACIONAL' ? val('HCO_BA', k) : b.quem === 'GERENTE' ? val('HCG_BA', k) : val('HC_BA', k)))
       + (b.conv === 'BA' ? 0 : (b.quem === 'PLANO' ? val('HCP_SP', k) : b.quem === 'OPERACIONAL' ? val('HCO_SP', k) : b.quem === 'GERENTE' ? val('HCG_SP', k) : val('HC_SP', k)));
-    const m = []; for (let i = 0; i < 12; i++) m.push(hc(i) * (+b.valor || 0) * (1 + ((i + 1) >= (+b.mes || 13) ? (+b.reaj || 0) : 0)));
+    const m = []; for (let i = 0; i < 12; i++) m.push(hc(i) * vb * (1 + ((i + 1) >= (+b.mes || 13) ? (+b.reaj || 0) : 0)));
     out.push({ cenario: cen, area, componente: b.nome, destino: 'DESPESA', conta: +b.conta, setor_final: setorFinal(b.conta), m,
-      base: cen === 'MODELO' ? hc('base') * (+b.valor || 0) : null });
+      base: cen === 'MODELO' ? hc('base') * vb : null });
   }
   return out;
 }
