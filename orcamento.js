@@ -1137,4 +1137,5 @@ if (typeof instalaOrcDepara === 'function') instalaOrcDepara();         // 13/11
 if (typeof instalaOrcExporta === 'function') instalaOrcExporta();       // 14/11/2026: Excel e PDF da DRE 2027, da DRE TCP e da Folha 2027 (simulador) — orcamento_exporta.js
 if (typeof instalaOrcFornecedores === 'function') instalaOrcFornecedores();   // 14/11/2026: painel Fornecedores × meses (lacunas do orçado por fornecedor) — orcamento_fornecedores.js
 if (typeof instalaOrcPremissas === 'function') instalaOrcPremissas();     // 14/11/2026: premissas gerais EDITÁVEIS (Configuração › Premissas; o PT lê a cada geração) — orcamento_premissas.js
+if (typeof instalaOrcContas === 'function') instalaOrcContas();           // 15/11/2026: de-para de contas e da DRE TCP EDITÁVEIS (o PT lê a cada geração) — orcamento_contas.js
 inicia();
