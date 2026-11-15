@@ -8,7 +8,12 @@
      A folha ANALÍTICA (salário por posição) NÃO sai em arquivo — só na tela (base sigilosa; mesma linha da regra "margem não sai em arquivo").
    Cada tela monta um MODELO neutro { arq, titulo, sub, notas[], quadros[{ nome, titulo, cols[{t, tipo, w, dec}], linhas[{c[], e}], pdf }] } que os dois
    geradores leem. tipo: t = texto · n = valor (R$) · p = percentual · i = quantidade. e (estilo da linha): h = seção · t = total · s = subtotal ·
-   p = linha de percentual (as colunas de valor viram %) · c = conferência · '' = normal. */
+   p = linha de percentual (as colunas de valor viram %) · c = conferência · '' = normal.
+   · PREMISSAS ORÇAMENTÁRIAS (14/11/2026, Silvio: "gerar um PDF com as premissas orçamentárias, para levar para discussão com a TCP/Diretoria"): só PDF.
+     O modelo sai do MESMO HTML que a tela desenha (TELAS.premissas_orc()) — uma fonte só, o PDF não diverge da tela. Tela de texto não cabe no quadro
+     numérico: o modelo traz `abertura` { titulo, texto, indice[{ id, t }], cartoes[{ rot, valor, meta, barra, tom }] } e quadros com `secao: true`
+     { id, titulo, valor, texto, cols[{ t, tipo ('v' = valor em destaque), w (peso da largura), cor }], linhas[{ c[] }], discutir { t, itens[] }, notas[] }.
+     Quadro de detalhe (<details>) da tela só entra, como anexo no fim, se estiver ABERTO na tela na hora da emissão. */
 "use strict";
 
 /* ------------------------------------------------------------------------------------------- ZIP (store) + utilidades */
@@ -113,7 +118,7 @@ function expLibPdf() {
     .then(() => expCarregaJs('https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js')).catch(e => { _expLibPdf = null; throw e; }));
 }
 /* fontes padrão do PDF = WinAnsi: o que não existe nelas é trocado por equivalente (Δ → Var., − → -, ✓ → ok…) */
-const expPdfT = s => String(s ?? '').replace(/Δ/g, 'Var.').replace(/≤/g, '<=').replace(/≥/g, '>=').replace(/→/g, '->').replace(/[−–—]/g, '-').replace(/[✓✔]/g, 'ok')
+const expPdfT = s => String(s ?? '').replace(/Δ/g, 'Var.').replace(/≤/g, '<=').replace(/≥/g, '>=').replace(/→/g, '->').replace(/≈/g, '~').replace(/[−–—]/g, '-').replace(/[✓✔]/g, 'ok')
   .replace(/›/g, '>').replace(/[“”]/g, '"').replace(/[‘’]/g, "'").replace(/…/g, '...').replace(/[^\x00-\xFF]/g, '');
 function expCelPdf(v, tipo, c) {
   if (v == null || v === '') return '';
@@ -122,6 +127,181 @@ function expCelPdf(v, tipo, c) {
   if (tipo === 'i') return expPdfT(Math.abs(v) < 0.005 ? '-' : v.toLocaleString('pt-BR', { maximumFractionDigits: 1 }));
   const o = {}; if (c.dec != null) o.dec = c.dec; if (c.uni) o.uni = c.uni;          // c.uni = 'R$' em valor unitário (não segue a unidade da tela)
   return expPdfT(fmt(v, o));
+}
+/* ---- texto corrido, cartões e seções (tela de texto: premissas). Texto "rico" = pedaços [{ t, b (negrito), i (itálico) }], '\n' = quebra — é o texto
+   da tela, com o negrito da tela. Cada linha vai num único objeto de texto do PDF: a fonte troca sem reposicionar e quem avança é o leitor de PDF, com a
+   largura real da letra; as larguras calculadas aqui só decidem a quebra e o alinhamento. Sinais que a Helvetica não tem (≈ → Δ ≤ ≥ ≠) saem na fonte
+   Symbol; travessão, aspas e reticências saem como na tela (a Helvetica do PDF tem); o sinal de menos vira meia-risca. */
+const EXP_COR = { tinta: [22, 32, 46], tinta2: [74, 84, 98], rot: [107, 116, 128], fio: [214, 219, 226], banda: [238, 241, 245], marca: [200, 16, 46],
+  campo: [255, 246, 214], disc: [255, 248, 240], discB: [243, 217, 191], neg: [192, 57, 43], pos: [26, 127, 75] };
+const EXP_MM = 25.4 / 72;                                                                                  // 1 pt em mm
+const EXP_SIMB = { '≈': [187, 549], '→': [174, 987], 'Δ': [68, 612], '≤': [163, 549], '≥': [179, 549], '≠': [185, 549] };   // sinal → [código na Symbol, largura em milésimos]
+const EXP_CP = { '—': 151, '–': 150, '…': 133, '“': 147, '”': 148, '‘': 145, '’': 146, '•': 149, '›': 155, '€': 128 };     // o que a Helvetica tem fora do Latin-1 (código WinAnsi)
+const expPdfR = s => String(s ?? '').replace(/−/g, '–').replace(/[✓✔]/g, 'ok').replace(/[^\x00-\xFF—–…“”‘’•›€]/g, '');
+function expRico(no) {                                      // nó da tela → pedaços de texto, com o negrito e as quebras que a tela mostra (bloco dentro do nó = linha nova)
+  const out = [], BLOCO = /^(P|DIV|H[1-6]|LI|UL|OL|TR|TABLE|SECTION|DETAILS|SUMMARY)$/;
+  const quebra = () => { for (let i = out.length - 1; i >= 0; i--) { if (out[i].t === '\n') return; if (out[i].t.trim()) { out.push({ t: '\n' }); return; } } };
+  (function anda(n, b) { n.childNodes.forEach(c => {
+    if (c.nodeType === 3) out.push({ t: c.nodeValue.replace(/\s+/g, ' '), b });
+    else if (c.nodeType !== 1) return;
+    else if (c.tagName === 'BR') out.push({ t: '\n', b });
+    else if (BLOCO.test(c.tagName)) { quebra(); anda(c, b || /^H[1-6]$/.test(c.tagName)); quebra(); }
+    else { anda(c, b || /^(B|STRONG|TH)$/.test(c.tagName)); if (/^T[DH]$/.test(c.tagName)) out.push({ t: ' ', b }); }
+  }); })(no, false);
+  while (out.length && !out[out.length - 1].t.trim()) out.pop();
+  return out;
+}
+const expRicoTxt = r => r.map(x => x.t).join('').replace(/[ \t]+/g, ' ').replace(/ ?\n ?/g, '\n').trim();
+/* largura em "em", sem kerning (o PDF não aplica). As larguras do jsPDF vêm cortadas a 0,01 e as da Helvetica são múltiplos de 1/18: volta para o valor real */
+function expLarg(doc, t, f) {
+  return doc.getCharWidthsArray(t.replace(/[×÷]/g, '+'), { font: doc.internal.getFont('helvetica', f === 'b' ? 'bold' : 'normal'), doKerning: false })
+    .reduce((s, w) => { const g = Math.round(w * 18) / 18; return s + (Math.abs(g - w) < 0.007 ? g : w); }, 0);
+}
+function expRicoLinhas(doc, rico, larg, fs, negrito) {      // quebra em linhas de até `larg` mm — nunca corta texto: palavra maior que a linha é partida
+  const k = fs * EXP_MM, esp = 5 / 18 * k, linhas = []; let lin = { s: [], w: 0 }, pal = null;
+  const poe = p => { const u = lin.s[lin.s.length - 1]; if (u && u.f === p.f) { u.t += p.t; u.w += p.w; } else lin.s.push({ t: p.t, f: p.f, w: p.w }); lin.w += p.w; };
+  const nova = () => { linhas.push(lin); lin = { s: [], w: 0 }; };
+  const fecha = () => {                                     // põe a palavra pendente na linha (ou na seguinte, se não couber)
+    if (!pal) return; const p = pal; pal = null;
+    if (lin.s.length && lin.w + esp + p.w > larg + 0.01) nova();
+    if (lin.s.length) { const u = lin.s[lin.s.length - 1]; poe({ t: ' ', f: u.f === 's' ? 'n' : u.f, w: esp }); }
+    p.p.forEach(x => {
+      if (x.f === 's' || lin.w + x.w <= larg + 0.01) { poe(x); return; }
+      for (const ch of x.t) { const w = expLarg(doc, ch, x.f) * k; if (lin.s.length && lin.w + w > larg + 0.01) nova(); poe({ t: ch, f: x.f, w }); }
+    });
+  };
+  (rico || []).forEach(r => { const f = negrito || r.b ? 'b' : r.i ? 'i' : 'n';
+    String(r.t ?? '').split(/(\n|[ \t\r]+|[≈→Δ≤≥≠])/).forEach(s => {
+      if (!s) return;
+      if (s === '\n') { fecha(); nova(); return; }
+      if (/^[ \t\r]+$/.test(s)) { fecha(); return; }
+      const sim = EXP_SIMB[s], t = sim ? String.fromCharCode(sim[0]) : expPdfR(s); if (!t) return;
+      const x = { t, f: sim ? 's' : f, w: (sim ? sim[1] / 1000 : expLarg(doc, t, f)) * k };
+      (pal || (pal = { p: [], w: 0 })).p.push(x); pal.w += x.w;
+    }); });
+  fecha(); if (lin.s.length || !linhas.length) linhas.push(lin);
+  return linhas;
+}
+const expPdfStr = t => { let o = ''; for (const ch of t) { const c = EXP_CP[ch] || ch.charCodeAt(0); o += c === 40 || c === 41 || c === 92 ? '\\' + ch : c < 32 || c > 126 ? '\\' + c.toString(8).padStart(3, '0') : ch; } return o; };
+function expRicoDesenha(doc, linhas, x, y, fs, cor, lh, alinha) {     // y = linha de base da 1ª linha · alinha: 'd' = termina em x, 'c' = centrado em x
+  const I = doc.internal, n3 = v => (+v).toFixed(3), rg = cor.map(c => (c / 255).toFixed(3)).join(' ') + ' rg';
+  const F = { n: I.getFont('helvetica', 'normal').id, b: I.getFont('helvetica', 'bold').id, i: I.getFont('helvetica', 'italic').id, s: I.getFont('symbol', 'normal').id };
+  linhas.forEach((l, j) => {
+    if (!l.s.length) return;
+    const x0 = alinha === 'd' ? x - l.w : alinha === 'c' ? x - l.w / 2 : x;
+    I.write('BT\n' + rg + '\n' + n3(I.getHorizontalCoordinate(x0)) + ' ' + n3(I.getVerticalCoordinate(y + j * lh)) + ' Td\n'
+      + l.s.map(s => '/' + F[s.f] + ' ' + fs + ' Tf\n(' + expPdfStr(s.t) + ') Tj').join('\n') + '\nET');
+  });
+}
+function expPdfAbertura(doc, M, y, g) {                     // 1ª página: título, texto de abertura, índice das seções (com a página de cada uma) e cartões
+  const a = M.abertura, { W, MG } = g, util = W - 2 * MG, C = EXP_COR, L = (r, larg, fs, b) => expRicoLinhas(doc, typeof r === 'string' ? [{ t: r }] : r || [], larg, fs, b);
+  if (a.titulo) { expRicoDesenha(doc, L(a.titulo, util, 14, true), MG, y + 4.6, 14, C.tinta, 6); y += 7.4; }
+  if (a.texto && a.texto.length) { const fs = 8.5, lh = fs * EXP_MM * 1.34, ls = L(a.texto, util, fs); expRicoDesenha(doc, ls, MG, y + fs * EXP_MM * 0.9, fs, C.tinta2, lh); y += ls.length * lh + 2.4; }
+  if (a.indice && a.indice.length) {                        // a página de cada seção só é conhecida no fim: o texto é escrito depois (g.depois)
+    const fs = 7.2, hc = 4.8, px = 2.2, gp = 1.6; let x = MG;
+    a.indice.forEach(it => {
+      const w = L(it.t + ' · p. 00', 1e4, fs)[0].w + 2 * px;
+      if (x > MG && x + w > MG + util) { x = MG; y += hc + gp; }
+      doc.setDrawColor(...C.fio); doc.setLineWidth(0.2); doc.roundedRect(x, y, w, hc, hc / 2, hc / 2, 'S');
+      const cx = x + w / 2, cy = y + hc / 2 + fs * EXP_MM * 0.36, pg = doc.internal.getCurrentPageInfo().pageNumber;
+      g.depois.push(() => { const q = M.quadros.find(s => s.secao && s.id === it.id); doc.setPage(pg);
+        expRicoDesenha(doc, L(it.t + (q && q._pag ? ' · p. ' + q._pag : ''), 1e4, fs), cx, cy, fs, C.tinta2, 4, 'c'); });
+      x += w + gp;
+    });
+    y += hc + 3.6;
+  }
+  if (a.cartoes && a.cartoes.length) {
+    const n = a.cartoes.length, gp = 4, wc = (util - gp * (n - 1)) / n, r = 1.7, fm = 7.6, lm = fm * EXP_MM * 1.32;
+    const metas = a.cartoes.map(c => L(c.meta, wc - 8, fm)), hC = 15.6 + Math.max(...metas.map(m => m.length)) * lm + 1.6;
+    a.cartoes.forEach((c, i) => {
+      const x = MG + i * (wc + gp);
+      doc.setFillColor(...(c.barra || C.marca)); doc.roundedRect(x, y, wc, hC, r, r, 'F');                 // a barra colorida é o que sobra à esquerda do branco
+      doc.setFillColor(255, 255, 255); doc.roundedRect(x + 1.1, y, wc - 1.1, hC, r, r, 'F'); doc.rect(x + 1.1, y, r + 0.2, hC, 'F');
+      doc.setDrawColor(...C.fio); doc.setLineWidth(0.2); doc.roundedRect(x, y, wc, hC, r, r, 'S');
+      expRicoDesenha(doc, L(c.rot, 1e4, 6.6, true), x + 4.6, y + 5.3, 6.6, C.rot, 3);
+      expRicoDesenha(doc, L(c.valor, 1e4, 15, true), x + 4.6, y + 12.3, 15, c.tom === 'neg' ? C.neg : c.tom === 'pos' ? C.pos : C.tinta, 6);
+      expRicoDesenha(doc, metas[i], x + 4.6, y + 16.9, fm, C.tinta2, lm);
+    });
+    y += hC + 1.5;
+  }
+  return y;
+}
+const EXP_ESP = [{ vao: 6.5, ht: 4.9, tit: 2.6, lt: 1.34, txt: 1.8, hc: 5.4, pad: 1.25, lh: 1.3, cx: [2.2, 2.3, 1.3, 0.7, 1.3] },            // espaçamento normal
+  { vao: 4.6, ht: 4.7, tit: 2.1, lt: 1.25, txt: 1.3, hc: 5.0, pad: 0.85, lh: 1.22, cx: [1.6, 1.8, 1.0, 0.4, 1.0] }];                          // compacto: só quando é o que falta para a seção caber na página
+function expPdfSecao(doc, q, y, g, antes) {                 // seção de texto: título + valor, texto, quadro de premissas, caixa "para discutir" e notas
+  const { W, MG, yTopo, fim } = g, util = W - 2 * MG, C = EXP_COR, FS = 8, K = FS * EXP_MM, PX = 1.6, FT = 8.5, pagina = fim - yTopo;
+  const L = (r, larg, fs, b) => expRicoLinhas(doc, typeof r === 'string' ? [{ t: r }] : r || [], larg, fs, b), tot = a => a.reduce((s, x) => s + x, 0), pag = () => doc.internal.getCurrentPageInfo().pageNumber;
+  /* quebra do texto — antes de desenhar, para decidir em que página a seção começa e onde a tabela pode ser dividida */
+  const val = q.valor && q.valor.length ? L(q.valor, util * 0.5, 10.5, true) : [], wVal = Math.max(0, ...val.map(l => l.w));
+  const tit = q.titulo ? L(q.titulo, util - 3.2 - (wVal ? wVal + 6 : 0), 11, true) : [], nT = Math.max(tit.length, val.length);
+  const txt = q.texto && q.texto.length ? L(q.texto, util, FT) : [];
+  const iV = q.cols.findIndex(c => c.tipo === 'v'), temTab = q.cols.length > 0 && q.linhas.length > 0, peso = j => q.cols[j].w || 1; let wC = q.cols.map(() => 0), cel = [];
+  if (temTab) {                                             // largura pelo conteúdo: coluna que cabe numa linha fica do seu tamanho; as que não cabem dividem o resto pelo peso
+    const nat = q.cols.map((c, j) => Math.max(L(String(c.t || '').toUpperCase(), 1e4, 6.4, true)[0].w, ...q.linhas.map(l => Math.max(...L(l.c[j], 1e4, FS, j === iV).map(x => x.w)))) + 2 * PX + 0.4 + (j === iV ? 2.6 : 0));
+    if (iV >= 0) wC[iV] = Math.min(64, Math.max(27, nat[iV]));
+    let resto = util - tot(wC), pes = tot(q.cols.map((c, j) => j === iV ? 0 : peso(j))); const P = pes;
+    q.cols.map((c, j) => j).filter(j => j !== iV).sort((a, b) => nat[a] - nat[b]).forEach(j => { const cota = resto * peso(j) / pes; wC[j] = nat[j] <= cota * (pes > peso(j) ? 1.25 : 1) ? nat[j] : cota; resto -= wC[j]; pes -= peso(j); });
+    if (resto > 0.01) q.cols.forEach((c, j) => { if (j !== iV) wC[j] += resto * peso(j) / P; });
+    cel = q.linhas.map(l => q.cols.map((c, j) => L(l.c[j], wC[j] - 2 * PX - (j === iV ? 2.6 : 0), FS, j === iV)));
+  }
+  const xC = wC.map((w, j) => MG + tot(wC.slice(0, j))), dIt = q.discutir && q.discutir.itens.length ? q.discutir.itens.map(it => L(it, util - 9.4, FS)) : [], nN = (q.notas || []).length;
+  const mede = e => {                                       // alturas da seção num espaçamento
+    const LH = K * e.lh, hL = cel.map(cs => (Math.max(...cs.map(x => x.length)) - 1) * LH + K + 2 * e.pad);
+    const hCx = dIt.length ? e.cx[1] + K + e.cx[2] + tot(dIt.map(ls => ls.length * LH + e.cx[3])) + e.cx[4] : 0, hFim = (hCx ? e.cx[0] + hCx : 0) + (nN ? 1 + nN * 3.8 : 0);
+    const hIni = (nT ? nT * e.ht + e.tit : 0) + (txt.length ? txt.length * FT * EXP_MM * e.lt + e.txt : 0) + (temTab ? e.hc : 0);
+    return { LH, hL, hCx, hFim, hIni, hSec: hIni + tot(hL) + hFim };
+  };
+  /* onde começa: inteira na página, se couber — nem que seja com o espaçamento compacto; senão na página seguinte. Só se divide a seção grande (mais de meia
+     página), quando sobra pelo menos 1/3 da página e cabem título, texto, cabeçalho e 3 linhas — o fim (2 últimas linhas + "para discutir") nunca fica só */
+  let e = EXP_ESP[0], m = mede(e), yy = antes ? y + e.vao : y;
+  if (yy + m.hSec > fim) {
+    const e1 = EXP_ESP[1], m1 = mede(e1), y1 = antes ? y + e1.vao : y;
+    if (y1 + m1.hSec <= fim) { e = e1; m = m1; yy = y1; }
+    else if (yy > yTopo + 1 && !(cel.length >= 5 && m.hSec > pagina / 2 && fim - yy >= pagina / 3 && yy + m.hIni + tot(m.hL.slice(0, 3)) <= fim)) {
+      doc.addPage(); yy = yTopo; if (m.hSec > pagina && m1.hSec <= pagina) { e = e1; m = m1; }
+    }
+  }
+  const { LH, hL, hCx, hFim } = m, LT = FT * EXP_MM * e.lt;
+  q._pag = pag();
+  if (nT) {
+    doc.setFillColor(...C.marca); doc.rect(MG, yy + 0.4, 1.1, nT * e.ht - 1.1, 'F');
+    expRicoDesenha(doc, tit, MG + 3.2, yy + 3.8, 11, C.tinta, e.ht); expRicoDesenha(doc, val, W - MG, yy + 3.8, 10.5, C.tinta, e.ht, 'd');
+    yy += nT * e.ht + 0.8; doc.setDrawColor(...C.fio); doc.setLineWidth(0.25); doc.line(MG, yy, W - MG, yy); yy += e.tit - 0.8;
+  }
+  if (txt.length) { expRicoDesenha(doc, txt, MG, yy + FT * EXP_MM * 0.9, FT, C.tinta2, LT); yy += txt.length * LT + e.txt; }
+  const cab = t => {                                        // cabeçalho do quadro (repetido quando a tabela continua na página seguinte)
+    doc.setFillColor(...C.banda); doc.rect(MG, t, util, 4.5, 'F');
+    q.cols.forEach((c, j) => { const ls = L(String(c.t || '').toUpperCase(), 1e4, 6.4, true); if (j === iV) expRicoDesenha(doc, ls, xC[j] + wC[j] - PX, t + 3.05, 6.4, C.rot, 3, 'd'); else expRicoDesenha(doc, ls, xC[j] + PX, t + 3.05, 6.4, C.rot, 3); });
+    return t + e.hc;
+  };
+  const segue = comTab => { doc.addPage(); expRicoDesenha(doc, L((q.titulo || '') + ' (continuação)', util, 8.6, true), MG, yTopo + 3.1, 8.6, C.rot, 4); return comTab ? cab(yTopo + 5.2) : yTopo + 5.6; };
+  if (temTab) yy = cab(yy);
+  let ini = 0;
+  cel.forEach((cs, i) => {
+    if (i > ini && yy + tot(hL.slice(i)) + hFim > fim && (yy + hL[i] > fim || i >= cel.length - 2)) { yy = segue(true); ini = i; }
+    q.cols.forEach((c, j) => {
+      const ls = cs[j], yb = yy + e.pad + K * 0.78;
+      if (j === iV) {                                       // valor: negrito, à direita, sobre o fundo de campo editável (como na tela)
+        const w = Math.max(...ls.map(x => x.w));
+        if (w > 0) { doc.setFillColor(...C.campo); doc.roundedRect(xC[j] + wC[j] - PX - w - 2.6, yy + e.pad - 0.6, w + 2.6, (ls.length - 1) * LH + K + 1.2, 0.8, 0.8, 'F'); }
+        expRicoDesenha(doc, ls, xC[j] + wC[j] - PX - 1.3, yb, FS, C.tinta, LH, 'd');
+      } else expRicoDesenha(doc, ls, xC[j] + PX, yb, FS, c.cor === 2 ? C.tinta2 : C.tinta, LH);
+    });
+    yy += hL[i]; doc.setDrawColor(...C.fio); doc.setLineWidth(0.1); doc.line(MG, yy, W - MG, yy);
+  });
+  if (hCx) {
+    if (yy + hFim > fim && yy > yTopo + 8) yy = segue(false);
+    yy += e.cx[0]; doc.setFillColor(...C.disc); doc.setDrawColor(...C.discB); doc.setLineWidth(0.2); doc.roundedRect(MG, yy, util, hCx, 1.4, 1.4, 'FD');
+    expRicoDesenha(doc, L(q.discutir.t || '', util, FS, true), MG + 2.8, yy + e.cx[1] + K * 0.78, FS, C.tinta, LH);
+    let t = yy + e.cx[1] + K + e.cx[2];
+    dIt.forEach(ls => { doc.setFillColor(...C.tinta2); doc.circle(MG + 4.4, t + K * 0.48, 0.42, 'F'); expRicoDesenha(doc, ls, MG + 6.6, t + K * 0.78, FS, C.tinta, LH); t += ls.length * LH + e.cx[3]; });
+    yy += hCx;
+  }
+  (q.notas || []).forEach((nt, i) => {                      // nota de detalhe: a página do anexo só é conhecida no fim
+    const yb = yy + 1 + i * 3.8 + 2.7, pg = pag();
+    g.depois.push(() => { doc.setPage(pg); expRicoDesenha(doc, L([{ t: nt.t + (nt.ref && nt.ref._pag ? ' (página ' + nt.ref._pag + ')' : '') + (nt.fim || ''), i: true }], util, 7.6), MG, yb, 7.6, C.rot, 3.6); });
+  });
+  return yy + (nN ? 1 + nN * 3.8 : 0);
 }
 function expPdf(M) {
   const doc = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape', compress: true }), W = 297, H = 210, MG = 9;
@@ -133,9 +313,13 @@ function expPdf(M) {
     return 17.5 + linhas.length * 3.1 + 1.5;
   };
   const yTopo = topo(); let y = yTopo;                       // o cabeçalho das demais páginas é desenhado no fim (todas de uma vez)
+  const g = { W, H, MG, yTopo, fim: H - 11, depois: [] };    // tela de texto: medidas da página e o que só se escreve no fim (nº da página de seção e de anexo)
+  if (M.abertura) y = expPdfAbertura(doc, M, y, g);
   M.quadros.filter(q => q.pdf !== false).forEach((q, k) => {
+    if (q.secao) { y = expPdfSecao(doc, q, y, g, k > 0 || !!M.abertura); return; }
     const nCol = q.cols.length; let fs = (nCol >= 16 ? 5.6 : nCol >= 13 ? 6.2 : nCol >= 9 ? 7 : 8) - (est.uni === 'R$' && nCol >= 13 ? 0.5 : 0), pad = 0.75;
     if (k > 0) { if (q.novaPagina || y > H - 45) { doc.addPage(); y = yTopo; } else y += 5; }
+    q._pag = doc.internal.getCurrentPageInfo().pageNumber;
     doc.setTextColor(23, 24, 26); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text(expPdfT(q.titulo || q.nome), MG, y + 3);
     if (q.nota) { doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8); doc.setTextColor(95); const ln = doc.splitTextToSize(expPdfT(q.nota), W - 2 * MG); doc.text(ln, MG, y + 6.8); y += ln.length * 2.9; }
     const util = W - 2 * MG, w0 = Math.min(q.w0 || (nCol >= 13 ? 62 : 80), util * 0.45), colunas = { 0: { halign: 'left', cellWidth: w0 } };
@@ -163,6 +347,7 @@ function expPdf(M) {
     });
     y = doc.lastAutoTable.finalY;
   });
+  g.depois.forEach(f => f());
   const n = doc.getNumberOfPages();
   for (let i = 1; i <= n; i++) {
     doc.setPage(i); if (i > 1) topo();
@@ -280,8 +465,57 @@ function expModeloFolha() {
   return M;
 }
 
+/* PREMISSAS ORÇAMENTÁRIAS — o modelo é lido do HTML que a própria tela desenha (TELAS.premissas_orc()): título, texto, índice, cartões e, por seção,
+   título, valor, texto, quadro de premissas e "para discutir". Nada é recalculado aqui. Bloco que a tela ganhe depois e que não seja reconhecido sai
+   como texto (não se perde). Quadro de detalhe (<details>): aberto na tela = anexo no fim; fechado = só a menção de que existe no app. */
+const expTabTela = tb => {                                  // <table> da tela → quadro de tabela do modelo (texto como está na tela; coluna numérica à direita)
+  const cel = td => expRicoTxt(expRico(td)), linhas = [...tb.querySelectorAll('tbody tr')].map(tr => ({ c: [...tr.cells].map(cel) }));
+  tb.querySelectorAll('tfoot tr').forEach(tr => linhas.push({ e: 't', c: [...tr.cells].map(cel) }));
+  return { cols: [...tb.querySelectorAll('thead th')].map(th => ({ t: cel(th), tipo: th.classList.contains('n') ? 'n' : 't' })), linhas, cong: 0,
+    w0: Math.min(70, Math.max(24, 4 + 1.5 * Math.max(0, ...linhas.map(l => Math.max(...String(l.c[0] ?? '').split('\n').map(s => s.length)))))) };
+};
+function expModeloPremissas() {
+  const raiz = new DOMParser().parseFromString('<!doctype html><body>' + TELAS.premissas_orc(), 'text/html').body;
+  const vivos = [...document.querySelectorAll('#tela > details')], T = n => n ? expRicoTxt(expRico(n)) : '', R = n => n ? expRico(n) : [];
+  const BARRA = { k2: [31, 111, 235], k3: [138, 90, 0], k4: [26, 127, 75], k5: [107, 118, 134] }, PESO = [30, 0, 33, 37];
+  const ab = { titulo: '', texto: [], indice: [], cartoes: [] }, secs = [], anexos = []; let sec = null, nDet = 0, nAnexo = 0, fechados = 0;
+  [...raiz.children].forEach(el => {
+    if (el.matches('.head-row')) { ab.titulo = T(el.querySelector('h2')); ab.texto = R(el.querySelector('.title p')); }
+    else if (el.matches('.prem-indice')) ab.indice = [...el.querySelectorAll('[data-ir-prem]')].map(a => ({ id: a.dataset.irPrem, t: T(a) }));
+    else if (el.matches('.kpis')) ab.cartoes = [...el.querySelectorAll('.kpi')].map(k => {
+      const v = k.querySelector('.val');
+      return { rot: T(k.querySelector('.lab')).toUpperCase(), valor: R(v), meta: R(k.querySelector('.meta')), barra: BARRA[[...k.classList].find(c => BARRA[c])],
+        tom: !v ? '' : v.classList.contains('down') ? 'neg' : v.classList.contains('up') ? 'pos' : '' };
+    });
+    else if (el.matches('section.prem-sec')) {
+      const tb = el.querySelector('table.prem-tab'), dz = el.querySelector('.disc');
+      secs.push(sec = { secao: true, id: (el.id || '').replace(/^prem-/, ''), nome: T(el.querySelector('h3')), titulo: T(el.querySelector('h3')), valor: R(el.querySelector('.prem-val')), texto: R(el.querySelector('p.exp')),
+        cols: tb ? [...tb.querySelectorAll('thead th')].map((th, j) => ({ t: T(th), tipo: th.classList.contains('n') ? 'v' : 't', w: PESO[j] || 30, cor: j === 2 ? 2 : 1 })) : [],
+        linhas: tb ? [...tb.querySelectorAll('tbody tr')].map(tr => ({ c: [...tr.cells].map(R) })) : [],
+        discutir: dz ? { t: T(dz.querySelector('b')), itens: [...dz.querySelectorAll('li')].map(R) } : null, notas: [] });
+    } else if (el.matches('details')) {
+      const titulo = T(el.querySelector('summary')), aberto = vivos[nDet] ? vivos[nDet].open : el.open; nDet++;
+      if (!aberto) { fechados++; if (sec) sec.notas.push({ t: 'Detalhe disponível no app: ' + titulo }); return; }
+      const n = ++nAnexo, obs = [...el.querySelectorAll('.csub')].map(T).filter(Boolean);
+      [...el.querySelectorAll('table')].forEach((tb, i) => {
+        const q = expTabTela(tb); q.nome = 'Anexo ' + n + (i ? '.' + (i + 1) : ''); q.titulo = `Anexo ${n} — ${titulo}${i ? ' (continuação)' : ''}`; q.novaPagina = !i;
+        q.nota = [sec && sec.titulo ? `Detalhe da seção “${sec.titulo}”` : '', 'valores em ' + uniTxt(), ...(i ? [] : obs)].filter(Boolean).join(' · ');
+        anexos.push(q); if (!i && sec) sec.notas.push({ t: 'Detalhe no Anexo ' + n, ref: q, fim: ': ' + titulo });
+      });
+    } else if (T(el)) secs.push(sec = { secao: true, id: '', nome: '', titulo: '', valor: [], texto: R(el), cols: [], linhas: [], discutir: null, notas: [] });
+  });
+  const h = expHoje(), v = versaoAtual(), cen = D.meta.cenario || '—', uniA = anexos.length ? 'anexos em ' + uniTxt() : '';
+  const M = expBase('PREMISSAS', ab.titulo || 'Premissas orçamentárias 2027', secs.concat(anexos),
+    `cenário de receita ${cen} (${rsC(D.meta.receita)}) · unidade indicada em cada valor${uniA ? ' (' + uniA + ')' : ''} · emitido em ${h.br}`);
+  M.abertura = ab; M.uniNota = uniA || 'unidade indicada em cada valor';
+  M.notas = [`Emitido em ${h.br}`, `versão ${v.codigo || '—'} (${v.status || '—'})`, `cenário de receita ${cen}`, 'AMVOX / REISTAR — Controladoria', 'uso interno'];
+  if (fechados) M.aviso = 'quadro de detalhe fechado na tela não sai: abra-o antes de gerar para entrar como anexo';
+  return M;
+}
+
 /* ------------------------------------------------------------------------------------------- botões nas telas */
-const EXP_TELAS = { dre: expModeloDRE, dre_tcp: expModeloTCP, folha: expModeloFolha };
+const EXP_TELAS = { dre: expModeloDRE, dre_tcp: expModeloTCP, folha: expModeloFolha, premissas_orc: expModeloPremissas };
+const EXP_SO_PDF = { premissas_orc: 'PDF A4 paisagem da tela inteira: cartões, seções, quadros de premissas e “Para discutir”. Quadro de detalhe aberto na tela sai como anexo' };   // tela só com PDF (texto do botão)
 async function expGera(tela, tipo) {
   const st = document.getElementById('expMsg'), diz = (t, erro) => { if (st) { st.textContent = t; st.style.color = erro ? '#C8102E' : ''; } };
   try {
@@ -291,8 +525,9 @@ async function expGera(tela, tipo) {
       diz(`✓ Excel gerado: ${M.arq}.xlsx (valores em R$, ${M.quadros.length} aba(s))`);
     } else {
       diz('gerando o PDF…'); await expLibPdf();
-      M.notas.push('valores em ' + uniTxt());
-      expPdf(M).save(M.arq + '.pdf'); diz(`✓ PDF gerado: ${M.arq}.pdf (valores em ${uniTxt()})`);
+      M.notas.push(M.uniNota || 'valores em ' + uniTxt());
+      const doc = expPdf(M); doc.save(M.arq + '.pdf');
+      diz(`✓ PDF gerado: ${M.arq}.pdf (${M.uniNota ? doc.getNumberOfPages() + ' página(s)' : 'valores em ' + uniTxt()})` + (M.aviso ? ' · ' + M.aviso : ''));
     }
   } catch (e) { console.error(e); diz('Não foi possível gerar o arquivo: ' + (e.message || e), true); }
 }
@@ -300,8 +535,8 @@ function expBotoes(tela) {
   const cab = document.querySelector('#tela .head-row'); if (!cab || cab.querySelector('.exp-bts')) return;
   if (tela === 'folha' && (typeof FOLHA === 'undefined' || !FOLHA)) return;
   const d = document.createElement('div'); d.className = 'exp-bts';
-  d.innerHTML = '<span id="expMsg" class="exp-msg"></span><button class="btn" data-exp="xlsx" title="Planilha .xlsx com os valores exatos em R$, uma aba por quadro">⬇ Excel</button>'
-    + '<button class="btn" data-exp="pdf" title="PDF A4 paisagem, na unidade que está na tela">⬇ PDF</button>';
+  d.innerHTML = '<span id="expMsg" class="exp-msg"></span>' + (EXP_SO_PDF[tela] ? '' : '<button class="btn" data-exp="xlsx" title="Planilha .xlsx com os valores exatos em R$, uma aba por quadro">⬇ Excel</button>')
+    + `<button class="btn" data-exp="pdf" title="${EXP_SO_PDF[tela] || 'PDF A4 paisagem, na unidade que está na tela'}">⬇ PDF</button>`;
   cab.appendChild(d);
   d.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => expGera(tela, b.dataset.exp));
 }
