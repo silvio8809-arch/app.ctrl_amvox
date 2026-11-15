@@ -1139,4 +1139,5 @@ if (typeof instalaOrcFornecedores === 'function') instalaOrcFornecedores();   //
 if (typeof instalaOrcPremissas === 'function') instalaOrcPremissas();     // 14/11/2026: premissas gerais EDITÁVEIS (Configuração › Premissas; o PT lê a cada geração) — orcamento_premissas.js
 if (typeof instalaOrcContas === 'function') instalaOrcContas();           // 15/11/2026: de-para de contas e da DRE TCP EDITÁVEIS (o PT lê a cada geração) — orcamento_contas.js
 if (typeof instalaOrcDecisoes === 'function') instalaOrcDecisoes();       // 15/11/2026: decisões por linha EDITÁVEIS (o PT lê a cada geração) — orcamento_decisoes.js
+if (typeof instalaOrcExcecoes === 'function') instalaOrcExcecoes();       // 15/11/2026: exceções conta × centro de custo EDITÁVEIS (o PT lê a cada geração) — orcamento_excecoes.js
 inicia();
