@@ -1677,27 +1677,28 @@ async function gerarPdfSim(versao){
           ["MC da operação (preço - impostos - custo; máx. 20%) · - VPC - custo fixo 5% = EBITDA", `${PCT(mcOperacao(d.price, d.ct))} - ${PCT(d.vpc/d.price)} - ${PCT(d.dmaqPct)} = ${PCT(d.marg)}`]], new Set([2,7,8,9]));
       } else {
         /* v0.38 — padrao DRE Modelo TCP (aba DRE - PPT) com os percentuais da regua da MC prevista */
-        const pRL = v => PCT(v/d.rlD);
+        const pRL = v => Math.abs(v)<0.005 ? "-" : PCT(v/d.rlD);
+        const neg = v => Math.abs(v)<0.005 ? "-" : "-"+R(v);
         kvT("2 · Formação do preço — demonstração do resultado da venda (R$ por unidade · % da receita líquida)", [
           [`Faturamento (preço + IPI ${fmt(SIM.ipi ?? ipiPad(),2)}%)`, `${R(d.fat)}   ${pRL(d.fat)}`],
           ["Desconto incondicional", "-"],
           ["Receita bruta", `${R(d.fat)}   ${pRL(d.fat)}`],
-          [`Devoluções ${fmt(vDev(),2)}%`, `-${R(d.devV)}   ${pRL(-d.devV)}`],
+          [`Devoluções ${fmt(vDev(),2)}%`, `${neg(d.devV)}   ${pRL(-d.devV)}`],
           ["Receita líquida de devoluções", `${R(d.rld)}   ${pRL(d.rld)}`],
-          [`Estimativa de carga tributária ${fmt(vCarga(),2)}%`, `-${R(d.cargaV)}   ${pRL(-d.cargaV)}`],
-          [`VPC ${SIM.vpcOn ? fmt(SIM.vpcPct,2)+"%" : "(desligado)"}`, `-${R(d.vpcF)}   ${pRL(-d.vpcF)}`],
+          [`Estimativa de carga tributária ${fmt(vCarga(),2)}%`, `${neg(d.cargaV)}   ${pRL(-d.cargaV)}`],
+          [`VPC ${SIM.vpcOn ? fmt(SIM.vpcPct,2)+"%" : "(desligado)"}`, `${neg(d.vpcF)}   ${pRL(-d.vpcF)}`],
           ["Deduções", `-${R(d.dedV)}   ${pRL(-d.dedV)}`],
           ["Receita líquida", `${R(d.rlD)}   100,0%`],
-          ["Custo do produto (CT)", `-${R(d.ct)}   ${pRL(-d.ct)}`],
-          [`Mão de obra direta (MOD) ${fmt(vMod(),2)}%`, `-${R(d.modV)}   ${pRL(-d.modV)}`],
-          ["Custos diretos", `-${R(d.cdir)}   ${pRL(-d.cdir)}`],
+          ["Custo do produto (CT)", `${neg(d.ct)}   ${pRL(-d.ct)}`],
+          [`Mão de obra direta (MOD) ${fmt(vMod(),2)}%`, `${neg(d.modV)}   ${pRL(-d.modV)}`],
+          ["Custos diretos", `${neg(d.cdir)}   ${pRL(-d.cdir)}`],
           ["Lucro bruto", `${R(d.lbD)}   ${pRL(d.lbD)}`],
-          [`Fretes e armazenagem ${fmt(vFrete(),2)}% (UF ${uf})`, `-${R(d.freteV)}   ${pRL(-d.freteV)}`],
-          [`Comissões ${fmt(vComis(),2)}%`, `-${R(d.comisV)}   ${pRL(-d.comisV)}`],
-          [`Bonificações ${fmt(vBonif(),2)}%`, `-${R(d.bonifV)}   ${pRL(-d.bonifV)}`],
-          ["Desp. variáveis vendas", `-${R(d.dvV)}   ${pRL(-d.dvV)}`],
+          [`Fretes e armazenagem ${fmt(vFrete(),2)}% (UF ${uf})`, `${neg(d.freteV)}   ${pRL(-d.freteV)}`],
+          [`Comissões ${fmt(vComis(),2)}%`, `${neg(d.comisV)}   ${pRL(-d.comisV)}`],
+          [`Bonificações ${fmt(vBonif(),2)}%`, `${neg(d.bonifV)}   ${pRL(-d.bonifV)}`],
+          ["Desp. variáveis vendas", `${neg(d.dvV)}   ${pRL(-d.dvV)}`],
           ["MARGEM DE CONTRIBUIÇÃO (MC)", `${R(d.mcD)}   ${PCT(d.mcPct)}`],
-          [`Despesas fixas - despesa da máquina ${PCT(d.dmaqPct)}${dmaqRotulo()}`, `-${R(d.fixV)}   ${pRL(-d.fixV)}`],
+          [`Despesas fixas - despesa da máquina ${PCT(d.dmaqPct)}${dmaqRotulo()}`, `${neg(d.fixV)}   ${pRL(-d.fixV)}`],
           ["EBITDA", `${R(d.ebitdaD)}   ${PCT(d.ebPct)} (meta ${fmt(SIM.meta,1)}%)`],
           ["MC pela régua do guia (conferência)", `${PCT(d.mcGuia)} (mínimo ${Math.round(d.mcAlvo*100)}%) ${d.mcGuia>=d.mcAlvo-1e-4 ? "OK" : "ABAIXO DO MÍNIMO"}`]],
           new Set([2,4,7,8,11,12,16,17,18,19]));
