@@ -99,7 +99,7 @@ input:focus{outline:2px solid var(--accent)}
   <div class="secao"><h2>Preço e margem</h2><div class="apps">
     <a class="appc" data-app="precos" href="tabelas.html"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9-9-9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span>
       <span class="tx"><h3>Tabelas de Preço 2026</h3><p>Preços por SKU e tabela, simulador Suframa e auditoria.</p></span><span class="seta">→</span></a>
-    <a class="appc" data-app="precos" href="custos.html"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l2 4h14l2-4"/><path d="M5 17V9h14v8"/><path d="M9 9V5h6v4"/><path d="M12 5V2"/></svg></span>
+    <a class="appc" data-app="precos" data-app2="custos" href="custos.html"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l2 4h14l2-4"/><path d="M5 17V9h14v8"/><path d="M9 9V5h6v4"/><path d="M12 5V2"/></svg></span>
       <span class="tx"><h3>Custo de Aquisição 2025×2026</h3><p>Custo e preço por modelo e frete real × projetado.</p></span><span class="seta">→</span></a>
     <a class="appc" data-app="precos" href="curva.html"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg></span>
       <span class="tx"><h3>Curva de Venda × Preço</h3><p>Venda e preço por linha e SKU, com leitura automática.</p></span><span class="seta">→</span></a>
@@ -151,12 +151,13 @@ async function mostraHub(session){
     const papel = (data && data.papel) || 'CONSULTA';
     /* cartões só dos aplicativos liberados ao usuário (07/10/2026; sem a coluna = transição → todos) */
     const apps = data && Array.isArray(data.apps) ? data.apps : ['precos', 'dash'];
-    document.querySelectorAll('a.appc[data-app]').forEach(a => { a.style.display = apps.includes(a.dataset.app) ? '' : 'none'; });
+    document.querySelectorAll('a.appc[data-app]').forEach(a => {   /* data-app2: 2ª liberação que abre o mesmo cartão (Custos, 16/11/2026) */
+      a.style.display = (apps.includes(a.dataset.app) || (a.dataset.app2 && apps.includes(a.dataset.app2))) ? '' : 'none'; });
     if (!apps.length) $('semApps').style.display = 'block';
     const el = $('quemPapel'); el.textContent = papel;
     if (papel === 'ADM') el.classList.add('adm');
-    if (papel === 'GERENTE' || papel === 'REPRESENTANTE'){   /* REPRESENTANTE = gerente sem margem (05/11/2026) */
-      const cardCustos = document.querySelector('a.appc[href="custos.html"]');
+    if ((papel === 'GERENTE' || papel === 'REPRESENTANTE') && !apps.includes('custos')){   /* REPRESENTANTE = gerente sem margem (05/11/2026) */
+      const cardCustos = document.querySelector('a.appc[href="custos.html"]');               /* gestor de custos mantém o cartão (16/11/2026) */
       if (cardCustos) cardCustos.style.display='none';
     }
     if (papel === 'REPRESENTANTE'){   /* 05/11/2026: representante usa SÓ o Simulador (cartão Tabelas de Preço) */
