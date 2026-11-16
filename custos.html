@@ -182,6 +182,9 @@ tr.exp td{background:var(--surface2); padding:16px 18px; white-space:normal}
   border:1px solid var(--line2); background:var(--surface); border-radius:7px; padding:8px 16px}
 .btn:hover{background:var(--surface2)}
 .btn:focus-visible{outline:2px solid var(--brand); outline-offset:2px}
+/* 16/11/2026: o "all:unset" do .btn acima anulava o .admx (declarado antes) e o botão Aprovar simulação
+   aparecia para o perfil consulta — clicava e tomava erro do banco. Quem não grava não vê o botão. */
+button.admx{display:none} body.is-adm button.admx{display:inline-block}
 .flag{background:var(--surface); border:1px solid var(--line); border-left:3px solid var(--brand);
   border-radius:8px; padding:13px 16px; margin:10px 0}
 .flag b{font-weight:600}
@@ -713,12 +716,15 @@ details.simparams .inner{padding:2px 18px 16px}
     <section class="view" id="v-acesso">
       <div class="crumb">Administração</div>
       <h1>Acesso de Usuários</h1>
-      <p class="lede">O perfil vem do login: Consulta abre o perfil
-      <b>consulta</b> (Simulador + Visão Comparativa + gráfico de frete); ADM abre
-      o restante — Visão Central, parâmetros globais, fontes e metodologia.</p>
-      <div class="flag"><b>Controle por login (06/10/2026):</b> o perfil vem do usuário autenticado — ADM vê tudo;
-        Consulta vê Simulador, Visão Comparativa e gráfico de frete. Os dados só chegam ao navegador depois do login
-        (ficam no banco, fora do código publicado). O antigo código de acesso foi desativado.</div>
+      <p class="lede">O perfil vem do login, em três níveis:
+      <b>consulta</b> (Simulador, Visão Comparativa, Frete real × projetado e Projetado × Realizado);
+      <b>gestor de custos</b> — acrescenta Cadastro de SKUs e Visão Central, podendo <b>cadastrar SKU</b> e
+      <b>aprovar simulação</b>; e <b>ADM</b>, que abre tudo. Parâmetros, Fontes &amp; Status, Metodologia e esta
+      tela são de leitura em qualquer perfil — parâmetro global só muda pela Controladoria.</p>
+      <div class="flag"><b>Controle por login (06/10/2026 · gestor de custos em 16/11/2026):</b> o perfil vem do usuário
+        autenticado — ADM vê tudo; gestor de custos vê tudo e grava apenas cadastro de SKU e aprovação de simulação;
+        consulta vê Simulador, Visão Comparativa e os dois comparativos. Toda aprovação fica carimbada com o e-mail de quem
+        aprovou. Os dados só chegam ao navegador depois do login (ficam no banco, fora do código publicado).</div>
       <p class="note">O compartilhamento da própria página continua controlado pelo dono no menu de
       compartilhamento do artifact — sem o link, ninguém acessa nada.</p>
     </section>
@@ -727,14 +733,17 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.36 · refresh 16/11/2026";
+const VERSAO = "v0.37 · refresh 16/11/2026";
 document.getElementById("versao").textContent = VERSAO;
-/* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 ===== */
+/* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 =====
+   16/11/2026: terceiro nível — GESTOR DE CUSTOS (aplicativo 'custos' no cadastro do usuário):
+   vê todas as telas, cadastra SKU e aprova simulação; o resto das telas é de leitura para todo mundo. */
 let ADM = false;
+function ehGestorCustos(){ return window.CUSTOS_GESTOR === true && window.PAPEL !== "ADM"; }
 function aplicaPerfil(){
   ADM = sessionStorage.getItem("perfil") === "adm";
   document.body.classList.toggle("is-adm", ADM);
-  document.getElementById("perfil").textContent = ADM ? "perfil: ADM" : "perfil: consulta";
+  document.getElementById("perfil").textContent = ehGestorCustos() ? "perfil: gestor de custos" : ADM ? "perfil: ADM" : "perfil: consulta";
   document.getElementById("btnperfil").textContent = ADM ? "Sair do ADM" : "Trocar perfil";
   if (typeof renderSim === "function" && document.getElementById("simsku").options.length) renderSim();
 }
@@ -2085,8 +2094,9 @@ document.addEventListener("click", ev => {
 <script type="text/plain" data-pos-dados>
 /* papel do LOGIN comanda o modo ADM (aprovado 15/09/2026): CONSULTA nem vê o gate */
 document.addEventListener('papel-pronto', ()=>{
-  if (window.PAPEL === 'GERENTE' || window.PAPEL === 'REPRESENTANTE'){ location.replace('tabelas.html'); return; }
-  const adm = window.PAPEL === 'ADM';
+  const gestor = window.CUSTOS_GESTOR === true;   /* liberação própria do app de Custos (16/11/2026) */
+  if (!gestor && (window.PAPEL === 'GERENTE' || window.PAPEL === 'REPRESENTANTE')){ location.replace('tabelas.html'); return; }
+  const adm = window.PAPEL === 'ADM' || gestor;
   if (window.USUARIO_EMAIL && !document.getElementById('quemlog')){
     const f=document.querySelector('.side .foot');
     if(f){ const d=document.createElement('div'); d.id='quemlog'; d.style.cssText='margin-top:7px;word-break:break-all;color:#C9C9C5';
@@ -2094,6 +2104,10 @@ document.addEventListener('papel-pronto', ()=>{
   }
   sessionStorage.setItem('perfil', adm ? 'adm' : 'consulta');
   if (typeof aplicaPerfil === 'function') aplicaPerfil();
+  if (gestor && window.PAPEL !== 'ADM'){
+    const b=document.getElementById('btnperfil'); if(b) b.style.display='none';
+    const f=document.getElementById('pform'); if(f) f.hidden=true;
+  }
   if (!adm){
     const b=document.getElementById('btnperfil'); if(b) b.style.display='none';
     const f=document.getElementById('pform'); if(f) f.hidden=true;
