@@ -698,6 +698,8 @@ details.simparams .inner{padding:2px 18px 16px}
           <div class="fld"><label for="cad-ncm">NCM</label><input id="cad-ncm" maxlength="12" inputmode="numeric"><div class="fh2">confira o II da pauta deste NCM</div></div>
           <div class="fld"><label for="cad-linha">Linha <span class="req">*</span></label>
             <select id="cad-linha"><option value="AUDIO">Áudio · MC 30%</option><option value="LAR">Lar · MC 20%</option><option value="OUTRA">Outra · MC 20%</option></select></div>
+          <div class="fld"><label for="cad-mcalvo">MC alvo %</label><input id="cad-mcalvo" inputmode="decimal">
+            <div class="fh2" id="cad-mcalvo-h">em branco = mínimo da linha</div></div>
           <div class="fld"><label for="cad-q">Qtd por contêiner <span class="req">*</span></label><input id="cad-q" inputmode="numeric"><div class="fh2">contêiner dedicado</div></div>
           <div class="fld"><label for="cad-usd">FOB US$ / unidade <span class="req">*</span></label><input id="cad-usd" inputmode="decimal"><div class="fh2">cotação / proforma</div></div>
           <div class="fld"><label>ICMS do produto</label>
@@ -1000,7 +1002,8 @@ const dmaqRotulo = () => {
 /* MC mínima por linha (definição Silvio): ÁUDIO = 30% · demais linhas = 20%.
    Régua do guia (05/11/2026): deduções 24% e base 18% sobre o preço COM IPI → divisor(m) = (1 − 0,24·(1+IPI)) − (1 − 0,18·(1+IPI))·m
    (áudio, IPI 15%: 0,724 − 0,793·m → 0,486/0,446/0,407 p/ 30/35/40; sem IPI volta a 0,760 − 0,82·m). */
-const mcMin = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.30 : 0.20;
+/* MC mínima: o cadastro do SKU pode sobrepor o mínimo da linha (Silvio 16/11/2026 — ex.: ARF 1650 é LAR mas quer MC 30%) */
+const mcMin = s => (s && s.mcAlvo != null) ? s.mcAlvo : (((s && s.linha) || "AUDIO") === "AUDIO" ? 0.30 : 0.20);
 const ipiGuia = s => ((s.linha || "AUDIO") === "AUDIO") ? 0.15 : (SIM.ipi ?? ipiPad())/100;   /* áudio = B1_IPI 15% (mesmo do guia) */
 const fcGuia = ipi => 1 - 0.24*(1+ipi), fbGuia = ipi => 1 - 0.18*(1+ipi);
 const divMC = (m, ipi=0.15, icx=0) => fcGuia(ipi) - icx - fbGuia(ipi)*m;
@@ -1974,6 +1977,7 @@ const numBR = v => { const t=String(v??"").trim().replace(/\s/g,""); if(!t) retu
   /* 1.234,56 · 1.234 (milhar) · 28,9 · 28.9 */
   const n = parseFloat(t.includes(",") || /^\d{1,3}(\.\d{3})+$/.test(t) ? t.replace(/\./g,"").replace(",",".") : t); return isFinite(n) ? n : NaN; };
 const cadParaSku = r => ({sku:r.sku, cod:r.cod||"—", codEic:r.cod_eic||null, q:r.qtd_ctr, usd25:null, usd26:+r.fob_usd,
+  mcAlvo: r.mc_alvo_pct==null ? null : +r.mc_alvo_pct/100,
   frete: r.frete_usd_ctr==null ? null : +r.frete_usd_ctr, adic: r.adic_rs_ctr==null ? null : +r.adic_rs_ctr,
   hawb:null, dt:"—", st: r.frete_usd_ctr==null ? "sem" : "cad", linha:r.linha,
   ii: r.ii_pct==null ? null : r.ii_pct/100, ipiS: r.ipi_saida_pct==null ? null : +r.ipi_saida_pct,
@@ -2100,11 +2104,13 @@ function mostraBlocos(f){
 montaPrem();
 function lerForm(){
   const f = {sku:cv("sku").value.trim(), cod:cv("cod").value.trim()||null, codEic:cv("codeic").value.trim()||null, ncm:cv("ncm").value.trim()||null,
-    linha:cv("linha").value, q:numBR(cv("q").value), usd:numBR(cv("usd").value), obs:cv("obs").value.trim()||null, prem:{}, fora:cv("fora").checked};
+    linha:cv("linha").value, q:numBR(cv("q").value), usd:numBR(cv("usd").value), obs:cv("obs").value.trim()||null, prem:{}, fora:cv("fora").checked,
+    mcAlvo: cv("mcalvo").value.trim()==="" ? null : numBR(cv("mcalvo").value)};
   const e = [];
   if (f.sku.length < 3) e.push("informe o SKU / descrição");
   if (!(f.q > 0) || !Number.isInteger(f.q)) e.push("qtd por contêiner (número inteiro > 0)");
   if (!(f.usd > 0)) e.push("FOB US$ por unidade (> 0)");
+  if (f.mcAlvo != null && (Number.isNaN(f.mcAlvo) || f.mcAlvo <= 0 || f.mcAlvo >= 100)) e.push("MC alvo % entre 0 e 100 (ou em branco)");
   PREM.forEach(c=>{ const v = numBR(cv(c[0]).value);
     if (v==null || Number.isNaN(v) || v<0 || (c[2]==="%" && v>100)) { e.push(c[1]+" inválido"); f.prem[c[0]] = NaN; }
     else f.prem[c[0]] = c[2]==="%" ? v/100 : v; });
@@ -2147,6 +2153,7 @@ function preencheForm(r){
   const v = x => x==null ? "" : String(x).replace(".", ",");
   cv("sku").value = r ? r.sku : ""; cv("cod").value = r ? (r.cod||"") : ""; cv("codeic").value = r ? (r.cod_eic||"") : ""; cv("ncm").value = r ? (r.ncm||"") : "";
   cv("linha").value = r ? r.linha : "AUDIO"; cv("q").value = r ? r.qtd_ctr : ""; cv("usd").value = r ? v(+r.fob_usd) : "";
+  cv("mcalvo").value = (r && r.mc_alvo_pct != null) ? v(+r.mc_alvo_pct) : ""; mcAlvoHint();
   cv("obs").value = r ? (r.obs||"") : "";
   preenchePrem(r);
   document.getElementById("cadtit").textContent = r ? `Editando: ${r.sku}` : "Novo SKU";
@@ -2154,6 +2161,16 @@ function preencheForm(r){
   previaCad();
 }
 function foraLbl(){ document.getElementById("cad-fora-lbl").textContent = cv("fora").checked ? "FORA da árvore — ICMS normal" : "incentivado (árvore NCM)"; }
+/* MC alvo: em branco segue o mínimo da linha; preenchido, sobrepõe (vale no preço padrão e nos pisos) */
+function mcAlvoHint(){
+  const pad = cv("linha").value === "AUDIO" ? 30 : 20;
+  const t = cv("mcalvo").value.trim();
+  document.getElementById("cad-mcalvo-h").textContent = t === ""
+    ? `em branco = mínimo da linha (${pad}%)`
+    : `sobrepõe o mínimo da linha (${pad}%)`;
+}
+cv("mcalvo").addEventListener("input", ()=>{ mcAlvoHint(); });
+cv("linha").addEventListener("change", ()=>{ mcAlvoHint(); previaCad(); });
 cv("fora").addEventListener("change", ()=>{ foraLbl(); previaCad(); });
 /* NCM de moto elétrica (8711) sugere ICMS fora da árvore — só liga, nunca desliga sozinho */
 cv("ncm").addEventListener("change", ()=>{ if (/^\D*8711/.test(cv("ncm").value) && !cv("fora").checked){ cv("fora").checked = true; foraLbl(); previaCad(); } });
@@ -2163,7 +2180,8 @@ async function salvaCad(){
   if (e.length){ msgCad("Corrija: "+e.join("; "), false); return; }
   const prem = {foraArvore:f.fora}; PREM_JSON.forEach(k=>prem[k]=+f.prem[k].toFixed(6));
   const linha = {sku:f.sku, cod:f.cod, cod_eic:f.codEic, ncm:f.ncm, linha:f.linha, qtd_ctr:f.q, fob_usd:f.usd, frete_usd_ctr:f.prem.frete,
-                 adic_rs_ctr:f.prem.adic, ii_pct:+(f.prem.ii*100).toFixed(2), ipi_saida_pct:+(f.prem.ipi*100).toFixed(2), obs:f.obs, premissas:prem};
+                 adic_rs_ctr:f.prem.adic, ii_pct:+(f.prem.ii*100).toFixed(2), ipi_saida_pct:+(f.prem.ipi*100).toFixed(2), obs:f.obs, premissas:prem,
+                 mc_alvo_pct: f.mcAlvo==null ? null : +f.mcAlvo.toFixed(2)};
   const b = document.getElementById("cad-salvar"); b.disabled = true; msgCad("Salvando…", true);
   const q = CAD.editId ? SB.from("custos_sku_cadastro").update(linha).eq("id", CAD.editId).select()
                        : SB.from("custos_sku_cadastro").insert(linha).select();
