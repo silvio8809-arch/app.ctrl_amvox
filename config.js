@@ -11,7 +11,12 @@ async function guardaPagina(){
     // aplicativos liberados (07/10/2026); perfil sem a coluna = transição → libera os dois
     window.APPS = data && Array.isArray(data.apps) ? data.apps : ['precos', 'dash'];
   } catch (e) { window.PAPEL = 'CONSULTA'; window.APPS = ['precos', 'dash']; }   // falha de leitura: o banco segue travando
-  if (!window.APPS.includes('precos')) { semAcessoApp('o app de Preços'); return null; }
+  // 16/11/2026: o app de Custo de Aquisição tem liberação própria ('custos') — quem só tem ela abre custos.html
+  // e nada mais; quem tem 'precos' continua entrando em tudo, como antes.
+  const ehCustos = /custos(\.html)?$/.test(location.pathname);
+  window.CUSTOS_GESTOR = window.APPS.includes('custos');
+  if (!window.APPS.includes('precos') && !(ehCustos && window.CUSTOS_GESTOR)) {
+    semAcessoApp(ehCustos ? 'o app de Custo de Aquisição' : 'o app de Preços'); return null; }
   // REPRESENTANTE (05/11/2026): vê o que o gerente vê, exceto margem — sem a página de Custos
   // 05/11/2026 (Silvio): representante vê SÓ o Simulador do app de Preços — Custos, Curva e Redes voltam para Tabelas
   if (window.PAPEL === 'REPRESENTANTE' && /(custos|curva|redes)(\.html)?$/.test(location.pathname)) { location.replace('tabelas.html'); return null; }
@@ -91,7 +96,8 @@ function mostraConectado(extra){
   q.innerHTML = 'Conectado: <b></b> · ' + papel.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   q.querySelector('b').textContent = quem;
 }
-document.addEventListener('papel-pronto', () => mostraConectado());
+document.addEventListener('papel-pronto', () => mostraConectado(
+  window.CUSTOS_GESTOR && /custos(\.html)?$/.test(location.pathname) ? 'gestor de custos' : ''));
 
 // Vigia de versão (pedido Silvio 17/09/2026): a cada 10 min confere se há publicação nova
 // da página e recarrega automaticamente — garante todo mundo na versão mais atual sem
