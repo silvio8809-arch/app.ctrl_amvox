@@ -13,7 +13,8 @@
      O modelo sai do MESMO HTML que a tela desenha (TELAS.premissas_orc()) — uma fonte só, o PDF não diverge da tela. Tela de texto não cabe no quadro
      numérico: o modelo traz `abertura` { avisos[], titulo, texto, indice[{ id, t }], cartoes[{ rot, valor, meta, barra, tom }] } e quadros com `secao: true`
      { id, titulo, valor, texto, cols[{ t, tipo ('v' = valor em destaque), w (peso da largura), cor }], linhas[{ c[] }], discutir { t, itens[] }, notas[] }.
-     Quadro de detalhe (<details>) da tela só entra, como anexo no fim, se estiver ABERTO na tela na hora da emissão. */
+     Quadro de detalhe (<details>) da tela só entra, como anexo no fim, se estiver ABERTO na tela na hora da emissão.
+     Dois botões (16/11/2026): ⬇ PDF executivo (sem o detalhe operacional — ver expSemOperacional) e ⬇ PDF (completo). */
 "use strict";
 
 /* ------------------------------------------------------------------------------------------- ZIP (store) + utilidades */
@@ -479,13 +480,25 @@ const expTabTela = tb => {                                  // <table> da tela �
   return { cols: [...tb.querySelectorAll('thead th')].map(th => ({ t: cel(th), tipo: th.classList.contains('n') ? 'n' : 't' })), linhas, cong: 0,
     w0: Math.min(70, Math.max(24, 4 + 1.5 * Math.max(0, ...linhas.map(l => Math.max(...String(l.c[0] ?? '').split('\n').map(s => s.length)))))) };
 };
-function expModeloPremissas() {
+/* PDF EXECUTIVO (Silvio 16/11/2026: "a coluna ONDE SE MUDA não precisa constar no PDF, pois é detalhe operacional… crie uma versão EXECUTIVA do PDF retirando
+   essa coluna"): o mesmo modelo, lido da mesma tela, sem o detalhe operacional — a coluna "Onde se muda" (achada pelo título), a frase da abertura que diz
+   onde as premissas se alteram (menu do app), o arquivo de origem no cabeçalho e a menção "detalhe disponível no app". Números, textos, "Peso no resultado",
+   "Para discutir" e a regra dos anexos são os do PDF completo. */
+const EXP_ONDE = /^onde se (muda|altera)/i;
+function expSemOperacional(r) {
+  const t0 = expRicoTxt(r), fr = t0.split(/\.\s+(?=[A-ZÀ-Ý])/), fica = fr.filter(f => !/Configura(ção|cao)\s*›/i.test(f));
+  let t = fica.join('. ').replace(/,\s*onde se mudam\b/i, '');
+  if (fica.length < fr.length && t && !/[.!?]$/.test(t)) t += '.';
+  return t === t0 ? r : [{ t }];
+}
+function expModeloPremissas(op) {
+  const exec = !!(op && op.executivo); let nTab = 0, nFora = 0;
   const raiz = new DOMParser().parseFromString('<!doctype html><body>' + TELAS.premissas_orc(), 'text/html').body;
   const vivos = [...document.querySelectorAll('#tela > details')], T = n => n ? expRicoTxt(expRico(n)) : '', R = n => n ? expRico(n) : [];
   const BARRA = { k2: [31, 111, 235], k3: [138, 90, 0], k4: [26, 127, 75], k5: [107, 118, 134] }, PESO = [30, 0, 33, 37];
   const ab = { avisos: [], titulo: '', texto: [], indice: [], cartoes: [] }, secs = [], anexos = []; let sec = null, nDet = 0, nAnexo = 0, fechados = 0, cab = false;
   [...raiz.children].forEach(el => {
-    if (el.matches('.head-row')) { cab = true; ab.titulo = T(el.querySelector('h2')); ab.texto = R(el.querySelector('.title p')); }
+    if (el.matches('.head-row')) { cab = true; ab.titulo = T(el.querySelector('h2')); ab.texto = R(el.querySelector('.title p')); if (exec) ab.texto = expSemOperacional(ab.texto); }
     else if (el.matches('.prem-indice')) ab.indice = [...el.querySelectorAll('[data-ir-prem]')].map(a => ({ id: a.dataset.irPrem, t: T(a) }));
     else if (el.matches('.kpis')) ab.cartoes = [...el.querySelectorAll('.kpi')].map(k => {
       const v = k.querySelector('.val');
@@ -493,14 +506,16 @@ function expModeloPremissas() {
         tom: !v ? '' : v.classList.contains('down') ? 'neg' : v.classList.contains('up') ? 'pos' : '' };
     });
     else if (el.matches('section.prem-sec')) {
-      const tb = el.querySelector('table.prem-tab'), dz = el.querySelector('.disc');
+      const tb = el.querySelector('table.prem-tab'), dz = el.querySelector('.disc'), ths = tb ? [...tb.querySelectorAll('thead th')] : [];
+      const fora = exec && tb ? ths.findIndex(th => EXP_ONDE.test(T(th))) : -1;            // executivo: coluna "Onde se muda" fora (-1 = todas as colunas)
+      if (exec && tb) { nTab++; if (fora >= 0) nFora++; }
       secs.push(sec = { secao: true, id: (el.id || '').replace(/^prem-/, ''), nome: T(el.querySelector('h3')), titulo: T(el.querySelector('h3')), valor: R(el.querySelector('.prem-val')), texto: R(el.querySelector('p.exp')),
-        cols: tb ? [...tb.querySelectorAll('thead th')].map((th, j) => ({ t: T(th), tipo: th.classList.contains('n') ? 'v' : 't', w: PESO[j] || 30, cor: j === 2 ? 2 : 1 })) : [],
-        linhas: tb ? [...tb.querySelectorAll('tbody tr')].map(tr => ({ c: [...tr.cells].map(R) })) : [],
+        cols: ths.map((th, j) => ({ t: T(th), tipo: th.classList.contains('n') ? 'v' : 't', w: PESO[j] || 30, cor: j === 2 ? 2 : 1 })).filter((c, j) => j !== fora),
+        linhas: tb ? [...tb.querySelectorAll('tbody tr')].map(tr => ({ c: [...tr.cells].map(R).filter((c, j) => j !== fora) })) : [],
         discutir: dz ? { t: T(dz.querySelector('b')), itens: [...dz.querySelectorAll('li')].map(R) } : null, notas: [] });
     } else if (el.matches('details')) {
       const titulo = T(el.querySelector('summary')), aberto = vivos[nDet] ? vivos[nDet].open : el.open; nDet++;
-      if (!aberto) { fechados++; if (sec) sec.notas.push({ t: 'Detalhe disponível no app: ' + titulo }); return; }
+      if (!aberto) { fechados++; if (sec && !exec) sec.notas.push({ t: 'Detalhe disponível no app: ' + titulo }); return; }
       const n = ++nAnexo, obs = [...el.querySelectorAll('.csub')].map(T).filter(Boolean);
       [...el.querySelectorAll('table')].forEach((tb, i) => {
         const q = expTabTela(tb); q.nome = 'Anexo ' + n + (i ? '.' + (i + 1) : ''); q.titulo = `Anexo ${n} — ${titulo}${i ? ' (continuação)' : ''}`; q.novaPagina = !i;
@@ -510,21 +525,25 @@ function expModeloPremissas() {
     } else if (T(el)) { if (!cab) ab.avisos.push(R(el)); else secs.push(sec = { secao: true, id: '', nome: '', titulo: '', valor: [], texto: R(el), cols: [], linhas: [], discutir: null, notas: [] }); }
   });
   const h = expHoje(), v = versaoAtual(), cen = D.meta.cenario || '—', uniA = anexos.length ? 'anexos em ' + uniTxt() : '';
-  const M = expBase('PREMISSAS', ab.titulo || 'Premissas orçamentárias 2027', secs.concat(anexos),
+  const M = expBase(exec ? 'PREMISSAS_EXECUTIVO' : 'PREMISSAS', (ab.titulo || 'Premissas orçamentárias 2027') + (exec ? ' — versão executiva' : ''), secs.concat(anexos),
     `cenário de receita ${cen} (${rsC(D.meta.receita)}) · unidade indicada em cada valor${uniA ? ' (' + uniA + ')' : ''} · emitido em ${h.br}`);
   M.abertura = ab; M.uniNota = uniA || 'unidade indicada em cada valor';
-  M.notas = [`Emitido em ${h.br}`, `versão ${v.codigo || '—'} (${v.status || '—'})`, `cenário de receita ${cen}`, 'AMVOX / REISTAR — Controladoria', 'uso interno'];
+  M.notas = [`Emitido em ${h.br}`, `versão ${v.codigo || '—'} (${v.status || '—'})`, `cenário de receita ${cen}`, ...(exec ? ['PDF executivo'] : []), 'AMVOX / REISTAR — Controladoria', 'uso interno'];
+  if (exec) M.sub = [escopoTxt(), `versão ${v.codigo || '—'} (${v.status || '—'})`, `cenário de receita ${cen} (${rsC(D.meta.receita)})`,       // sem o arquivo de origem
+    `unidade indicada em cada valor${uniA ? ' (' + uniA + ')' : ''}`, `dados de ${(D.meta || {}).gerado_em || '—'}`, `emitido em ${h.br}`].join(' · ');
   if (fechados) M.aviso = 'quadro de detalhe fechado na tela não sai: abra-o antes de gerar para entrar como anexo';
+  if (exec && nFora < nTab) M.aviso = [M.aviso, `atenção: a coluna "Onde se muda" não foi achada em ${nTab - nFora} quadro(s) — saiu como está na tela`].filter(Boolean).join(' · ');
   return M;
 }
 
 /* ------------------------------------------------------------------------------------------- botões nas telas */
 const EXP_TELAS = { dre: expModeloDRE, dre_tcp: expModeloTCP, folha: expModeloFolha, premissas_orc: expModeloPremissas };
-const EXP_SO_PDF = { premissas_orc: 'PDF A4 paisagem da tela inteira: cartões, seções, quadros de premissas e “Para discutir”. Quadro de detalhe aberto na tela sai como anexo' };   // tela só com PDF (texto do botão)
+const EXP_SO_PDF = { premissas_orc: 'PDF completo, A4 paisagem: a tela inteira — cartões, seções, quadros de premissas (com a coluna “Onde se muda”) e “Para discutir”. Quadro de detalhe aberto na tela sai como anexo' };   // tela só com PDF (texto do botão)
+const EXP_PDF_EXEC = { premissas_orc: 'PDF executivo, para a Diretoria e a TCP: o mesmo PDF sem o detalhe operacional — sem a coluna “Onde se muda” e sem o arquivo de origem' };   // tela com o 2º PDF (executivo)
 async function expGera(tela, tipo) {
   const st = document.getElementById('expMsg'), diz = (t, erro) => { if (st) { st.textContent = t; st.style.color = erro ? '#C8102E' : ''; } };
   try {
-    const M = EXP_TELAS[tela]();
+    const exec = tipo === 'pdf_exec', M = exec ? EXP_TELAS[tela]({ executivo: true }) : EXP_TELAS[tela]();
     if (tipo === 'xlsx') {
       expBaixa(new Blob([expXlsx(M)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), M.arq + '.xlsx');
       diz(`✓ Excel gerado: ${M.arq}.xlsx (valores em R$, ${M.quadros.length} aba(s))`);
@@ -532,7 +551,7 @@ async function expGera(tela, tipo) {
       diz('gerando o PDF…'); await expLibPdf();
       M.notas.push(M.uniNota || 'valores em ' + uniTxt());
       const doc = expPdf(M); doc.save(M.arq + '.pdf');
-      diz(`✓ PDF gerado: ${M.arq}.pdf (${M.uniNota ? doc.getNumberOfPages() + ' página(s)' : 'valores em ' + uniTxt()})` + (M.aviso ? ' · ' + M.aviso : ''));
+      diz(`✓ PDF ${exec ? 'executivo ' : ''}gerado: ${M.arq}.pdf (${M.uniNota ? doc.getNumberOfPages() + ' página(s)' : 'valores em ' + uniTxt()})` + (M.aviso ? ' · ' + M.aviso : ''));
     }
   } catch (e) { console.error(e); diz('Não foi possível gerar o arquivo: ' + (e.message || e), true); }
 }
@@ -541,6 +560,7 @@ function expBotoes(tela) {
   if (tela === 'folha' && (typeof FOLHA === 'undefined' || !FOLHA)) return;
   const d = document.createElement('div'); d.className = 'exp-bts';
   d.innerHTML = '<span id="expMsg" class="exp-msg"></span>' + (EXP_SO_PDF[tela] ? '' : '<button class="btn" data-exp="xlsx" title="Planilha .xlsx com os valores exatos em R$, uma aba por quadro">⬇ Excel</button>')
+    + (EXP_PDF_EXEC[tela] ? `<button class="btn" data-exp="pdf_exec" title="${EXP_PDF_EXEC[tela]}">⬇ PDF executivo</button>` : '')
     + `<button class="btn" data-exp="pdf" title="${EXP_SO_PDF[tela] || 'PDF A4 paisagem, na unidade que está na tela'}">⬇ PDF</button>`;
   cab.appendChild(d);
   d.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => expGera(tela, b.dataset.exp));
