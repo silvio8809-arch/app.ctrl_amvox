@@ -430,10 +430,8 @@ details.simparams .inner{padding:2px 18px 16px}
           <div class="fld"><label for="sp-pis">PIS saída %</label><input id="sp-pis" inputmode="decimal"></div>
           <div class="fld"><label for="sp-cof">COFINS saída %</label><input id="sp-cof" inputmode="decimal"></div>
           <div class="fld"><label for="sp-icms">ICMS saída %</label><input id="sp-icms" inputmode="decimal"><div class="fh2" id="sp-icms-h">0% = incentivo BA</div></div>
-          <div class="fld"><label for="sp-dmaq">Despesa da máquina</label>
-            <select id="sp-dmaq"><option value="25">27% — Modelo 2025</option><option value="26">16% — Modelo 2026</option><option value="fora">5% — fora da árvore (estrutura compartilhada)</option><option value="custom">Outro (editável)</option></select></div>
-          <div class="fld"><label for="sp-dmaqv">Despesa da máquina %</label><input id="sp-dmaqv" inputmode="decimal"><div class="fh2">digitável — qualquer valor (grava como “Outro”)</div></div>
-          <div class="fld" id="fld-dmaqc" hidden><label for="sp-dmaqc">Despesa da máquina — outro %</label><input id="sp-dmaqc" inputmode="decimal"></div>
+          <div class="fld"><label for="sp-dmaqv">Despesa da máquina %</label><input id="sp-dmaqv" inputmode="decimal">
+            <div class="fh2" id="sp-dmaqv-h">digitável</div></div>
           <div class="fld"><label for="sp-meta">Meta de EBITDA %</label><input id="sp-meta" inputmode="decimal"></div>
         </div>
         <div class="fh" style="margin:14px 0 8px">Régua da MC prevista — percentuais sobre o faturamento (preço com IPI)</div>
@@ -988,8 +986,17 @@ function foraDaRegua(){
              ["Mão de obra direta (MOD)", SIM.mod, RG.mod], ["Bonificações", SIM.bonif, RG.bonif]];
   return L.filter(x => x[1] != null && Math.abs(x[1] - x[2]) > 1e-9).map(x => ({n:x[0], de:x[2], para:x[1]}));
 }
-const dmaqAtual = () => SIM.dmaq==="25" ? P.dmaq25 : SIM.dmaq==="26" ? P.dmaqMC : SIM.dmaq==="fora" ? DESP_FIXA_FORA : SIM.dmaqCustom/100;
-const dmaqRotulo = () => SIM.dmaq==="25" ? " (Modelo 2025)" : SIM.dmaq==="26" ? " (Modelo 2026)" : SIM.dmaq==="fora" ? " (fora da árvore — estrutura compartilhada)" : " (outro)";
+/* v0.38.1 (Silvio 16/11/2026): UM campo só para a despesa da máquina — o % vigente, digitável.
+   SIM.dmaq guarda só a ORIGEM do valor padrão ("25" | "26" | "fora"); digitar passa para "custom". */
+const dmaqPadrao = () => SIM.dmaq==="fora" ? DESP_FIXA_FORA : SIM.dmaq==="26" ? P.dmaqMC : P.dmaq25;
+const dmaqAtual = () => SIM.dmaq==="custom" ? SIM.dmaqCustom/100 : dmaqPadrao();
+const dmaqRotulo = () => {
+  const v = dmaqAtual();
+  if (Math.abs(v-DESP_FIXA_FORA)<1e-9 && foraArv(ALL[SIM.i])) return " (fora da árvore — estrutura compartilhada)";
+  if (Math.abs(v-P.dmaqMC)<1e-9) return " (Modelo 2026)";
+  if (Math.abs(v-P.dmaq25)<1e-9) return " (Modelo 2025)";
+  return " (digitado)";
+};
 /* MC mínima por linha (definição Silvio): ÁUDIO = 30% · demais linhas = 20%.
    Régua do guia (05/11/2026): deduções 24% e base 18% sobre o preço COM IPI → divisor(m) = (1 − 0,24·(1+IPI)) − (1 − 0,18·(1+IPI))·m
    (áudio, IPI 15%: 0,724 − 0,793·m → 0,486/0,446/0,407 p/ 30/35/40; sem IPI volta a 0,760 − 0,82·m). */
@@ -1015,7 +1022,6 @@ function setSku(i){
   SIM.i = i; SIM.qty = null; SIM.price = null; SIM.ipi = null; SIM.icmsS = null;
   /* SKU fora da árvore abre com a despesa fixa de 5%; ao voltar para um SKU comum, volta ao padrão (27%) */
   if (foraArv(ALL[i])) SIM.dmaq = "fora"; else if (SIM.dmaq === "fora") SIM.dmaq = "25";
-  const sd = document.getElementById("sp-dmaq"); if (sd){ sd.value = SIM.dmaq; document.getElementById("fld-dmaqc").hidden = SIM.dmaq!=="custom"; }
   ["simsku","compsku","fretesku"].forEach(id=>{
     const el = document.getElementById(id);
     if (el && el.options.length) el.value = String(i);
@@ -1114,6 +1120,7 @@ function renderSim(){
     if(h) h.textContent = Math.abs(v-pad)>1e-9 ? `alterado · régua ${fmt(pad,2)}%` : (id==="sp-frete" ? `régua — UF ${ufAtual()}` : "régua");
     el.style.borderColor = Math.abs(v-pad)>1e-9 ? "var(--brand)" : ""; });
   document.getElementById("sp-dmaqv").value = fmt(d.dmaqPct*100,2);
+  document.getElementById("sp-dmaqv-h").textContent = "digitável ·" + dmaqRotulo().replace(/[()]/g,"");
   /* KPIs */
   const kcol = (c)=>`style="--kc:${c}"`;
   const Rk = v => `<span class="cur">R$</span><span class="num">${fmt(v)}</span>`;
@@ -1325,13 +1332,7 @@ function wireSim(){
   simNum("simprec", v=>{ if(v>0) SIM.price=v; });
   simNum("simipi", v=>{ if(v>=0) SIM.ipi=v; });
   document.getElementById("simvpc").addEventListener("change", ev=>{ SIM.vpcOn=ev.target.checked; renderSim(); renderFreteMargem(); });
-  document.getElementById("sp-dmaq").addEventListener("change", ev=>{
-    SIM.dmaq=ev.target.value;
-    document.getElementById("fld-dmaqc").hidden = SIM.dmaq!=="custom";
-    renderSim(); renderFreteMargem();
-  });
-  document.getElementById("sp-dmaqc").value = fmt(SIM.dmaqCustom,2);
-  simNum("sp-dmaqc", v=>{ if(v>=0) SIM.dmaqCustom=v; });
+
   /* dólar: parâmetro global — editar aqui recalcula TODAS as telas */
   document.getElementById("sp-dolar").value = fmt(P.dolar,2);
   document.getElementById("sp-dolar").addEventListener("change", ev=>{
@@ -1349,10 +1350,7 @@ function wireSim(){
   [["sp-carga","carga"],["sp-dev","dev"],["sp-comis","comis"],["sp-frete","frete"],["sp-mod","mod"],["sp-bonif","bonif"]]
     .forEach(([id,k])=>simNum(id, v=>{ if(v>=0) SIM[k]=v; }));
   /* despesa da máquina digitável em qualquer modo: digitar grava como "Outro" */
-  simNum("sp-dmaqv", v=>{ if(v>=0){ SIM.dmaq="custom"; SIM.dmaqCustom=v;
-    document.getElementById("sp-dmaq").value="custom";
-    document.getElementById("fld-dmaqc").hidden=false;
-    document.getElementById("sp-dmaqc").value=fmt(v,2); } });
+  simNum("sp-dmaqv", v=>{ if(v>=0){ SIM.dmaq="custom"; SIM.dmaqCustom=v; } });
 }
 /* ===== VISÃO COMPARATIVA (cópia fiel da planilha 2025 × modelo 2026, por contêiner) ===== */
 function renderComp(){
