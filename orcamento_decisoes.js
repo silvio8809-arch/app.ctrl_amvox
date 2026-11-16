@@ -55,6 +55,19 @@ function dcsFinal(l, r) {
 }
 const dcsNada = l => Math.abs(l.mo) < 0.01 && Math.abs(l.ge) < 0.01;      // modelo e gestor zerados: não há o que decidir
 const dcsSemDec = (l, r) => r ? !r.trava && !r.decisao && !dcsNada(l) : l.semDec;
+/* 16/11/2026 (Silvio): linha travada pela DUPLICIDADE (conta centralizada em outra área, sem base nem exceção) — a decisão não tem efeito; ao tentar
+   alterar, um alerta diz por quê e como liberar (exceção conta × centro de custo em Configuração › Exceções, ou "Só autoriza a área a orçar") */
+const dcsTravaDup = r => !!(r && r.trava && /^Trava de duplicidade/i.test(r.trava));
+function dcsComoLiberar(l) {
+  const cta = ((D.cfg_conta && D.cfg_conta.rows) || []).find(x => String(x[0]) === String(l.c)), dono = (cta && cta[5]) || 'outra área';
+  const dic = D.meta && D.meta.razao && D.meta.razao.dic;
+  const ccs = RAZAO && dic ? [...new Set(RAZAO.filter(x => String(x[4]) === String(l.c) && dic.setor[x[10]] === l.s && x[5]).map(x => x[5]))].sort() : [];
+  const daArea = ((D.cfg_arvore && D.cfg_arvore.rows) || []).filter(x => x[3] === l.s && x[4] !== 'NÃO USAR').map(x => x[1]);
+  return `Essa conta (${l.c} ${l.d || ''}) é centralizada em ${dono}, por isso a decisão desta linha não tem efeito: o orçado de ${l.s} fica fora e vale o modelo (zero) — trava de duplicidade.\n\n`
+    + (ccs.length ? `Para liberar, crie uma exceção em Configuração › Exceções — conta ${l.c} × centro de custo ${ccs.join(' / ')} → ${l.s} (é onde ${l.s} lançou essa conta).`
+                  : `${l.s} não lançou essa conta nos próprios centros de custo${daArea.length ? ` (${daArea.join(', ')})` : ''}. Para liberar, crie em Configuração › Exceções uma exceção do tipo "Só autoriza a área a orçar" para a conta ${l.c} → ${l.s}.`)
+    + `\n\nAtenção: liberada, a linha passa a somar no valor final além do que já está em ${dono} — confira para não contar o mesmo gasto duas vezes. A liberação entra na próxima geração do PT.`;
+}
 function dcsNum(s) {                                                    // "1.234,56" · "1234,56" · "1.234" · "1234.56" → número; vazio = null; inválido = NaN
   s = String(s ?? '').replace(/[R$\s]/g, ''); if (!s) return null;
   if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
@@ -121,12 +134,13 @@ function telaDecisoes(antiga) {
     const ops = DCS_OPC.filter(o => o !== 'CONTRATO' || Math.abs(l.ct || 0) > 0.005 || (r && r.decisao === 'CONTRATO'));
     const dec = r ? (tr ? (r.decisao_pt || '') : (r.decisao || '')) : (l.de || ''), vo = r ? (tr ? r.valor_outro_pt : r.valor_outro) : l.vo;
     const sit = !r ? '<span class="tag b" title="Linha nova no PT: entra nas decisões editáveis na próxima carga">entra na próxima carga</span>'
-      : tr ? `<span class="tag" title="${esc(r.trava)}">🔒 regra do modelo</span>` : x.pend ? '<span class="tag r" title="O PT desta versão ainda não reflete esta linha">alterada · fora do PT</span>'
+      : tr ? (dcsTravaDup(r) ? `<span class="tag r" data-dcslib="${esc(id)}" style="cursor:pointer" title="Conta centralizada: a decisão desta linha não tem efeito — clique para ver como liberar">🔒 centralizada · sem efeito</span>`
+        : `<span class="tag" title="${esc(r.trava)}">🔒 regra do modelo</span>`) : x.pend ? '<span class="tag r" title="O PT desta versão ainda não reflete esta linha">alterada · fora do PT</span>'
       : x.sem ? '<span class="tag y">a decidir</span>' : dcsNada(l) ? '—' : '<span class="tag g">decidida</span>';
     return `<tr ${r && DCS.sujo.has(id) ? 'style="background:#FFF7E6"' : ''}>
       <td class="fx nw"><small style="color:var(--ink3)">${esc(l.s)}</small><br>${esc(l.c)}</td><td class="w">${esc(l.d)}</td><td class="nw">${esc(l.me)}</td>${tdN(l.mo)}${tdN(l.ge)}${temCt ? tdN(Math.abs(l.ct || 0) > 0.005 ? l.mc : null) : ''}
       <td class="ed"><input type="text" data-dcsid="${esc(id)}" data-dcsk="explicacao" value="${esc(r ? (tr ? r.explicacao_pt : r.explicacao) || '' : l.ex || '')}" style="width:150px" ${dl}></td>
-      <td class="ed"><select data-dcsid="${esc(id)}" data-dcsk="decisao" ${dl}><option value="">(padrão: ${esc(dcsPadrao(l))})</option>${ops.concat(dec && !ops.includes(dec) ? [dec] : []).map(o => `<option ${dec === o ? 'selected' : ''}>${o}</option>`).join('')}</select></td>
+      <td class="ed">${dcsTravaDup(r) ? `<span data-dcslib="${esc(id)}" style="cursor:pointer;display:inline-block" title="Conta centralizada: clique para ver como liberar">` : ''}<select data-dcsid="${esc(id)}" data-dcsk="decisao" ${dl}${dcsTravaDup(r) ? ' style="pointer-events:none"' : ''}><option value="">(padrão: ${esc(dcsPadrao(l))})</option>${ops.concat(dec && !ops.includes(dec) ? [dec] : []).map(o => `<option ${dec === o ? 'selected' : ''}>${o}</option>`).join('')}</select>${dcsTravaDup(r) ? '</span>' : ''}</td>
       <td class="n ed"><input type="text" inputmode="decimal" data-dcsid="${esc(id)}" data-dcsk="valor_outro" value="${dcsBr(vo)}" style="width:104px;text-align:right" ${dec === 'OUTRO' ? dl : 'disabled'}></td>
       <td class="nw">${esc(x.vale || '')}</td>
       <td class="n" title="${x.pend ? 'Estimativa com a decisão da tela; o PT confirma na próxima geração' : ''}">${fmt(x.fin)}${x.pend ? `<br><small style="color:var(--ink3)">PT: ${fmt(l.vf)}</small>` : ''}</td>
@@ -175,6 +189,11 @@ function posDecisoes() {
     } else r[k] = String(el.value).trim() || null;
     dcsMarca(r); desenha();
     if (k === 'decisao' && r.decisao === 'OUTRO' && r.valor_outro == null) { const i = document.querySelector(`#dcsTab input[data-dcsk="valor_outro"][data-dcsid="${CSS.escape(r.id)}"]`); if (i) i.focus(); }
+  });
+  document.querySelectorAll('#dcsTab [data-dcslib]').forEach(el => el.onclick = async () => {        // 16/11/2026: linha travada pela duplicidade
+    const l = (D.linhas || []).find(x => dcsId(x) === el.dataset.dcslib); if (!l) return;
+    if (!RAZAO && typeof carregaRazao === 'function') { try { await carregaRazao(); } catch (e) { } }
+    alert(dcsComoLiberar(l));
   });
   const s = $('dcsSalvar'); if (s) s.onclick = async () => { s.disabled = true; await dcsSalva(); desenha(); };
   const dz = $('dcsDesfaz'); if (dz) dz.onclick = () => {
