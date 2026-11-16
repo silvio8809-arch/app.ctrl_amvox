@@ -138,7 +138,7 @@ async function carregaDados() {
     est.versoes = est.versoes || D.versoes || [{ codigo: 'V1', nome: D.meta.versao, status: 'RASCUNHO', origem: D.meta.arquivo }];
     est.versao = est.versao || est.versoes[0].codigo; est.legado = false;
     const fd = D.folha_dados;
-    FOLHA = fd ? { P: fd.premissa, pos: fd.posicoes.map(x => ({ ...x })), proj: fd.projecao, origem: 'carga do PT (' + D.meta.arquivo + ')', sujo: new Set(), noBanco: new Set(fd.posicoes.map(x => x.id)), premSuja: false } : null;
+    FOLHA = fd ? { P: fd.premissa, pos: fd.posicoes.map(x => ({ ...x })), proj: fd.projecao, origem: 'carga do PT (' + D.meta.arquivo + ')', sujo: new Set(), noBanco: new Set(fd.posicoes.map(x => x.id)), premSuja: false, Pbase: fd.premissa_pt || null } : null;
     return;
   }
   const rv = await SB.from('orc_versao').select('*').order('codigo');
@@ -157,13 +157,14 @@ async function carregaDados() {
   const v = est.versao;
   const [pos, prem, proj] = await Promise.all([
     selTodos(() => SB.from('orc_folha_posicao').select('*').eq('versao', v).order('id')),
-    SB.from('orc_folha_premissa').select('dados,atualizado_em,atualizado_por').eq('versao', v).maybeSingle(),
+    SB.from('orc_folha_premissa').select('*').eq('versao', v).maybeSingle(),      // 16/11/2026: * = dados + linha de base (dados_pt, migração 058)
     selTodos(() => SB.from('orc_folha_projecao').select('*').eq('versao', v).order('area'))]);
   if (prem.error || !prem.data) return;
   const ult = proj.reduce((a, r) => (!a || r.projetado_em > a.projetado_em) ? r : a, null);
   FOLHA = { P: prem.data.dados, pos: pos.map(x => ({ ...x, salario: +x.salario, adicional: +x.adicional, he_media: +x.he_media, qtd: +x.qtd, pct_promo: x.pct_promo == null ? null : +x.pct_promo })),
     proj: proj.map(r => ({ ...r, conta: +r.conta, m: r.m.map(Number), base: r.base == null ? null : +r.base })),
-    origem: ult ? `${ult.projetado_por || ''} em ${new Date(ult.projetado_em).toLocaleString('pt-BR')}` : '—', sujo: new Set(), noBanco: new Set(pos.map(x => x.id)), premSuja: false };
+    origem: ult ? `${ult.projetado_por || ''} em ${new Date(ult.projetado_em).toLocaleString('pt-BR')}` : '—', sujo: new Set(), noBanco: new Set(pos.map(x => x.id)), premSuja: false,
+    Pbase: prem.data.dados_pt || null };
 }
 const versaoAtual = () => (est.versoes || []).find(v => v.codigo === est.versao) || { codigo: est.versao, status: 'RASCUNHO' };
 const versaoEditavel = () => ['RASCUNHO', 'EM REVISÃO'].includes(versaoAtual().status);
@@ -637,6 +638,54 @@ async function projetaFolha() {
   desenha(); avisoFolha(`✓ Folha projetada: ${ed.length === 1 ? ed[0] : ed.length + ' áreas'} — salários, encargos, provisões, benefícios e rescisões recalculados.`);
 }
 function avisoFolha(txt_, erro) { const el = $('flAviso'); if (el) { el.className = erro ? 'aviso' : 'ok-box'; el.textContent = txt_; el.hidden = false; } }
+/* 16/11/2026 — FOLHA LIDA DE VOLTA PELO PT ("Folha no PT"): linha de base = valor do PT carregado (orc_folha_posicao.pt / orc_folha_premissa.dados_pt,
+   migração 058). O que difere dela foi ALTERADO NO APP e prevalece na próxima geração do PT — mesma comparação do .claude/scripts/orc_folha_app.py. */
+const FL_EDIT = ['qtd', 'mes_adm', 'mes_desl', 'tipo_desl', 'mes_promo', 'pct_promo', 'justificativa', 'funcao', 'salario', 'convencao', 'tipo', 'plano'];
+const FL_ROT = { qtd: 'qtd', mes_adm: 'mês admissão', mes_desl: 'mês desligamento', tipo_desl: 'tipo desligamento', mes_promo: 'mês promoção', pct_promo: '% promoção',
+  justificativa: 'justificativa', funcao: 'função', salario: 'salário', convencao: 'convenção', tipo: 'tipo', plano: 'plano' };
+function flNorm(k, v) {
+  if (['mes_adm', 'mes_desl', 'mes_promo'].includes(k)) return v == null || v === '' || !Math.round(+v) ? null : Math.round(+v);
+  if (k === 'qtd' || k === 'salario') return Math.round((+v || 0) * 100) / 100;
+  if (k === 'pct_promo') return v == null || v === '' ? null : Math.round(+v * 1e6) / 1e6;
+  const t = v == null ? '' : String(v).trim();
+  return t || ({ convencao: 'BA', tipo: 'CLT', plano: 'N' })[k] || null;
+}
+const flTemBase = () => !!FOLHA && (FOLHA.pos.some(x => x.pt) || !!FOLHA.Pbase);
+function flAlteradoPos(x) {     // campos alterados no app; vaga criada no app (sem linha de base) = ['vaga nova']
+  if (!x.pt) return /^V/.test(x.id) && flTemBase() ? ['vaga nova'] : [];
+  return FL_EDIT.filter(k => flNorm(k, x[k]) !== flNorm(k, x.pt[k]));
+}
+function flCaminhos(P) {        // = orc_folha_app.caminhos: só o que a tela altera + pessoas por área
+  const o = {}; if (!P) return o;
+  (P.dissidio || []).forEach(d => { if (!d.conv) return; const c = 'Dissídio ' + d.conv;
+    o[c + ' · %'] = +(+d.pct || 0).toFixed(6); o[c + ' · mês data-base'] = Math.round(+d.db) || null; o[c + ' · mês aplicação'] = Math.round(+d.ap) || null; o[c + ' · compensação'] = d.comp || null; });
+  Object.entries(P.p || {}).forEach(([k, v]) => o[FOLHA_ROT[k] || k] = typeof v === 'string' ? v : +(+v || 0).toFixed(6));
+  (P.beneficios || []).forEach(b => { if (!b.nome) return;
+    o[b.nome + ' · valor'] = +(+b.valor || 0).toFixed(2); o[b.nome + ' · reajuste'] = +(+b.reaj || 0).toFixed(6); o[b.nome + ' · mês'] = Math.round(+b.mes) || 13;
+    o[b.nome + ' · fornecedor'] = (b.forn || []).slice().sort().join(';') || null;
+    Object.entries(b.pessoas || {}).forEach(([a, n]) => { if (+n) o[b.nome + ' · pessoas ' + a] = +(+n).toFixed(2); }); });
+  return o;
+}
+function flAlteradoPrem() {
+  if (!FOLHA || !FOLHA.Pbase) return [];
+  const a = flCaminhos(FOLHA.P), b = flCaminhos(FOLHA.Pbase);
+  return [...new Set([...Object.keys(b), ...Object.keys(a)])].filter(k => (a[k] ?? null) !== (b[k] ?? null)).map(k => ({ k, pt: b[k] ?? null, app: a[k] ?? null }));
+}
+const flV = (v, pct) => v == null || v === '' ? '—' : typeof v === 'number' ? (pct ? (v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 4 }) + '%'
+  : v.toLocaleString('pt-BR', { maximumFractionDigits: 6 })) : String(v);
+function flQuadroAlteracoes(posA) {
+  if (!flTemBase()) return '';
+  const pk = new Set(Object.keys(FOLHA.P.p || {}).map(k => FOLHA_ROT[k] || k)),          // % como na tela: dissídio, reajuste e parâmetros entre 0 e 1
+    pctQ = (k, v) => typeof v === 'number' && (/ · %$| · reajuste$/.test(k) || (pk.has(k) && v > 0 && v < 1));
+  const lp = posA.map(x => [x, flAlteradoPos(x)]).filter(([, k]) => k.length), lq = flAlteradoPrem();
+  if (!lp.length && !lq.length) return `<div class="csub">Folha do app = PT carregado (nada alterado no app em relação a ele).</div>`;
+  const it = ([x, ks]) => ks[0] === 'vaga nova' ? `<li><b>${esc(x.id)}</b> (${esc(x.area)}) — vaga criada no app</li>`
+    : `<li><b>${esc(x.id)}</b> (${esc(x.area)}) — ${ks.map(k => `${esc(FL_ROT[k] || k)}: ${esc(flV(flNorm(k, x.pt[k]), k === 'pct_promo'))} → <b>${esc(flV(flNorm(k, x[k]), k === 'pct_promo'))}</b>`).join(' · ')}</li>`;
+  return `<details class="card prem-det"><summary>Alterado no app em relação ao PT carregado — entra na próxima geração do PT: <b>${lp.length}</b> posição(ões) · <b>${lq.length}</b> premissa(s)</summary>
+    <div class="csub">O PT é gerado com a folha do mês e, por cima, o que foi alterado aqui (aba FOLHA_APP do PT). Valor do PT → valor do app.</div>
+    ${lp.length ? `<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7">${lp.map(it).join('')}</ul>` : ''}
+    ${lq.length ? `<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7">${lq.map(q => `<li>${esc(q.k)}: ${esc(flV(q.pt, pctQ(q.k, q.pt ?? q.app)))} → <b>${esc(flV(q.app, pctQ(q.k, q.app ?? q.pt)))}</b></li>`).join('')}</ul>` : ''}</details>`;
+}
 function proximaVaga(area) {
   const ai = Object.keys(FOLHA.P.areas).indexOf(area) + 1, pre = 'V' + String(ai).padStart(2, '0');
   const n = FOLHA.pos.filter(x => x.id.startsWith(pre)).map(x => +x.id.slice(3) || 0);
@@ -677,6 +726,7 @@ TELAS.folha = () => {
     ${ed ? `<button class="btn" id="flSalva" ${pendentes ? '' : 'disabled'}>Salvar alterações${pendentes ? ` (${pendentes})` : ''}</button><button class="btn primary" id="flProj">PROJETAR FOLHA — ${esc(area || (vis.length === 1 ? vis[0] : 'todas as áreas'))}</button>` : `<span class="tag">${versaoEditavel() ? 'somente leitura neste perfil' : 'versão fechada — somente leitura'}</span>`}
   </div>
   <div id="flAviso" hidden></div>
+  ${flQuadroAlteracoes(posA)}
   <section class="kpis">
     <div class="kpi k5"><div class="lab">Pessoas na folha</div><div class="val">${nFolha}</div><div class="meta">+ ${nPJ} PJ (provisório) · vagas novas ${vagas} · desligamentos ${soma(pes.des)} · promoções ${soma(pes.pro)}</div></div>
     <button class="kpi ${cen === 'MODELO' ? 'sel' : ''}" data-flcen="MODELO"><div class="lab">Folha 2027 — MODELO</div><div class="val">${rsC(soma(tM))}</div><div class="meta">quadro atual × dissídio · sem honorários PJ</div></button>
@@ -716,7 +766,8 @@ TELAS.folha = () => {
       <div class="tw" style="margin-top:8px"><table class="t" id="flTab"><thead><tr><th class="fx">ID</th><th>Área</th><th>Função</th><th>Tipo</th><th>Conv.</th><th>Admissão</th><th class="n">Salário</th><th class="n">Adicionais</th><th>Plano</th><th>Afast.</th>
         <th class="ed">Qtd</th><th class="ed">Mês admissão</th><th class="ed">Mês desligamento</th><th class="ed">Tipo de desligamento</th><th class="ed">Mês promoção</th><th class="ed">% promoção</th><th class="ed">Justificativa</th></tr></thead><tbody>
       ${lst.map(x => { const e = podeEditarFolha(x.area), vg = /^V/.test(x.id), ctl = est.papel === 'controladoria' && e, cad = e && (vg || ctl);
-        return `<tr ${FOLHA.sujo.has(x.id) ? 'style="background:#FFF7E6"' : ''}><td class="fx nw"><b>${esc(x.id)}</b></td><td class="nw">${esc(x.area)}</td>
+        const alt = flAlteradoPos(x);
+        return `<tr ${FOLHA.sujo.has(x.id) ? 'style="background:#FFF7E6"' : ''}><td class="fx nw"><b>${esc(x.id)}</b>${alt.length ? ` <span class="tag y" title="Alterado no app (prevalece na próxima geração do PT): ${esc(alt.map(k => FL_ROT[k] || k).join(', '))}">app</span>` : ''}</td><td class="nw">${esc(x.area)}</td>
           <td>${cad ? inp(x.id, 'funcao', x.funcao, false, 180, 'text') : esc(x.funcao || '')}</td>
           <td>${cad ? sel(x.id, 'tipo', ['CLT', 'APRENDIZ', 'ESTAGIÁRIO', 'PJ'], x.tipo) : esc(x.tipo)}</td>
           <td>${cad ? sel(x.id, 'convencao', ['BA', 'SP', 'SEM BENEFÍCIO'], x.convencao) : esc(x.convencao)}</td><td>${esc(x.admissao || '')}</td>
@@ -742,6 +793,12 @@ TELAS.folha = () => {
   <div class="tw solta"><table class="t"><thead><tr><th>Benefício</th><th class="ed n">R$/pessoa/mês</th><th class="ed n">Reajuste %</th><th class="ed n">Mês</th><th>Quem</th><th>Convenção</th><th>Conta</th><th class="ed" title="Raiz do CNPJ (8 dígitos) do fornecedor deste benefício; vários separados por ponto e vírgula. No painel Fornecedores × meses, o esperado desse fornecedor passa a ser o do simulador (quadro da área × valor por pessoa).">Fornecedor do benefício (raiz do CNPJ)</th></tr></thead><tbody>
     ${P.beneficios.map((b, i) => `<tr><td>${esc(b.nome)}</td>${b.quem === 'HISTÓRICO' ? `<td class="n" title="Benefício pelo histórico: vale a média mensal jul–out/26 do fornecedor em cada área (centro de custo), sem valor por pessoa. Soma das áreas ao lado.">histórico · ${Math.round(Object.values(b.hist || {}).reduce((s, v) => s + (+v || 0), 0)).toLocaleString('pt-BR')}/mês</td>` : `<td class="ed">${pin(`beneficios.${i}.valor`, +(+b.valor).toFixed(2), 90)}</td>`}<td class="ed">${pin(`beneficios.${i}.reaj%`, +(b.reaj * 100).toFixed(2), 60)}</td><td class="ed">${pin(`beneficios.${i}.mes`, b.mes > 12 ? '' : b.mes, 50)}</td><td${b.quem === 'PESSOAS' ? ` title="Nº de pessoas informado por área (tabela PESSOAS POR ÁREA do PT) × valor por pessoa: ${esc(Object.entries(b.pessoas || {}).map(([a, n]) => a + ' ' + n).join(' · ') || 'sem pessoas informadas')}"` : ''}>${esc(b.quem)}${b.quem === 'PESSOAS' ? ' · ' + Object.values(b.pessoas || {}).reduce((s, v) => s + (+v || 0), 0) : ''}</td><td>${esc(b.conv)}</td><td>${esc(b.conta)}</td><td class="ed">${pin(`beneficios.${i}.forn`, (b.forn || []).join('; '), 150, 'text')}</td></tr>`).join('')}
   </tbody></table></div>
+  ${(() => { const PS = P.beneficios.map((b, i) => [b, i]).filter(([b]) => b.quem === 'PESSOAS'); if (!PS.length) return '';
+    const AR = Object.keys(P.areas || {}), tot = b => Object.values(b.pessoas || {}).reduce((t_, n) => t_ + (+n || 0), 0);
+    return `<div class="card"><h3>Pessoas por área — benefícios por PESSOAS ${pe ? '' : '<small>leitura</small>'}</h3><div class="csub">Nº de pessoas que usam o benefício em cada área (ex.: transporte por fornecedor) × valor por pessoa. Vale no PROJETAR FOLHA e entra no PT na próxima geração.</div>
+      <div class="tw solta" style="max-height:440px"><table class="t"><thead><tr><th>Área</th>${PS.map(([b]) => `<th class="ed n">${esc(b.nome)}</th>`).join('')}</tr></thead><tbody>
+      ${AR.map(a => `<tr><td class="nw">${esc(a)}</td>${PS.map(([b, i]) => `<td class="ed n"><input type="number" min="0" step="1" data-fpes="${i}" data-fpa="${esc(a)}" value="${esc((b.pessoas || {})[a] || '')}" ${pe ? '' : 'disabled'} style="width:70px"></td>`).join('')}</tr>`).join('')}
+      </tbody><tfoot><tr><td>Total</td>${PS.map(([b, i]) => `<td class="n" data-fpt="${i}">${tot(b)}</td>`).join('')}</tr></tfoot></table></div></div>`; })()}
   <div class="card"><h3>Efeito de caixa — 13º e férias <small>cenário MODELO · R$ mil</small></h3><div class="tw solta"><table class="t"><thead><tr><th>Linha</th>${MESES.map(x => `<th class="n">${x}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>
     ${caixa.map(([n, a], i) => `<tr ${i === 4 ? 'style="font-weight:700"' : ''}><td class="nw">${esc(n)}</td>${a.map(x => tdN(x, { uni: 'mil', dec: 0 })).join('')}${tdN(soma(a), { uni: 'mil', dec: 0 })}</tr>`).join('')}</tbody></table></div></div>`;
   if ((est.papel === 'controladoria' || est.papel === 'ceo') && D.folha && D.folha.calibracao) {
@@ -785,6 +842,14 @@ POS.folha = () => {
     }
     o[k] = v; if (path.startsWith('dissidio')) { const d = FOLHA.P.dissidio[+ks[1]]; d.atraso = Math.max(0, (+d.ap || 0) - (+d.db || 0)); }
     FOLHA.premSuja = true; marca();
+  });
+  // 16/11/2026: pessoas por área dos benefícios por PESSOAS (b.pessoas[área]; vazio ou 0 = ninguém)
+  document.querySelectorAll('#tela [data-fpes]').forEach(el => el.onchange = () => {
+    const b = FOLHA.P.beneficios[+el.dataset.fpes], a = el.dataset.fpa, n = el.value === '' ? 0 : +el.value;
+    if (!Number.isFinite(n) || n < 0) { alert('Informe o número de pessoas (0 ou mais).'); el.value = (b.pessoas || {})[a] || ''; return; }
+    b.pessoas = b.pessoas || {}; if (n) b.pessoas[a] = n; else { delete b.pessoas[a]; el.value = ''; }
+    const t = document.querySelector(`#tela [data-fpt="${el.dataset.fpes}"]`); if (t) t.textContent = Object.values(b.pessoas).reduce((t_, x) => t_ + (+x || 0), 0);
+    el.closest('td').style.background = '#FFF7E6'; FOLHA.premSuja = true; marca();
   });
 };
 
