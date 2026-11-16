@@ -2180,8 +2180,9 @@ async function salvaCad(){
   if (e.length){ msgCad("Corrija: "+e.join("; "), false); return; }
   const prem = {foraArvore:f.fora}; PREM_JSON.forEach(k=>prem[k]=+f.prem[k].toFixed(6));
   const linha = {sku:f.sku, cod:f.cod, cod_eic:f.codEic, ncm:f.ncm, linha:f.linha, qtd_ctr:f.q, fob_usd:f.usd, frete_usd_ctr:f.prem.frete,
-                 adic_rs_ctr:f.prem.adic, ii_pct:+(f.prem.ii*100).toFixed(2), ipi_saida_pct:+(f.prem.ipi*100).toFixed(2), obs:f.obs, premissas:prem,
-                 mc_alvo_pct: f.mcAlvo==null ? null : +f.mcAlvo.toFixed(2)};
+                 adic_rs_ctr:f.prem.adic, ii_pct:+(f.prem.ii*100).toFixed(2), ipi_saida_pct:+(f.prem.ipi*100).toFixed(2), obs:f.obs, premissas:prem};
+  /* a coluna mc_alvo_pct só existe depois da migração 060 — sem valor, nem manda a chave (não quebra o cadastro antes do Run) */
+  if (f.mcAlvo != null) linha.mc_alvo_pct = +f.mcAlvo.toFixed(2);
   const b = document.getElementById("cad-salvar"); b.disabled = true; msgCad("Salvando…", true);
   const q = CAD.editId ? SB.from("custos_sku_cadastro").update(linha).eq("id", CAD.editId).select()
                        : SB.from("custos_sku_cadastro").insert(linha).select();
