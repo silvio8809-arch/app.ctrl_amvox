@@ -123,6 +123,16 @@ tr.exp td{background:var(--surface2); padding:16px 18px; white-space:normal}
 .pdfico{vertical-align:-2px; margin-right:5px}
 .btn.aprov-pdf{border-color:var(--ok); color:var(--ok)}
 .admx{display:none} body.is-adm .admx{display:inline-block}
+/* v0.38 — cascata DRE TCP no bloco ② */
+.kv .pcrl{display:inline-block;min-width:60px;text-align:right;margin-left:12px;color:var(--ink3);font-size:11.5px;font-variant-numeric:tabular-nums}
+.kv.mcl{background:#FFF4E5;border-radius:6px;padding:9px 8px;margin:4px -8px;font-weight:700;color:var(--amber)}
+.kv .etq{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.05em;padding:1px 5px;border-radius:4px;background:#EEF3FA;color:#1F4E9C;margin-left:6px;text-transform:uppercase;vertical-align:1px}
+.kv .etq.mud{background:#FDE9EA;color:var(--brand)}
+.kv .pin{display:inline-flex;align-items:center;border:1.5px solid var(--line2);border-radius:5px;padding:0 5px;margin-left:5px;font-weight:700;font-size:11.5px;font-variant-numeric:tabular-nums;cursor:pointer;background:var(--surface)}
+.kv .pin:hover{border-color:var(--brand)} .kv .pin.mud{border-color:var(--brand);color:var(--brand)}
+.kv .zero{color:var(--ink3)}
+.aviso-regua{display:block;background:#FFF4E5;border:1px solid #F5D9A8;border-left:4px solid var(--amber);border-radius:7px;padding:10px 12px;font-size:12.2px;line-height:1.55;color:#6b4a00;margin-top:11px}
+.aviso-regua a{color:#6b4a00}
 .aprov{margin-top:12px; padding:12px 14px; border:1px dashed var(--line2); border-radius:8px; background:var(--surface2)}
 .ponte td.bar{width:34%; text-align:left}
 .ponte .pbar{display:inline-block; height:10px; border-radius:3px; vertical-align:middle}
@@ -390,6 +400,7 @@ details.simparams .inner{padding:2px 18px 16px}
       </div>
 
       <div class="kpis" id="simkpis"></div>
+      <div class="gaugecard" style="margin:12px 0 2px" id="simgauge"></div>
 
       <div class="panelgrid">
         <div class="panel">
@@ -406,6 +417,7 @@ details.simparams .inner{padding:2px 18px 16px}
               <input id="simipi" inputmode="decimal"><div class="fh2">padrão = pauta do NCM</div></div>
           </div>
           <div id="simpreco"></div>
+          <div id="simregua"></div>
           <div class="donutrow"><div id="simdonut"></div><div class="dleg" id="simdleg"></div></div>
         </div>
       </div>
@@ -420,14 +432,23 @@ details.simparams .inner{padding:2px 18px 16px}
           <div class="fld"><label for="sp-icms">ICMS saída %</label><input id="sp-icms" inputmode="decimal"><div class="fh2" id="sp-icms-h">0% = incentivo BA</div></div>
           <div class="fld"><label for="sp-dmaq">Despesa da máquina</label>
             <select id="sp-dmaq"><option value="25">27% — Modelo 2025</option><option value="26">16% — Modelo 2026</option><option value="fora">5% — fora da árvore (estrutura compartilhada)</option><option value="custom">Outro (editável)</option></select></div>
+          <div class="fld"><label for="sp-dmaqv">Despesa da máquina %</label><input id="sp-dmaqv" inputmode="decimal"><div class="fh2">digitável — qualquer valor (grava como “Outro”)</div></div>
           <div class="fld" id="fld-dmaqc" hidden><label for="sp-dmaqc">Despesa da máquina — outro %</label><input id="sp-dmaqc" inputmode="decimal"></div>
           <div class="fld"><label for="sp-meta">Meta de EBITDA %</label><input id="sp-meta" inputmode="decimal"></div>
+        </div>
+        <div class="fh" style="margin:14px 0 8px">Régua da MC prevista — percentuais sobre o faturamento (preço com IPI)</div>
+        <div class="fgrid">
+          <div class="fld"><label for="sp-carga">Estimativa de carga tributária %</label><input id="sp-carga" inputmode="decimal"><div class="fh2" id="sp-carga-h">régua</div></div>
+          <div class="fld"><label for="sp-dev">Devolução %</label><input id="sp-dev" inputmode="decimal"><div class="fh2" id="sp-dev-h">régua</div></div>
+          <div class="fld"><label for="sp-comis">Comissão %</label><input id="sp-comis" inputmode="decimal"><div class="fh2" id="sp-comis-h">régua</div></div>
+          <div class="fld"><label for="sp-frete">Frete e armazenagem %</label><input id="sp-frete" inputmode="decimal"><div class="fh2" id="sp-frete-h">régua — tabela por UF</div></div>
+          <div class="fld"><label for="sp-mod">Mão de obra direta (MOD) % do custo</label><input id="sp-mod" inputmode="decimal"><div class="fh2" id="sp-mod-h">régua</div></div>
+          <div class="fld"><label for="sp-bonif">Bonificações %</label><input id="sp-bonif" inputmode="decimal"><div class="fh2">0 quando não houver bonificação negociada</div></div>
         </div></div>
       </details>
 
       <h2><span style="display:inline-flex;align-items:center;gap:9px"><span class="ph" style="margin:0"><span class="n">3</span></span>Análise da simulação</span></h2>
       <div class="tiles" id="simanalise"></div>
-      <div class="gaugecard" style="margin-top:14px" id="simgauge"></div>
 
       <p class="note">IPI, PIS e COFINS da importação são recuperáveis (crédito espelho — líquido zero); o II não é.
       Somente despesas que <b>agregam ao custo do produto</b> (cadastro EIC) compõem o custo; multas, demurrage e
@@ -733,7 +754,7 @@ details.simparams .inner{padding:2px 18px 16px}
 
 <script type="text/plain" data-pos-dados>
 "use strict";
-const VERSAO = "v0.37 · refresh 16/11/2026";
+const VERSAO = "v0.38 · refresh 16/11/2026";
 document.getElementById("versao").textContent = VERSAO;
 /* ===== perfil: vem do LOGIN (window.PAPEL); código fixo removido em 06/10/2026 =====
    16/11/2026: terceiro nível — GESTOR DE CUSTOS (aplicativo 'custos' no cadastro do usuário):
@@ -945,7 +966,28 @@ const ipiPad = () => { const s = ALL[SIM.i]; return (s && s.ipiS!=null) ? s.ipiS
 /* Defaults por definição do Silvio: VPC inicia ZERO (toggle desligado E % zerado; 8,5% é o
    típico do cadastro, digitar quando aplicável) · meta EBITDA 9% */
 const SIM = {i:0, qty:null, price:null, ipi:null, vpcOn:false, dmaq:"25", dmaqCustom:20,
-             vpcPct:0, pisS:1.65, cofS:7.6, icmsS:null, meta:9};   /* icmsS null = padrão do SKU/UF (v0.25) */
+             vpcPct:0, pisS:1.65, cofS:7.6, icmsS:null, meta:9,
+             /* v0.38 — percentuais da régua da MC prevista; null = usa o valor vigente da régua */
+             carga:null, dev:null, comis:null, frete:null, mod:null, bonif:null};   /* icmsS null = padrão do SKU/UF (v0.25) */
+/* ===== RÉGUA DA MC PREVISTA (v0.38, 16/11/2026) =====
+   Os percentuais são os da régua (regua_mc) — a rotina diária publica a foto no bloco REGUA e a tela a consulta
+   ANTES de calcular. Nada mudou de lugar: a régua continua sendo a fonte; o objeto abaixo é só a reserva de quando
+   a foto não vier. Alterou na régua → próxima rodada publica → a tela acompanha sem republicar código. */
+const REGUA_PADRAO = {carga:15, dev:3, comis:3, mod:1, bonif:0, royalty:3,
+  freteUF:{AC:18,AL:3.6,AM:15,AP:12,BA:2.6,CE:6.36,DF:6.5,ES:3.22,GO:7.5,MA:8.55,MG:4.04,MS:11.5,MT:11,PA:11,
+           PB:4.31,PE:3.7,PI:6.58,PR:9.04,RJ:4.5,RN:5.84,RO:12.28,RR:18,RS:9.5,SC:9.35,SE:3,SP:4.6,TO:13.73},
+  fonte:"reserva embutida na publicação", data:null};
+const RG = (typeof REGUA !== "undefined" && REGUA) ? Object.assign({}, REGUA_PADRAO, REGUA) : REGUA_PADRAO;
+const freteUFpad = () => { const u = ufAtual(); return (RG.freteUF && RG.freteUF[u] != null) ? RG.freteUF[u] : 0; };
+const vCarga = () => SIM.carga ?? RG.carga, vDev = () => SIM.dev ?? RG.dev, vComis = () => SIM.comis ?? RG.comis,
+      vMod = () => SIM.mod ?? RG.mod, vBonif = () => SIM.bonif ?? RG.bonif, vFrete = () => SIM.frete ?? freteUFpad();
+/* o que o usuário tirou do padrão da régua (alimenta o aviso de divergência) */
+function foraDaRegua(){
+  const L = [["Estimativa de carga tributária", SIM.carga, RG.carga], ["Devolução", SIM.dev, RG.dev],
+             ["Comissão", SIM.comis, RG.comis], ["Frete e armazenagem", SIM.frete, freteUFpad()],
+             ["Mão de obra direta (MOD)", SIM.mod, RG.mod], ["Bonificações", SIM.bonif, RG.bonif]];
+  return L.filter(x => x[1] != null && Math.abs(x[1] - x[2]) > 1e-9).map(x => ({n:x[0], de:x[2], para:x[1]}));
+}
 const dmaqAtual = () => SIM.dmaq==="25" ? P.dmaq25 : SIM.dmaq==="26" ? P.dmaqMC : SIM.dmaq==="fora" ? DESP_FIXA_FORA : SIM.dmaqCustom/100;
 const dmaqRotulo = () => SIM.dmaq==="25" ? " (Modelo 2025)" : SIM.dmaq==="26" ? " (Modelo 2026)" : SIM.dmaq==="fora" ? " (fora da árvore — estrutura compartilhada)" : " (outro)";
 /* MC mínima por linha (definição Silvio): ÁUDIO = 30% · demais linhas = 20%.
@@ -1018,9 +1060,23 @@ function simCalc(){
      Auditável: digitar o piso MC30/35/40 devolve exatamente 30/35/40%. */
   const mcGuia = (fcGuia(ipiG) - icx - 1.01*ct/price)/fbGuia(ipiG);
   const qty = SIM.qty ?? q;
+  /* ===== cascata no padrão da DRE Modelo TCP (aba DRE - PPT) com os percentuais da régua — v0.38 =====
+     Base dos percentuais = faturamento COM IPI (régua da MC prevista, opção A). A despesa da máquina
+     segue sobre o preço SEM IPI (decisão Silvio 16/11/2026). */
+  const mIPI = 1 + ipiS, fat = price*mIPI;
+  const pDev = vDev()/100, pCarga = vCarga()/100, pFrete = vFrete()/100, pComis = vComis()/100,
+        pBonif = vBonif()/100, pMod = vMod()/100, pVpc = SIM.vpcOn ? SIM.vpcPct/100 : 0;
+  const devV = fat*pDev, cargaV = fat*pCarga, vpcF = fat*pVpc;
+  const rld = fat - devV, dedV = cargaV + vpcF, rlD = rld - dedV;
+  const modV = ct*pMod, cdir = ct + modV, lbD = rlD - cdir;
+  const freteV = fat*pFrete, comisV = fat*pComis, bonifV = fat*pBonif, dvV = freteV + comisV + bonifV;
+  const mcD = lbD - dvV, fixV = price*dmaqPct, ebitdaD = mcD - fixV;
   return {s, Q, icmsA, icmsImp, icx, recPago, recCred, recLiq, usd, f, q, fobR, freteR, segR, cifR, ii, afrmm, magic, courr, fixosUn, adicUn, ct,
           ipiImp, pisImp, cofImp, c25, price, pisoDef, mcAlvo, ipiS, vpc, impS, dmaqPct, dmaqV, cv,
-          lucroV, marg: lucroV/price, mcGuia, ipiG, qty};
+          lucroV, marg: lucroV/price, mcGuia, ipiG, qty,
+          mIPI, fat, devV, cargaV, vpcF, rld, dedV, rlD, modV, cdir, lbD, freteV, comisV, bonifV, dvV,
+          mcD, mcPct: mcD/rlD, fixV, ebitdaD, ebPct: ebitdaD/rlD,
+          pDev, pCarga, pFrete, pComis, pBonif, pMod, pVpc};
 }
 function donut(parts, total){
   const Rr=52, C=2*Math.PI*Rr; let off=0;
@@ -1050,6 +1106,14 @@ function renderSim(){
     foraArv(d.s) ? `padrão = preço p/ MC da operação de ${Math.round(MC_MAX_FORA*100)}% (teto da linha fora da árvore): R$ ${fmt(d.pisoDef)}`
     : `padrão = preço projetado p/ MC ${Math.round(d.mcAlvo*100)}% (mínimo da linha ${ (d.s.linha||"ÁUDIO") }): R$ ${fmt(d.pisoDef)}`;
   document.getElementById("simvpclbl").textContent = SIM.vpcOn ? "sim" : "não";
+  /* v0.38 — parâmetros da régua refletidos no painel (ligação nos dois sentidos) */
+  const parRG = [["sp-carga", vCarga(), RG.carga], ["sp-dev", vDev(), RG.dev], ["sp-comis", vComis(), RG.comis],
+                 ["sp-frete", vFrete(), freteUFpad()], ["sp-mod", vMod(), RG.mod], ["sp-bonif", vBonif(), RG.bonif]];
+  parRG.forEach(([id, v, pad])=>{ const el = document.getElementById(id); if(!el) return; el.value = fmt(v,2);
+    const h = document.getElementById(id+"-h");
+    if(h) h.textContent = Math.abs(v-pad)>1e-9 ? `alterado · régua ${fmt(pad,2)}%` : (id==="sp-frete" ? `régua — UF ${ufAtual()}` : "régua");
+    el.style.borderColor = Math.abs(v-pad)>1e-9 ? "var(--brand)" : ""; });
+  document.getElementById("sp-dmaqv").value = fmt(d.dmaqPct*100,2);
   /* KPIs */
   const kcol = (c)=>`style="--kc:${c}"`;
   const Rk = v => `<span class="cur">R$</span><span class="num">${fmt(v)}</span>`;
@@ -1061,8 +1125,11 @@ function renderSim(){
    +(foraArv(s)
      ? (()=>{ const mc = mcOperacao(d.price, d.ct), ok = mc <= MC_MAX_FORA + 1e-4 && d.marg >= 0;
          return `<div class="kpi" ${kcol(ok?"var(--ok)":"var(--up)")}><div class="k">MC da operação (fora da árvore)</div><div class="v"><span style="color:${ok?'var(--ok)':'var(--up)'}">${pct0(Math.max(mc,-9.99))}</span><span class="pc">máx ${Math.round(MC_MAX_FORA*100)}%</span></div><div class="d">− VPC ${pct0(d.vpc/d.price)} − custo fixo ${pct0(d.dmaqPct)} = EBITDA ${pct0(d.marg)}</div></div>`; })()
-     : `<div class="kpi" ${kcol(d.mcGuia>=d.mcAlvo?"var(--ok)":"var(--up)")}><div class="k">Margem Ctb. Bruta (MC)</div><div class="v"><span style="color:${d.mcGuia>=d.mcAlvo?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.mcGuia,-9.99))}</span><span class="pc">mín ${Math.round(d.mcAlvo*100)}%</span></div><div class="d">régua do guia de bolso — auditável</div></div>`)
-   +`<div class="kpi" ${kcol(d.marg>=SIM.meta/100?"var(--ok)":"var(--up)")}><div class="k">EBITDA</div><div class="v"><span style="color:${d.marg>=SIM.meta/100?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.marg,-9.99))}</span><span class="pc">${(d.marg*100-SIM.meta)>=0?"+":""}${fmt(d.marg*100-SIM.meta,1)} p.p.</span></div><div class="d">gerencial (desconta desp. máquina) · meta ${fmt(SIM.meta,1)}%</div></div>`;
+     : `<div class="kpi" ${kcol("var(--amber)")}><div class="k">Margem de contribuição (MC)</div><div class="v"><span style="color:var(--amber)">${pct0(Math.max(d.mcPct,-9.99))}</span><span class="pc">${R$(d.mcD)}</span></div><div class="d">% da receita líquida — padrão DRE TCP</div></div>`)
+   +(foraArv(s)
+     ? `<div class="kpi" ${kcol(d.marg>=SIM.meta/100?"var(--ok)":"var(--up)")}><div class="k">EBITDA</div><div class="v"><span style="color:${d.marg>=SIM.meta/100?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.marg,-9.99))}</span><span class="pc">${(d.marg*100-SIM.meta)>=0?"+":""}${fmt(d.marg*100-SIM.meta,1)} p.p.</span></div><div class="d">gerencial (desconta desp. máquina) · meta ${fmt(SIM.meta,1)}%</div></div>`
+     : `<div class="kpi" ${kcol(d.ebPct>=SIM.meta/100?"var(--ok)":"var(--up)")}><div class="k">EBITDA</div><div class="v"><span style="color:${d.ebPct>=SIM.meta/100?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.ebPct,-9.99))}</span><span class="pc">${(d.ebPct*100-SIM.meta)>=0?"+":""}${fmt(d.ebPct*100-SIM.meta,1)} p.p.</span></div><div class="d">% da receita líquida · meta ${fmt(SIM.meta,1)}%</div></div>`)
+   +(ADM && !foraArv(s) ? `<div class="kpi" ${kcol(d.mcGuia>=d.mcAlvo?"var(--ok)":"var(--up)")}><div class="k">MC — régua do guia</div><div class="v"><span style="color:${d.mcGuia>=d.mcAlvo?'var(--ok)':'var(--up)'}">${pct0(Math.max(d.mcGuia,-9.99))}</span><span class="pc">mín ${Math.round(d.mcAlvo*100)}%</span></div><div class="d">piso do guia de bolso — conferência</div></div>` : "");
   /* ① formação do custo — grupos como no excel */
   document.getElementById("simcusto").innerHTML =
     `<div class="grp"><h4>Importação (por unidade)</h4>
@@ -1101,27 +1168,80 @@ function renderSim(){
     : s.hawb
     ? `<span>fonte: SW8/SWD 102·333 · ${s.hawb} · ${s.dt}</span><span>qtd/ctr ${fmt(s.q,0)}${s.qeic?" (EIC, ctr dedicado)":" (lista do time)"}</span><span>${s.adic!=null?"333 real do processo":"333 = média 2026"}</span>`
     : `<span>sem processo EIC completo em 2026 — FOB da lista · frete = mediana dos vivos (${fmt(FRETE_FALLBACK,0)})</span>`;
-  /* ② formação do preço */
-  document.getElementById("simpreco").innerHTML =
-    kv("Preço de venda s/ IPI", R$(d.price))
-   +kv("IPI de saída "+fmt(SIM.ipi ?? ipiPad(),2)+"%", R$(d.price*d.ipiS))
-   +kv("Preço de venda c/ IPI", R$(d.price*(1+d.ipiS)), "sub")
-   +kv("(−) Impostos de saída (PIS "+fmt(SIM.pisS,2)+"% + COFINS "+fmt(SIM.cofS,2)+"% + ICMS "+fmt(icmsAtual(),2)+"%"+(foraArv(s)?" "+ufAtual():"")+")", R$(d.impS))
-   +kv("(−) VPC "+(SIM.vpcOn? fmt(SIM.vpcPct,2)+"%":"(desligado)"), R$(d.vpc))
-   +kv("(−) Despesa da máquina "+pct0(d.dmaqPct)+dmaqRotulo(), R$(d.dmaqV))
-   +kv("(−) Custo do produto (CT)", R$(d.ct))
-   +kv("CUSTO DA VENDA (CV = CT + VPC + desp. máquina)", R$(d.cv), "tot")
-   +kv("LUCRO · EBITDA", `${R$(d.lucroV)} · ${pct0(d.marg)}`, d.lucroV>=0?"ok":"hl")
-   +(foraArv(s)
-     ? kv(`MC da operação (preço − impostos − custo) · − VPC ${pct0(d.vpc/d.price)} − custo fixo ${pct0(d.dmaqPct)} = EBITDA ${pct0(d.marg)}`, pct0(mcOperacao(d.price, d.ct)), mcOperacao(d.price, d.ct) <= MC_MAX_FORA + 1e-4 ? "ok" : "hl")
-     : kv("Margem Ctb. Bruta (MC) pela régua do guia (a este preço, com o custo vigente)", pct0(d.mcGuia), d.mcGuia>=d.mcAlvo?"ok":"hl"));
+  /* ② formação do preço — v0.38: layout da aba DRE - PPT do Modelo TCP, percentuais da régua da MC prevista.
+     ADM vê a coluna "% receita líquida", as etiquetas de origem e a conferência contra o guia. */
+  if (foraArv(s)){
+    document.getElementById("simpreco").innerHTML =
+      kv("Preço de venda s/ IPI", R$(d.price))
+     +kv("IPI de saída "+fmt(SIM.ipi ?? ipiPad(),2)+"%", R$(d.price*d.ipiS))
+     +kv("Preço de venda c/ IPI", R$(d.price*(1+d.ipiS)), "sub")
+     +kv("(−) Impostos de saída (PIS "+fmt(SIM.pisS,2)+"% + COFINS "+fmt(SIM.cofS,2)+"% + ICMS "+fmt(icmsAtual(),2)+"% "+ufAtual()+")", R$(d.impS))
+     +kv("(−) VPC "+(SIM.vpcOn? fmt(SIM.vpcPct,2)+"%":"(desligado)"), R$(d.vpc))
+     +kv("(−) Despesa da máquina "+pct0(d.dmaqPct)+dmaqRotulo(), R$(d.dmaqV))
+     +kv("(−) Custo do produto (CT)", R$(d.ct))
+     +kv("CUSTO DA VENDA (CV = CT + VPC + desp. máquina)", R$(d.cv), "tot")
+     +kv("LUCRO · EBITDA", `${R$(d.lucroV)} · ${pct0(d.marg)}`, d.lucroV>=0?"ok":"hl")
+     +kv(`MC da operação (preço − impostos − custo) · − VPC ${pct0(d.vpc/d.price)} − custo fixo ${pct0(d.dmaqPct)} = EBITDA ${pct0(d.marg)}`, pct0(mcOperacao(d.price, d.ct)), mcOperacao(d.price, d.ct) <= MC_MAX_FORA + 1e-4 ? "ok" : "hl");
+  } else {
+    const pRL = v => ADM ? `<span class="pcrl">${Math.abs(v)<0.005 ? "—" : pct0(v/d.rlD)}</span>` : "";
+    const R$z = v => Math.abs(v)<0.005 ? "—" : (v<0 ? "−R$ "+fmt(-v) : R$(v));
+    const et = (txt, mud) => ADM ? `<span class="etq${mud?" mud":""}">${txt}</span>` : "";
+    const ed = (id, v, pad) => `<span class="pin${Math.abs(v-pad)>1e-9?" mud":""}" data-ed="${id}">${fmt(v,2)} %</span>`;
+    const li = (l, v, cls="") => kv(l, R$z(v)+pRL(v), cls);
+    document.getElementById("simpreco").innerHTML =
+      li("Faturamento "+(ADM?`<span class="etq">preço × (1 + IPI ${fmt(SIM.ipi ?? ipiPad(),2)}%)</span>`:""), d.fat)
+     +kv("<span class='zero'>Desconto incondicional</span>", "—")
+     +li("Receita bruta", d.fat, "sub")
+     +li("&nbsp;&nbsp;Devoluções "+ed("sp-dev", vDev(), RG.dev)+et("régua", SIM.dev!=null), -d.devV)
+     +li("Receita líquida de devoluções", d.rld, "sub")
+     +li("&nbsp;&nbsp;<b>Estimativa de carga tributária</b> "+ed("sp-carga", vCarga(), RG.carga)+et("régua", SIM.carga!=null), -d.cargaV)
+     +li("&nbsp;&nbsp;VPC "+(SIM.vpcOn? ed("sp-vpc", SIM.vpcPct, SIM.vpcPct)+et("simulação", false) : "<span class='zero'>(desligado)</span>"), -d.vpcF)
+     +li("Deduções", -d.dedV, "sub")
+     +li("Receita líquida", d.rlD, "sub")
+     +li("&nbsp;&nbsp;Custo do produto (CT) "+et("bloco ①", false), -d.ct)
+     +li("&nbsp;&nbsp;Mão de obra direta (MOD) "+ed("sp-mod", vMod(), RG.mod)+et("régua", SIM.mod!=null), -d.modV)
+     +li("Custos diretos", -d.cdir, "sub")
+     +li("Lucro bruto", d.lbD, "sub")
+     +li("&nbsp;&nbsp;Fretes e Armazenagem "+ed("sp-frete", vFrete(), freteUFpad())+et("régua · UF "+ufAtual(), SIM.frete!=null), -d.freteV)
+     +li("&nbsp;&nbsp;Comissões "+ed("sp-comis", vComis(), RG.comis)+et("régua", SIM.comis!=null), -d.comisV)
+     +li("&nbsp;&nbsp;Bonificações "+ed("sp-bonif", vBonif(), RG.bonif), -d.bonifV)
+     +li("Desp. variáveis vendas", -d.dvV, "sub")
+     +kv("MARGEM DE CONTRIBUIÇÃO (MC)", R$(d.mcD)+`<span class="pcrl">${pct0(d.mcPct)}</span>`, "mcl")
+     +li("Despesas fixas — despesa da máquina "+ed("sp-dmaqv", d.dmaqPct*100, d.dmaqPct*100)+et(dmaqRotulo().replace(/[()]/g,"").trim(), false), -d.fixV)
+     +kv("EBITDA", R$(d.ebitdaD)+`<span class="pcrl">${pct0(d.ebPct)}</span>`, d.ebitdaD>=0?"ok":"hl")
+     +(ADM ? kv("MC pela régua do guia (conferência · mínimo "+Math.round(d.mcAlvo*100)+"%)", pct0(d.mcGuia), d.mcGuia>=d.mcAlvo?"ok":"hl") : "");
+    /* aviso de valores fora da régua */
+    const fr = foraDaRegua();
+    document.getElementById("simregua").innerHTML = fr.length
+      ? `<div class="aviso-regua">⚠️ Você alterou ${fr.map(x=>`<b>${x.n}</b> (${fmt(x.de,2)}% → ${fmt(x.para,2)}%)`).join(" e ")}.
+         ${ADM ? "O confronto desta simulação com o guia de bolso pode apresentar diferenças." : "Os valores saíram do padrão da régua."}
+         <a href="#" id="regua-restaura">Restaurar os valores da régua</a>.</div>`
+      : "";
+    const rr = document.getElementById("regua-restaura");
+    if (rr) rr.addEventListener("click", ev=>{ ev.preventDefault();
+      SIM.carga=SIM.dev=SIM.comis=SIM.frete=SIM.mod=SIM.bonif=null; renderSim(); renderFreteMargem(); });
+    document.querySelectorAll("#simpreco .pin").forEach(el=>el.addEventListener("click", ()=>{
+      const alvo = document.getElementById(el.dataset.ed);
+      if(!alvo) return;
+      const det = document.querySelector("details.simparams"); if(det) det.open = true;
+      alvo.scrollIntoView({block:"center", behavior:"smooth"}); alvo.focus(); alvo.select && alvo.select();
+    }));
+  }
   /* donut composição do preço */
-  const parts = [
+  const parts = foraArv(s) ? [
     {n:"Custo produto (CT)", v:d.ct, c:"var(--ink3)"},
     {n:"Impostos de saída", v:d.impS, c:"var(--amber)"},
     {n:"VPC", v:d.vpc, c:"var(--down)"},
     {n:"Despesa da máquina", v:d.dmaqV, c:"var(--line2)"},
     {n:"Lucro", v:Math.max(d.lucroV,0), c:"var(--ok)"},
+  ] : [
+    {n:"Custo produto + MOD", v:d.cdir, c:"var(--ink3)"},
+    {n:"Carga tributária", v:d.cargaV, c:"var(--amber)"},
+    {n:"Devolução", v:d.devV, c:"#C9A227"},
+    {n:"VPC", v:d.vpcF, c:"var(--down)"},
+    {n:"Frete e comissão", v:d.freteV+d.comisV+d.bonifV, c:"#8A93A0"},
+    {n:"Despesa da máquina", v:d.fixV, c:"var(--line2)"},
+    {n:"EBITDA", v:Math.max(d.ebitdaD,0), c:"var(--ok)"},
   ];
   document.getElementById("simdonut").innerHTML = donut(parts, d.price);
   document.getElementById("simdleg").innerHTML = parts.map(p=>
@@ -1132,19 +1252,23 @@ function renderSim(){
   const rec = d.price*d.qty;
   document.getElementById("simanalise").innerHTML =
     tile("Receita s/ IPI", R$(rec)+' <span class="unit">100%</span>', fmt(d.qty,0)+" un × "+fmt(d.price))
-   +tile("Lucro da simulação", `<span style="color:${d.lucroV>=0?'var(--ok)':'var(--up)'}">${R$(d.lucroV*d.qty)}</span> <span class="unit">${pct0(d.marg)}</span>`, "EBITDA % · após impostos, VPC e desp. máquina")
+   +(foraArv(s)
+     ? tile("Lucro da simulação", `<span style="color:${d.lucroV>=0?'var(--ok)':'var(--up)'}">${R$(d.lucroV*d.qty)}</span> <span class="unit">${pct0(d.marg)}</span>`, "EBITDA % · após impostos, VPC e desp. máquina")
+     : tile("EBITDA da simulação", `<span style="color:${d.ebitdaD>=0?'var(--ok)':'var(--up)'}">${R$(d.ebitdaD*d.qty)}</span> <span class="unit">${pct0(d.ebPct)}</span>`, "% da receita líquida · depois de carga, devolução, VPC, frete, comissão e desp. máquina")
+      +tile("Margem de contribuição", `<span style="color:var(--amber)">${R$(d.mcD*d.qty)}</span> <span class="unit">${pct0(d.mcPct)}</span>`, "% da receita líquida — padrão DRE TCP"))
    +tile("Custo China (FOB+Magic)", R$(chinaUn*d.qty)+` <span class="unit">${pct0(chinaUn/d.ct)}</span>`, "% do CT · "+fmt(chinaUn)+" /un")
    +tile("Custo importação", R$(impUn*d.qty)+` <span class="unit">${pct0(impUn/d.ct)}</span>`, "% do CT · frete + seguro + II + AFRMM + courrier + 333")
    +tile("Custo Brasil (fixos)", R$(brUn*d.qty)+` <span class="unit">${pct0(brUn/d.ct)}</span>`, "% do CT · transporte, armazenagem, capatazia…")
    +tile("VPC total", R$(d.vpc*d.qty)+` <span class="unit">${pct0(d.vpc/d.price)}</span>`, SIM.vpcOn? "% do preço" : "desligado");
   /* gauge margem × meta — ARRASTÁVEL: mover a barra fixa a margem e recalcula o PREÇO */
-  const mPct = Math.max(0, Math.min(d.marg*100, 30)), metaPct = Math.min(SIM.meta, 30);
-  const diff = d.marg*100 - SIM.meta;
+  const margAtual = foraArv(s) ? d.marg : d.ebPct;
+  const mPct = Math.max(0, Math.min(margAtual*100, 30)), metaPct = Math.min(SIM.meta, 30);
+  const diff = margAtual*100 - SIM.meta;
   const gcol = diff>=0?'var(--ok)':'var(--up)';
   document.getElementById("simgauge").innerHTML = `
     <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px">
       <div><div class="k" style="font-size:11px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink2)">EBITDA — arraste para simular (recalcula o preço)</div>
-        <div style="font:700 26px 'Archivo'; color:${gcol}" id="gm-val">${pct0(d.marg)}</div></div>
+        <div style="font:700 26px 'Archivo'; color:${gcol}" id="gm-val">${pct0(margAtual)}</div></div>
       <div style="text-align:right"><div class="small">META ${fmt(SIM.meta,1)}%</div>
         <div style="font-weight:700; color:${gcol}" id="gm-diff">${diff>=0?"+":""}${fmt(diff,1)} p.p.</div>
         <div class="small">preço resultante: <b id="gm-price">${R$(d.price)}</b></div></div>
@@ -1155,9 +1279,17 @@ function renderSim(){
       <span class="small" style="position:absolute; left:0">0%</span><span class="small" style="position:absolute; right:0">30%</span></div>`;
   const sl = document.getElementById("simslider");
   const precoDaMargem = m => {
-    const t = (SIM.pisS+SIM.cofS+icmsAtual())/100, vpcr = SIM.vpcOn? SIM.vpcPct/100:0;
-    const den = 1 - t - vpcr - dmaqAtual() - m;
-    return den > 0.03 ? Math.round((d.ct/den)*100)/100 : null;
+    if (foraArv(s)){
+      const t = (SIM.pisS+SIM.cofS+icmsAtual())/100, vpcr = SIM.vpcOn? SIM.vpcPct/100:0;
+      const den = 1 - t - vpcr - dmaqAtual() - m;
+      return den > 0.03 ? Math.round((d.ct/den)*100)/100 : null;
+    }
+    /* v0.38 — EBITDA alvo sobre a RECEITA LÍQUIDA, cascata da régua:
+       P = ct(1+mod) ÷ [ mIPI(1−s) − dmaq − m·k ], s = carga+dev+vpc+frete+comis+bonif, k = mIPI(1−dev−carga−vpc) */
+    const sTot = d.pCarga + d.pDev + d.pVpc + d.pFrete + d.pComis + d.pBonif;
+    const k = d.mIPI*(1 - d.pDev - d.pCarga - d.pVpc);
+    const den = d.mIPI*(1 - sTot) - dmaqAtual() - m*k;
+    return den > 0.03 ? Math.round((d.ct*(1+d.pMod)/den)*100)/100 : null;
   };
   sl.addEventListener("input", ev=>{ /* durante o arrasto: só rótulos, sem recriar o slider */
     const m = (+ev.target.value)/100, p = precoDaMargem(m);
@@ -1213,6 +1345,14 @@ function wireSim(){
     document.getElementById(id).value = fmt(SIM[k],2);
     simNum(id, v=>{ if(v>=0) SIM[k]=v; });
   });
+  /* v0.38 — percentuais da régua: editáveis aqui e na própria cascata (mesmo estado) */
+  [["sp-carga","carga"],["sp-dev","dev"],["sp-comis","comis"],["sp-frete","frete"],["sp-mod","mod"],["sp-bonif","bonif"]]
+    .forEach(([id,k])=>simNum(id, v=>{ if(v>=0) SIM[k]=v; }));
+  /* despesa da máquina digitável em qualquer modo: digitar grava como "Outro" */
+  simNum("sp-dmaqv", v=>{ if(v>=0){ SIM.dmaq="custom"; SIM.dmaqCustom=v;
+    document.getElementById("sp-dmaq").value="custom";
+    document.getElementById("fld-dmaqc").hidden=false;
+    document.getElementById("sp-dmaqc").value=fmt(v,2); } });
 }
 /* ===== VISÃO COMPARATIVA (cópia fiel da planilha 2025 × modelo 2026, por contêiner) ===== */
 function renderComp(){
@@ -1526,16 +1666,50 @@ async function gerarPdfSim(versao){
         [`(-) Créditos tomados (${PCT(CRED_IMP)})`, "-" + R(d.recCred)],
         ["= Impostos recuperáveis (líquido)", R(d.recLiq)],
         ["CUSTO TOTAL PRODUTO (CT)", R(d.ct)]], new Set([3,9,14]));
-      kvT("2 · Formação do preço (R$ por unidade)", [
-        ["Preço de venda s/ IPI", R(d.price)], [`IPI de saída ${fmt(SIM.ipi ?? ipiPad(),2)}%`, R(d.price*d.ipiS)], ["Preço de venda c/ IPI", R(d.price*(1+d.ipiS))],
-        [`(-) Impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}%${foraArv(s) ? " " + uf + " - fora da árvore" : ""})`, R(d.impS)],
-        [`(-) VPC ${SIM.vpcOn ? fmt(SIM.vpcPct,2)+"%" : "(desligado)"}`, R(d.vpc)],
-        [`(-) Despesa da máquina ${PCT(d.dmaqPct)}${dmaqRotulo()}`, R(d.dmaqV)], ["(-) Custo do produto (CT)", R(d.ct)],
-        ["CUSTO DA VENDA (CV = CT + VPC + desp. máquina)", R(d.cv)],
-        ["LUCRO · EBITDA", `${R(d.lucroV)} · ${PCT(d.marg)} (meta ${fmt(SIM.meta,1)}%)`],
-        foraArv(s)
-          ? ["MC da operação (preço - impostos - custo; máx. 20%) · - VPC - custo fixo 5% = EBITDA", `${PCT(mcOperacao(d.price, d.ct))} - ${PCT(d.vpc/d.price)} - ${PCT(d.dmaqPct)} = ${PCT(d.marg)}`]
-          : ["Margem Ctb. Bruta (MC) pela régua do guia", `${PCT(d.mcGuia)} (mínimo ${Math.round(d.mcAlvo*100)}%) ${d.mcGuia>=d.mcAlvo-1e-4 ? "OK" : "ABAIXO DO MÍNIMO"}`]], new Set([2,7,8,9]));
+      if (foraArv(s)){
+        kvT("2 · Formação do preço (R$ por unidade)", [
+          ["Preço de venda s/ IPI", R(d.price)], [`IPI de saída ${fmt(SIM.ipi ?? ipiPad(),2)}%`, R(d.price*d.ipiS)], ["Preço de venda c/ IPI", R(d.price*(1+d.ipiS))],
+          [`(-) Impostos de saída (PIS ${fmt(SIM.pisS,2)}% + COFINS ${fmt(SIM.cofS,2)}% + ICMS ${fmt(icmsAtual(),2)}% ${uf} - fora da árvore)`, R(d.impS)],
+          [`(-) VPC ${SIM.vpcOn ? fmt(SIM.vpcPct,2)+"%" : "(desligado)"}`, R(d.vpc)],
+          [`(-) Despesa da máquina ${PCT(d.dmaqPct)}${dmaqRotulo()}`, R(d.dmaqV)], ["(-) Custo do produto (CT)", R(d.ct)],
+          ["CUSTO DA VENDA (CV = CT + VPC + desp. máquina)", R(d.cv)],
+          ["LUCRO · EBITDA", `${R(d.lucroV)} · ${PCT(d.marg)} (meta ${fmt(SIM.meta,1)}%)`],
+          ["MC da operação (preço - impostos - custo; máx. 20%) · - VPC - custo fixo 5% = EBITDA", `${PCT(mcOperacao(d.price, d.ct))} - ${PCT(d.vpc/d.price)} - ${PCT(d.dmaqPct)} = ${PCT(d.marg)}`]], new Set([2,7,8,9]));
+      } else {
+        /* v0.38 — padrao DRE Modelo TCP (aba DRE - PPT) com os percentuais da regua da MC prevista */
+        const pRL = v => PCT(v/d.rlD);
+        kvT("2 · Formação do preço — demonstração do resultado da venda (R$ por unidade · % da receita líquida)", [
+          [`Faturamento (preço + IPI ${fmt(SIM.ipi ?? ipiPad(),2)}%)`, `${R(d.fat)}   ${pRL(d.fat)}`],
+          ["Desconto incondicional", "-"],
+          ["Receita bruta", `${R(d.fat)}   ${pRL(d.fat)}`],
+          [`Devoluções ${fmt(vDev(),2)}%`, `-${R(d.devV)}   ${pRL(-d.devV)}`],
+          ["Receita líquida de devoluções", `${R(d.rld)}   ${pRL(d.rld)}`],
+          [`Estimativa de carga tributária ${fmt(vCarga(),2)}%`, `-${R(d.cargaV)}   ${pRL(-d.cargaV)}`],
+          [`VPC ${SIM.vpcOn ? fmt(SIM.vpcPct,2)+"%" : "(desligado)"}`, `-${R(d.vpcF)}   ${pRL(-d.vpcF)}`],
+          ["Deduções", `-${R(d.dedV)}   ${pRL(-d.dedV)}`],
+          ["Receita líquida", `${R(d.rlD)}   100,0%`],
+          ["Custo do produto (CT)", `-${R(d.ct)}   ${pRL(-d.ct)}`],
+          [`Mão de obra direta (MOD) ${fmt(vMod(),2)}%`, `-${R(d.modV)}   ${pRL(-d.modV)}`],
+          ["Custos diretos", `-${R(d.cdir)}   ${pRL(-d.cdir)}`],
+          ["Lucro bruto", `${R(d.lbD)}   ${pRL(d.lbD)}`],
+          [`Fretes e armazenagem ${fmt(vFrete(),2)}% (UF ${uf})`, `-${R(d.freteV)}   ${pRL(-d.freteV)}`],
+          [`Comissões ${fmt(vComis(),2)}%`, `-${R(d.comisV)}   ${pRL(-d.comisV)}`],
+          [`Bonificações ${fmt(vBonif(),2)}%`, `-${R(d.bonifV)}   ${pRL(-d.bonifV)}`],
+          ["Desp. variáveis vendas", `-${R(d.dvV)}   ${pRL(-d.dvV)}`],
+          ["MARGEM DE CONTRIBUIÇÃO (MC)", `${R(d.mcD)}   ${PCT(d.mcPct)}`],
+          [`Despesas fixas - despesa da máquina ${PCT(d.dmaqPct)}${dmaqRotulo()}`, `-${R(d.fixV)}   ${pRL(-d.fixV)}`],
+          ["EBITDA", `${R(d.ebitdaD)}   ${PCT(d.ebPct)} (meta ${fmt(SIM.meta,1)}%)`],
+          ["MC pela régua do guia (conferência)", `${PCT(d.mcGuia)} (mínimo ${Math.round(d.mcAlvo*100)}%) ${d.mcGuia>=d.mcAlvo-1e-4 ? "OK" : "ABAIXO DO MÍNIMO"}`]],
+          new Set([2,4,7,8,11,12,16,17,18,19]));
+        const frPdf = foraDaRegua();
+        if (frPdf.length){
+          doc.setFont("helvetica","bold"); doc.setFontSize(7.6); doc.setTextColor(138,91,0);
+          doc.text(doc.splitTextToSize(pdfT("ATENCAO: percentuais alterados em relacao a regua da MC prevista - " +
+            frPdf.map(x=>`${x.n} ${fmt(x.de,2)}% para ${fmt(x.para,2)}%`).join("; ") +
+            ". O confronto com o guia de bolso pode apresentar diferencas."), W-2*M), M, y-2);
+          y += 6;
+        }
+      }
       doc.setFont("helvetica","normal"); doc.setFontSize(7.4); doc.setTextColor(110);
       doc.text(doc.splitTextToSize(pdfT("Custo pelo modelo 2026 (por contêiner, dólar do parâmetro). Item sem nacionalização: custo projetado, sujeito ao custo real e aos complementos de importação até o fechamento do mês seguinte à NF. Gerado pelo app de Custos de Aquisição — AMVOX Controladoria." + (foraArv(s) ? " " + NOTA_FIXA_FORA : "")), W-2*M), M, y+2);
     }
@@ -1663,13 +1837,17 @@ document.getElementById("ap-ok").addEventListener("click", async ()=>{
   const d = simCalc(), s = d.s, m = document.getElementById("apmsg");
   const cv_ = document.getElementById("ap-venda").value.trim(), ce = document.getElementById("ap-eic").value.trim();
   const pick = o => Object.fromEntries(Object.entries(o).filter(([k,v]) => typeof v === "number" || typeof v === "string" || typeof v === "boolean" || v === null));
-  const foto = {versao: VERSAO, sku: s.sku, cod_venda: cv_ || null, cod_eic: ce || null, uf: ufAtual(), linha: s.linha || "AUDIO", fora: foraArv(s),
+  const foto = {versao: VERSAO, versao_calc: foraArv(s) ? "fora_arvore_v035" : "dre_tcp_v1",
+    mc_guia: +d.mcGuia.toFixed(6), mc_dre: +d.mcPct.toFixed(6), ebitda_dre: +d.ebPct.toFixed(6),
+    regua: {carga: vCarga(), dev: vDev(), comis: vComis(), frete: vFrete(), mod: vMod(), bonif: vBonif(), fonte: RG.fonte || null, data: RG.data || null},
+    fora_da_regua: foraDaRegua(), sku_nome: s.sku, cod_venda: cv_ || null, cod_eic: ce || null, uf: ufAtual(), linha: s.linha || "AUDIO", fora: foraArv(s),
     P: {...P}, SIM: {...pick(SIM), icms: icmsAtual(), ipi: SIM.ipi ?? ipiPad()},
     s: {q: d.q, usd: d.usd, frete: d.f, adic: s.adic ?? null, ii: iiS(s), prem: s.prem || null, cad: !!s.cad, cod: s.cod || null, hawb: s.hawb || null, dt: s.dt || null, st: s.st || null},
     d: pick({...d, s: undefined, Q: undefined})};
   m.textContent = "Salvando…"; m.className = "cadmsg ok";
   const { data, error } = await SB.from("custos_sim_aprovada").insert({sku: s.sku, cod: cv_ || null, origem: s.cad ? "CADASTRO" : "EIC", cad_id: s.cad ? s.id : null,
-    uf: ufAtual(), preco: +d.price.toFixed(4), ct: +d.ct.toFixed(4), margem_mc: +d.mcGuia.toFixed(6), margem_ebitda: +d.marg.toFixed(6),
+    uf: ufAtual(), preco: +d.price.toFixed(4), ct: +d.ct.toFixed(4),
+    margem_mc: +(foraArv(s) ? d.mcGuia : d.mcPct).toFixed(6), margem_ebitda: +(foraArv(s) ? d.marg : d.ebPct).toFixed(6),
     foto, obs: document.getElementById("ap-obs").value.trim() || null}).select();
   if (error || !data || !data.length) { m.textContent = "Não salvou: " + (error ? error.message : "sem permissão (só ADM aprova)"); m.className = "cadmsg err"; return; }
   m.textContent = cv_ ? `Simulação aprovada (nº ${data[0].id}). O realizado aparece na aba Projetado × Realizado após a próxima atualização da rotina.`
@@ -1721,8 +1899,12 @@ function renderReal(){
     .map(([a, b, c]) => `<tr><td>${a}</td><td class="num">${b}</td><td class="num">${c}</td><td style="text-align:left;font-size:12px;color:var(--ink2)">${
       a.startsWith("Custo") ? "FAT PLUS (CMV ÷ qtd)" : eic ? `EIC ${esc(eic.hawb||"")} (${esc(eic.dt||"")})${eic.posterior ? "" : " — ANTERIOR à aprovação, não entra na ponte"}` : "sem processo EIC"}</td></tr>`).join("");
   if (!vend || !vend.QTD){
-    K.innerHTML = tile("Preço aprovado", R$(P0), "s/ IPI") + tile(fora ? "Margem da operação aprovada" : "MC aprovada (régua)", pct0(fora ? d0.marg : d0.mcGuia), "")
-      + tile(fora ? "" : "EBITDA aprovado", fora ? "" : pct0(d0.marg), "");
+    const novo = f.versao_calc === "dre_tcp_v1";   /* v0.38: aprovações no padrão DRE TCP */
+    const mcAp = fora ? d0.marg : (novo ? (f.mc_dre ?? d0.mcPct) : d0.mcGuia);
+    const ebAp = fora ? d0.marg : (novo ? (f.ebitda_dre ?? d0.ebPct) : d0.marg);
+    K.innerHTML = tile("Preço aprovado", R$(P0), "s/ IPI")
+      + tile(fora ? "Margem da operação aprovada" : (novo ? "MC aprovada (DRE TCP)" : "MC aprovada (régua do guia)"), pct0(mcAp), novo ? "% da receita líquida" : "")
+      + tile(fora ? "" : "EBITDA aprovado", fora ? "" : pct0(ebAp), novo ? "% da receita líquida" : "% do preço s/ IPI");
     V.innerHTML = !codV ? `<b>Simulação de estudo, sem código de venda.</b> Para comparar com o realizado, informe o código ${sim.origem === "CADASTRO" ? "no <b>DE-PARA do Cadastro de SKUs</b> (Código de venda) — vale também para esta aprovação" : "numa nova aprovação"}.`
       : R && R.sb1_erro ? `<b>${esc(R.sb1_erro)}</b> Confira o DE-PARA.` : `<b>Sem venda do código ${esc(codV)} desde ${R ? R.desde_mes.slice(4)+"/"+R.desde_mes.slice(0,4) : "a aprovação"}.</b> A comparação de margem começa quando houver nota; a importação real aparece abaixo assim que o processo no EIC existir.`;
     TB.innerHTML = ""; N.textContent = ""; return;
