@@ -373,13 +373,13 @@ function telaPremissas() {
   const rec = (P.caixa || []).filter(c => /^Recebimento em|^Recebimento à vista/.test(c[0]));
   const cxI = cxLinha('Saldo inicial de caixa'), cxF = cxLinha('Saldo final de caixa');
   h += secPrem('caixa', 'Caixa: recebimentos, impostos, saldo inicial', `saldo dez/27 ${rsC(cxF.m[11])}`,
-    `Método direto, mensal. Recebimentos = (faturamento − VPC − devoluções) × (1 − PCLD) nos prazos abaixo (jan–abr/27 recebem as vendas de set–dez/26); a carteira de 31/10 entra pelo aging oficial. Impostos da competência pagos no mês seguinte. Saldo inicial = média dos saldos LIVRES de fim de mês jul–out/26 das disponibilidades (BASE_CAIXA col. C).`,
+    `Método direto, mensal. Recebimentos = (faturamento − VPC − devoluções) × (1 − PCLD) nos prazos abaixo (jan–abr/27 recebem as vendas de set–dez/26); a carteira já faturada entra pelo aging da data da geração do PT (o restante do mês da geração = previsto − faturado até a data). Impostos da competência pagos no mês seguinte. Saldo inicial = média dos saldos LIVRES de fim de mês jul–out/26 das disponibilidades (BASE_CAIXA col. C).`,
     rec.map(c => [esc(c[0]), pc(c[1], 0), onde('PREMISSAS (premissas do caixa)', 'Configuração › Premissas'), esc(c[2] || '')])
       .concat([['Defasagem do pagamento de impostos (meses)', pFmt(cx('Defasagem')[1]), onde('PREMISSAS (caixa)'), ''],
         ['Saldo de caixa em 01/01/2027', rs(cxI.m[0]), onde('PREMISSAS (caixa) — sobrescrever na última linha do bloco'), esc(cx('Saldo de caixa em 01/01/2027 (R$) — projetado')[2] || '')],
-        ['Usar aging a receber 31/10 para a carteira', pFmt(cx('Usar aging')[1]), onde('PREMISSAS (caixa)'), ''],
-        ['Recuperação dos títulos a receber vencidos em 31/10', pFmt(cx('Recuperação')[1]), onde('PREMISSAS (caixa)'), 'A CONFIRMAR — 0 = conservador'],
-        ['Pagamento dos fornecedores pós-pedido vencidos em 31/10', pFmt(cx('Pagamento em 2027')[1]), onde('PREMISSAS (caixa)'), 'A CONFIRMAR'],
+        ['Usar aging a receber da data da geração para a carteira', pFmt(cx('Usar aging')[1]), onde('PREMISSAS (caixa)'), ''],
+        ['Recuperação dos títulos a receber vencidos na data da geração', pFmt(cx('Recuperação')[1]), onde('PREMISSAS (caixa)'), 'A CONFIRMAR — 0 = conservador'],
+        ['Pagamento dos fornecedores pós-pedido vencidos na data da geração', pFmt(cx('Pagamento em 2027')[1]), onde('PREMISSAS (caixa)'), 'A CONFIRMAR'],
         ['Faturamento nov/26 e dez/26', `${pFmt(cx('Faturamento nov')[1])} · ${pFmt(cx('Faturamento dez')[1])}`, onde('PREMISSAS (caixa)'), 'vazio = média jul–out/26']]),
     ['Saldo inicial pela média jul–out/26 não desconta o que sai em nov–dez/26 (sinal das compras de out–dez/26 do plano, 13º): usar o saldo projetado de 31/12?',
      `BCO QI SCD e EVERBLUE PAY contados como livres — confirmar (BASE_CAIXA col. C).`]);
@@ -387,7 +387,7 @@ function telaPremissas() {
   const CP = D.compras_pa, pl = P.plano_compras || [];
   const r_ = i => CP ? (CP.resumo[i] || ['', 0])[1] : 0;
   h += secPrem('compras', 'Compras do P&D × adiantamentos (PA)', `${rsC((pl[0] || {}).tot || 0)} ao fornecedor`,
-    `Fornecedores de importação = cronograma de desembolso do <b>plano de compras do P&amp;D</b> (planilha do Victor Lima): cada compra (modelo × mês, out/26 a set/27) paga o sinal no pedido e os saldos em dias do embarque, pela condição do fornecedor; frete + impostos ≈ 30% na chegada. O que já foi comprado antes de 06/10/2026 tem fluxo próprio (aging a pagar 31/10). ` +
+    `Fornecedores de importação = cronograma de desembolso do <b>plano de compras do P&amp;D</b> (planilha do Victor Lima): cada compra (modelo × mês, out/26 a set/27) paga o sinal no pedido e os saldos em dias do embarque, pela condição do fornecedor; frete + impostos ≈ 30% na chegada. O que já foi comprado antes de 06/10/2026 tem fluxo próprio (aging a pagar da data da geração). ` +
     (CP ? `<b>Adiantamentos:</b> os POs do plano com PA já pago (Protheus, SE2 × EIC) são casados com a compra do plano do mesmo modelo; só o que o PA pagou além do que o plano já põe em 2026 sai do caixa 2027 (linha "(+) Sinal já pago em 2026").` : 'Sem a aba COMPRAS_PA_2027 (gerar com --compras-pa).'),
     [['Pagamento ao fornecedor 2027 (plano)', rsC((pl[0] || {}).tot || 0), onde('PREMISSAS linha 22 (planilha do P&D)'), 'escala com o cenário de receita (PREMISSAS!B20)'],
      ['Frete + impostos de importação 2027 (plano)', rsC((pl[1] || {}).tot || 0), onde('PREMISSAS linha 23'), ''],
