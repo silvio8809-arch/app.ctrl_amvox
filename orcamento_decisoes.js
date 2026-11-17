@@ -58,15 +58,35 @@ const dcsSemDec = (l, r) => r ? !r.trava && !r.decisao && !dcsNada(l) : l.semDec
 /* 16/11/2026 (Silvio): linha travada pela DUPLICIDADE (conta centralizada em outra área, sem base nem exceção) — a decisão não tem efeito; ao tentar
    alterar, um alerta diz por quê e como liberar (exceção conta × centro de custo em Configuração › Exceções, ou "Só autoriza a área a orçar") */
 const dcsTravaDup = r => !!(r && r.trava && /^Trava de duplicidade/i.test(r.trava));
+/* 16/11/2026 — PASSO 2 DA SIMPLIFICAÇÃO DOS DE-PARAS (Silvio: "vamos ao passo 2"):
+   (a) linha a RESPONDER (status do PT "RESPONDER — …"): conta "cada área pelo seu CC" em que a área orçou sem histórico próprio e OUTRA área tem o histórico
+       — fica fora do valor final até a resposta: "Já contado em …" (decisão MODELO) ou "Gasto novo" (decisão GESTOR + motivo obrigatório no comentário);
+   (b) a linha da área dona mostra o orçado que veio de outra área (ORCADO_2027 col. AJ "orçado por X, levado à área dona Y") — o gasto é decidido ali, uma vez. */
+const dcsResp = (l, r) => /^RESPONDER/.test(l.st || '') && !(r && (r.decisao || r.trava));
+const dcsRespPT = id => { const l = (D.linhas || []).find(x => dcsId(x) === id); return !!(l && /^RESPONDER/.test(l.st || '')); };
+const dcsOutras = l => [...new Set((D.linhas || []).filter(x => String(x.c) === String(l.c) && x.s !== l.s && Math.abs(x.b || 0) >= 0.01).map(x => x.s))];
+function dcsLev(l) {
+  if (!DCS._lev || DCS._levD !== D) {
+    const m = new Map();
+    (D.orcado || []).forEach(o => { const a = /orçado por (.+?), levado à área dona /.exec(o.arq || ''); if (!a) return;
+      const k = `${o.s}|${o.c}`, x = m.get(k) || new Map(); x.set(a[1], (x.get(a[1]) || 0) + (+o.tot || 0)); m.set(k, x); });
+    DCS._lev = m; DCS._levD = D;
+  }
+  return DCS._lev.get(dcsId(l));
+}
+const dcsLevTxt = l => { const x = dcsLev(l);
+  return x ? `<br><small style="color:var(--ink3)" title="Orçado por outra área numa conta desta área (uma área só): entra aqui e é decidido nesta linha — passo 2">📥 inclui orçado de ${[...x.entries()].map(([a, v]) => `${esc(a)} ${rsC(v)}`).join(' · ')}</small>` : ''; };
+const dcsRespHtml = (l, id, ed) => { const ou = dcsOutras(l), q = ou.join(', ') || 'outra área';
+  return `<span class="tag r" title="${esc(l.st || '')}">🔒 responder</span>${ed ? `<br><button class="btn" data-dcsresp="${esc(id)}" data-dcsr="ja" style="margin-top:4px" title="O gasto já está no histórico de ${esc(q)}: esta linha fica fora (MODELO)">Já contado em ${esc(ou.slice(0, 2).join(', ') || 'outra área')}${ou.length > 2 ? '…' : ''}</button> <button class="btn" data-dcsresp="${esc(id)}" data-dcsr="novo" style="margin-top:4px" title="Gasto que não existia: conta nesta linha (GESTOR), com o motivo">Gasto novo</button>` : ''}`; };
 function dcsComoLiberar(l) {
   const cta = ((D.cfg_conta && D.cfg_conta.rows) || []).find(x => String(x[0]) === String(l.c)), dono = (cta && cta[5]) || 'outra área';
   const dic = D.meta && D.meta.razao && D.meta.razao.dic;
   const ccs = RAZAO && dic ? [...new Set(RAZAO.filter(x => String(x[4]) === String(l.c) && dic.setor[x[10]] === l.s && x[5]).map(x => x[5]))].sort() : [];
   const daArea = ((D.cfg_arvore && D.cfg_arvore.rows) || []).filter(x => x[3] === l.s && x[4] !== 'NÃO USAR').map(x => x[1]);
-  return `Essa conta (${l.c} ${l.d || ''}) é centralizada em ${dono}, por isso a decisão desta linha não tem efeito: o orçado de ${l.s} fica fora e vale o modelo (zero) — trava de duplicidade.\n\n`
-    + (ccs.length ? `Para liberar, crie uma exceção em Configuração › Exceções — conta ${l.c} × centro de custo ${ccs.join(' / ')} → ${l.s} (é onde ${l.s} lançou essa conta).`
-                  : `${l.s} não lançou essa conta nos próprios centros de custo${daArea.length ? ` (${daArea.join(', ')})` : ''}. Para liberar, crie em Configuração › Exceções uma exceção do tipo "Só autoriza a área a orçar" para a conta ${l.c} → ${l.s}.`)
-    + `\n\nAtenção: liberada, a linha passa a somar no valor final além do que já está em ${dono} — confira para não contar o mesmo gasto duas vezes. A liberação entra na próxima geração do PT.`;
+  return `Essa conta (${l.c} ${l.d || ''}) é de ${dono}: esta linha fica fora do valor final (vale o modelo). Na geração do PT, o orçado de área que entregou orçamento vai para a linha de ${dono} e é decidido lá; ficam fora só orçado informativo, kit e unidade descontinuada.\n\n`
+    + (ccs.length ? `Se ${l.s} deve gerir parte desta conta, crie uma exceção em Configuração › Exceções — conta ${l.c} × centro de custo ${ccs.join(' / ')} → ${l.s} (é onde ${l.s} lançou essa conta).`
+                  : `${l.s} não lançou essa conta nos próprios centros de custo${daArea.length ? ` (${daArea.join(', ')})` : ''}. Se ${l.s} deve gerir parte desta conta, crie em Configuração › Exceções uma exceção do tipo "Só autoriza a área a orçar" para a conta ${l.c} → ${l.s}.`)
+    + `\n\nA exceção entra na próxima geração do PT.`;
 }
 function dcsNum(s) {                                                    // "1.234,56" · "1234,56" · "1.234" · "1234.56" → número; vazio = null; inválido = NaN
   s = String(s ?? '').replace(/[R$\s]/g, ''); if (!s) return null;
@@ -84,6 +104,8 @@ async function dcsSalva() {
   if (!ids.length) return true;
   const semValor = ids.map(id => DCS.rows.get(id)).filter(r => r && r.decisao === 'OUTRO' && r.valor_outro == null);
   if (semValor.length) { dcsAviso(`A decisão OUTRO exige o valor (R$/ano): ${semValor.slice(0, 6).map(r => r.area + ' × ' + r.conta).join(' · ')}${semValor.length > 6 ? ' …' : ''}.`, true); return false; }
+  const semMotivo = ids.map(id => DCS.rows.get(id)).filter(r => r && r.decisao === 'GESTOR' && dcsRespPT(r.id) && !String(r.comentario || '').trim());   // 16/11/2026 (passo 2)
+  if (semMotivo.length) { dcsAviso(`Gasto novo (GESTOR) em linha a responder exige o motivo no comentário: ${semMotivo.slice(0, 6).map(r => r.area + ' × ' + r.conta).join(' · ')}${semMotivo.length > 6 ? ' …' : ''}.`, true); return false; }
   if (window.ORC_FONTE_LOCAL) {
     const agora_ = new Date().toISOString();
     ids.forEach(id => { const r = DCS.rows.get(id); if (r) { r.atualizado_em = agora_; r.atualizado_por = 'prévia local'; DCS.orig.set(id, { ...r }); } });
@@ -111,7 +133,7 @@ function dcsLista() {
   const Lv = linhasVis().map(l => { const r = DCS.rows.get(dcsId(l)); return { l, r, vale: dcsVale(l, r), fin: dcsFinal(l, r), pend: dcsPend(r), sem: dcsSemDec(l, r) }; });
   const base = Lv.filter(x => (!f.dcsArea || x.l.s === f.dcsArea) && (!busca || `${x.l.s} ${x.l.c} ${x.l.d} ${x.l.r || ''} ${(x.r && x.r.comentario) || ''}`.toUpperCase().includes(busca)));
   const fil = { GESTOR: x => x.vale === 'GESTOR', MODELO: x => x.vale === 'MODELO', OUTRO: x => x.vale === 'OUTRO', CONTRATO: x => x.vale === 'CONTRATO',
-    pad: x => x.sem, trav: x => !!(x.r && x.r.trava), mud: x => x.pend || (x.r && DCS.sujo.has(x.r.id)) };
+    pad: x => x.sem, trav: x => !!(x.r && x.r.trava), mud: x => x.pend || (x.r && DCS.sujo.has(x.r.id)), resp: x => dcsResp(x.l, x.r) };
   const card = f.dcsCard || '', L_ = card && fil[card] ? base.filter(fil[card]) : base;
   return { Lv, base, fil, card, L_ };
 }
@@ -135,10 +157,10 @@ function telaDecisoes(antiga) {
     const dec = r ? (tr ? (r.decisao_pt || '') : (r.decisao || '')) : (l.de || ''), vo = r ? (tr ? r.valor_outro_pt : r.valor_outro) : l.vo;
     const sit = !r ? '<span class="tag b" title="Linha nova no PT: entra nas decisões editáveis na próxima carga">entra na próxima carga</span>'
       : tr ? (dcsTravaDup(r) ? `<span class="tag r" data-dcslib="${esc(id)}" style="cursor:pointer" title="Conta centralizada: a decisão desta linha não tem efeito — clique para ver como liberar">🔒 centralizada · sem efeito</span>`
-        : `<span class="tag" title="${esc(r.trava)}">🔒 regra do modelo</span>`) : x.pend ? '<span class="tag r" title="O PT desta versão ainda não reflete esta linha">alterada · fora do PT</span>'
+        : `<span class="tag" title="${esc(r.trava)}">🔒 regra do modelo</span>`) : dcsResp(l, r) ? dcsRespHtml(l, id, ed) : x.pend ? '<span class="tag r" title="O PT desta versão ainda não reflete esta linha">alterada · fora do PT</span>'
       : x.sem ? '<span class="tag y">a decidir</span>' : dcsNada(l) ? '—' : '<span class="tag g">decidida</span>';
     return `<tr ${r && DCS.sujo.has(id) ? 'style="background:#FFF7E6"' : ''}>
-      <td class="fx nw"><small style="color:var(--ink3)">${esc(l.s)}</small><br>${esc(l.c)}</td><td class="w">${esc(l.d)}</td><td class="nw">${esc(l.me)}</td>${tdN(l.mo)}${tdN(l.ge)}${temCt ? tdN(Math.abs(l.ct || 0) > 0.005 ? l.mc : null) : ''}
+      <td class="fx nw"><small style="color:var(--ink3)">${esc(l.s)}</small><br>${esc(l.c)}</td><td class="w">${esc(l.d)}${dcsLevTxt(l)}</td><td class="nw">${esc(l.me)}</td>${tdN(l.mo)}${tdN(l.ge)}${temCt ? tdN(Math.abs(l.ct || 0) > 0.005 ? l.mc : null) : ''}
       <td class="ed"><input type="text" data-dcsid="${esc(id)}" data-dcsk="explicacao" value="${esc(r ? (tr ? r.explicacao_pt : r.explicacao) || '' : l.ex || '')}" style="width:150px" ${dl}></td>
       <td class="ed">${dcsTravaDup(r) ? `<span data-dcslib="${esc(id)}" style="cursor:pointer;display:inline-block" title="Conta centralizada: clique para ver como liberar">` : ''}<select data-dcsid="${esc(id)}" data-dcsk="decisao" ${dl}${dcsTravaDup(r) ? ' style="pointer-events:none"' : ''}><option value="">(padrão: ${esc(dcsPadrao(l))})</option>${ops.concat(dec && !ops.includes(dec) ? [dec] : []).map(o => `<option ${dec === o ? 'selected' : ''}>${o}</option>`).join('')}</select>${dcsTravaDup(r) ? '</span>' : ''}</td>
       <td class="n ed"><input type="text" inputmode="decimal" data-dcsid="${esc(id)}" data-dcsk="valor_outro" value="${dcsBr(vo)}" style="width:104px;text-align:right" ${dec === 'OUTRO' ? dl : 'disabled'}></td>
@@ -146,7 +168,7 @@ function telaDecisoes(antiga) {
       <td class="n" title="${x.pend ? 'Estimativa com a decisão da tela; o PT confirma na próxima geração' : ''}">${fmt(x.fin)}${x.pend ? `<br><small style="color:var(--ink3)">PT: ${fmt(l.vf)}</small>` : ''}</td>
       <td class="n ${cd(x.fin - l.mo, true)}">${fmt(x.fin - l.mo, { sinal: true })}</td><td class="nw">${sit}</td>
       <td class="ed"><input type="text" data-dcsid="${esc(id)}" data-dcsk="comentario" value="${esc(r ? (tr ? r.comentario_pt : r.comentario) || '' : l.co || '')}" style="width:230px" ${dl}>${tr ? `<br><small style="color:var(--ink3)">🔒 ${esc(r.trava)}</small>` : ''}</td></tr>`; };
-  return `${cabecalho(tit, 'A Controladoria decide em cada linha qual número vale para 2027: <b>GESTOR</b> (orçado), <b>MODELO</b> (base × inflação ou % do faturamento), <b>OUTRO</b> (valor definido pela Controladoria) ou <b>CONTRATO</b> (modelo com o valor fixo dos contratos). Sem decisão vale o padrão. A decisão alimenta a Projeção final, a DRE, a DRE TCP, o caixa e os resumos.',
+  return `${cabecalho(tit, 'A Controladoria decide em cada linha qual número vale para 2027: <b>GESTOR</b> (orçado), <b>MODELO</b> (base × inflação ou % do faturamento), <b>OUTRO</b> (valor definido pela Controladoria) ou <b>CONTRATO</b> (modelo com o valor fixo dos contratos). Sem decisão vale o padrão. A decisão alimenta a Projeção final, a DRE, a DRE TCP, o caixa e os resumos. Linha <b>a responder</b>: a área orçou sem histórico e outra área tem o histórico da conta — fica fora até você dizer se já está contado lá ou se é gasto novo. Orçado de outra área em conta de uma área só aparece na linha da dona (📥).',
     `<div class="filtros" style="margin-left:auto"><input id="dcsBusca" placeholder="Área, conta ou descrição" value="${esc(f.dcsBusca || '')}" style="width:210px">
       ${areas.length > 1 ? `<select id="dcsArea"><option value="">Todas as áreas</option>${areas.map(a => `<option ${f.dcsArea === a ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select>` : ''}</div>`)}
   <div id="dcsAviso" class="${DCS.msg && DCS.msg.erro ? 'aviso' : 'ok-box'}" ${DCS.msg ? '' : 'hidden'}>${DCS.msg ? esc(DCS.msg.t) : ''}</div>
@@ -154,7 +176,7 @@ function telaDecisoes(antiga) {
     : `<div class="info">${m && m.lida_em && !m.sem_leitura ? `O PT desta versão foi gerado com estas decisões (lidas do app em <b>${esc(m.lida_em)}</b>).` : 'O PT desta versão foi gerado <b>antes</b> de as decisões virem para o app: os números seguem o que está no PT.'} O que for decidido e salvo aqui entra na <b>próxima geração do PT</b>.</div>`}
   <section class="kpis">
     ${kp('GESTOR', 'Decisão GESTOR', '')}${kp('MODELO', 'Decisão MODELO', 'k2')}${kp('OUTRO', 'Decisão OUTRO', 'k3')}${temCt ? kp('CONTRATO', 'Decisão CONTRATO', 'k4') : ''}
-    ${kp('pad', 'Sem decisão (padrão)', 'k5', 'linhas usando o padrão')}${kp('trav', 'Definidas por regra', 'k5', 'só leitura: a regra do modelo prevalece')}${kp('mud', 'Alteradas · fora do PT', 'k3', 'entram na próxima geração')}
+    ${Lv.some(x => /^RESPONDER/.test(x.l.st || '')) ? kp('resp', 'Responder', 'k2', 'já contado em outra área ou gasto novo?') : ''}${kp('pad', 'Sem decisão (padrão)', 'k5', 'linhas usando o padrão')}${kp('trav', 'Definidas por regra', 'k5', 'só leitura: a regra do modelo prevalece')}${kp('mud', 'Alteradas · fora do PT', 'k3', 'entram na próxima geração')}
   </section>
   <div class="card"><h3>Decisão de cada linha ${card ? '— filtro do cartão' : ''} <small>${L_.length} linha(s)</small></h3>
     <div class="csub">Amarelo = editável pela Controladoria${ed ? '' : versaoEditavel() ? ' — <b>somente leitura neste perfil</b>' : ' — <b>esta versão está fechada</b>'}. O <b>valor final</b> de linha alterada é uma estimativa (o número do gestor, do modelo, do contrato ou o valor digitado); o PT confirma na próxima geração.</div>
@@ -194,6 +216,20 @@ function posDecisoes() {
     const l = (D.linhas || []).find(x => dcsId(x) === el.dataset.dcslib); if (!l) return;
     if (!RAZAO && typeof carregaRazao === 'function') { try { await carregaRazao(); } catch (e) { } }
     alert(dcsComoLiberar(l));
+  });
+  document.querySelectorAll('#dcsTab [data-dcsresp]').forEach(b => b.onclick = () => {      // 16/11/2026 (passo 2): resposta da linha a RESPONDER
+    if (!dcsEdita()) return;
+    const r = DCS.rows.get(b.dataset.dcsresp); if (!r || r.trava) return;
+    const l = (D.linhas || []).find(x => dcsId(x) === r.id), ou = l ? dcsOutras(l) : [];
+    const resto = String(r.comentario || '').replace(/^(JÁ CONTADO EM|GASTO NOVO:)[^·]*·?\s*/, '').trim();
+    if (b.dataset.dcsr === 'ja') r.decisao = 'MODELO', r.comentario = `JÁ CONTADO EM ${ou.join(', ') || 'outra área'} (passo 2)` + (resto ? ' · ' + resto : '');
+    else {
+      const mot = prompt(`Gasto novo em ${r.area} × ${r.conta} — qual é o motivo? (obrigatório; fica no comentário da Controladoria)`);
+      if (!mot || !mot.trim()) { dcsAviso('Gasto novo exige o motivo — nada foi alterado.', true); return; }
+      r.decisao = 'GESTOR'; r.comentario = `GASTO NOVO: ${mot.trim()} (passo 2)` + (resto ? ' · ' + resto : '');
+    }
+    r.valor_outro = null; DCS.msg = null; dcsMarca(r); desenha();
+    dcsAviso(`Resposta registrada em ${r.area} × ${r.conta} (${r.decisao}). Clique em Salvar alterações — entra na próxima geração do PT.`);
   });
   const s = $('dcsSalvar'); if (s) s.onclick = async () => { s.disabled = true; await dcsSalva(); desenha(); };
   const dz = $('dcsDesfaz'); if (dz) dz.onclick = () => {
