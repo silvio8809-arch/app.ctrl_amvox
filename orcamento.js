@@ -612,7 +612,8 @@ async function salvaFolha() {
   if (!FOLHA.sujo.size && !FOLHA.premSuja) return true;
   if (window.ORC_FONTE_LOCAL) { FOLHA.sujo.forEach(id => FOLHA.noBanco.add(id)); FOLHA.sujo.clear(); FOLHA.premSuja = false; avisoFolha('Prévia local: alterações guardadas só nesta tela (no app publicado vão para o banco, com histórico).'); return true; }
   try {
-    const campos = ['qtd', 'mes_adm', 'mes_desl', 'tipo_desl', 'mes_promo', 'pct_promo', 'justificativa', 'funcao', 'salario', 'convencao', 'tipo', 'plano'];
+    const campos = ['qtd', 'mes_adm', 'mes_desl', 'tipo_desl', 'mes_promo', 'pct_promo', 'justificativa', 'funcao', 'salario', 'convencao', 'tipo', 'plano']
+      .concat(folhaTemAut() ? ['autorizada_por'] : []);   // 17/11/2026 (migração 059): o banco carimba quem e quando autorizou
     for (const id of FOLHA.sujo) {
       const x = FOLHA.pos.find(p => p.id === id); if (!x) continue;
       if (FOLHA.noBanco.has(id)) {
@@ -695,6 +696,29 @@ function flQuadroAlteracoes(posA) {
     ${lp.length ? `<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7">${lp.map(it).join('')}</ul>` : ''}
     ${lq.length ? `<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7">${lq.map(q => `<li>${esc(q.k)}: ${esc(flV(q.pt, pctQ(q.k, q.pt ?? q.app)))} → <b>${esc(flV(q.app, pctQ(q.k, q.app ?? q.pt)))}</b></li>`).join('')}</ul>` : ''}</details>`;
 }
+/* 17/11/2026 — SIMULADOR DE FOLHA REVISADO (Silvio: "Aprovo"): situação de cada posição, trava do quadro e modelo para baixar */
+const FL_SIT_ORD = ['OCUPADA', 'VAGA PREVISTA', 'VAGA NÃO OCUPADA', 'CORTE ORÇAMENTÁRIO', 'AUMENTO DE QUADRO — CORTE ORÇAMENTÁRIO', 'AUMENTO DE QUADRO — AUTORIZADO'];
+const folhaSitTag = s => `<span class="tag ${/CORTE/.test(s) ? 'r' : /AUTORIZADO/.test(s) ? 'y' : s === 'VAGA PREVISTA' ? 'b' : s === 'OCUPADA' ? 'g' : ''}">${esc(s)}</span>`;
+const folhaTemAut = () => !!FOLHA && (!!window.ORC_FONTE_LOCAL || FOLHA.pos.some(x => 'autorizada_por' in x));
+function folhaSitCelula(x, t) {
+  const s = folhaSituacao(x, t); if (!s) return '';
+  const ctl = est.papel === 'controladoria' && podeEditarFolha(x.area) && folhaTemAut();
+  let h = folhaSitTag(s);
+  if (x.autorizada_por) h += `<br><small style="color:var(--ink3)" title="Autorizada pela Controladoria">autorizada · ${esc(String(x.autorizada_por))}${x.autorizada_em ? ' · ' + esc(new Date(x.autorizada_em).toLocaleDateString('pt-BR')) : ''}</small>`;
+  if (ctl && /^V/.test(x.id) && t && t.corte) h += `<br><button class="btn" data-flaut="${esc(x.id)}" data-flautv="1" style="margin-top:3px" title="Exceção à trava do quadro: a vaga passa a contar no GESTOR (fica no histórico)">Autorizar aumento</button>`;
+  if (ctl && x.autorizada_por) h += `<br><button class="btn" data-flaut="${esc(x.id)}" data-flautv="0" style="margin-top:3px">Retirar autorização</button>`;
+  return h;
+}
+async function baixaModeloFolha() {
+  const salva = (blob, nome) => { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500); };
+  try {
+    if (window.ORC_FONTE_LOCAL) { const r = await fetch('Simulador_FOPAG_2027_REVISADO.xlsx'); if (!r.ok) throw new Error('modelo não está na prévia'); salva(await r.blob(), 'Simulador_FOPAG_2027_REVISADO.xlsx'); return; }
+    const { data, error } = await SB.from('orc_arquivo').select('nome,tipo,conteudo').eq('id', 'simulador_folha_revisado').maybeSingle();
+    if (error || !data) { avisoFolha('O modelo revisado ainda não foi carregado no app (migração 059 + carga do arquivo pela Controladoria).', true); return; }
+    const bin = atob(data.conteudo), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    salva(new Blob([u8], { type: data.tipo }), data.nome);
+  } catch (e) { avisoFolha('Não foi possível baixar o modelo: ' + (e.message || e), true); }
+}
 function proximaVaga(area) {
   const ai = Object.keys(FOLHA.P.areas).indexOf(area) + 1, pre = 'V' + String(ai).padStart(2, '0');
   const n = FOLHA.pos.filter(x => x.id.startsWith(pre)).map(x => +x.id.slice(3) || 0);
@@ -716,12 +740,14 @@ TELAS.folha = () => {
   const tot = (o, semPJ = true) => { const a = Array(12).fill(0); Object.entries(o).forEach(([n, v]) => { if (!semPJ || n !== NPJ) v.slice(0, 12).forEach((x, i) => a[i] += x); }); return a; };
   const tG = tot(CG), tM = tot(CM), totC = cen === 'GESTOR' ? tG : tM;
   const posA = FOLHA.pos.filter(x => areas.includes(x.area));
-  const calc = posA.map(x => folhaPosicao(x, P));
+  const TRV = folhaTrava(posA), posE = folhaComTrava(posA);          // 17/11/2026: trava do quadro (2027 ≤ out/26) — simulador revisado
+  const calc = posE.map(x => folhaPosicao(x, P));
   const pes = { fG: Array(12).fill(0), pjG: Array(12).fill(0), fM: Array(12).fill(0), adm: Array(12).fill(0), des: Array(12).fill(0), pro: Array(12).fill(0) };
   calc.forEach(l => { for (let i = 0; i < 12; i++) { if (l.PJ) pes.pjG[i] += l.ativo[i]; else pes.fG[i] += l.ativo[i]; if (!l.PJ) pes.fM[i] += l.BK; }
     const x = l.x; if (+x.mes_adm) pes.adm[x.mes_adm - 1] += +x.qtd || 0; if (+x.mes_desl) pes.des[x.mes_desl - 1]++; if (+x.mes_promo) pes.pro[x.mes_promo - 1]++; });
   const nFolha = posA.filter(x => /^P/.test(x.id)).length, nPJ = posA.filter(x => /^J/.test(x.id)).length;
-  const vagas = posA.filter(x => /^V/.test(x.id) && (+x.qtd || 0) > 0 && +x.mes_adm).reduce((s, x) => s + (+x.qtd || 0), 0);
+  const vagas = posE.filter(x => /^V/.test(x.id) && (+x.qtd || 0) > 0 && +x.mes_adm).reduce((s, x) => s + (+x.qtd || 0), 0);
+  const SIT = {}; posA.forEach(x => { const s_ = folhaSituacao(x, TRV[x.id]); if (s_) SIT[s_] = (SIT[s_] || 0) + 1; });
   const orcG = (D.folha && D.folha.resumo || []).filter(r => areas.includes(r[0])).reduce((s, r) => s + (r[5] || 0), 0);
   const pjH = (CG[NPJ] || [])[12] || 0;
   const caixa = folhaCaixa(rows, P);
@@ -732,10 +758,12 @@ TELAS.folha = () => {
   <div class="filtros"><span class="rot">Departamento</span><select id="flArea"><option value="">Consolidado — ${vis.length} área(s)</option>${vis.map(a => `<option ${a === area ? 'selected' : ''}>${esc(a)}</option>`).join('')}</select>
     ${chips('flCen', [{ v: 'GESTOR', t: 'GESTOR' }, { v: 'MODELO', t: 'MODELO' }], cen)}
     <button class="btn" id="flAnal">${anal ? '▾ Ocultar folha analítico' : '▸ Ver folha analítico'}</button>
+    <button class="btn" id="flModelo" title="Planilha do simulador de folha REVISADO (em branco, com a tabela de benefícios 2027) — o modelo a seguir pelos gestores">⬇ Simulador de folha — modelo revisado</button>
     ${ed ? `<button class="btn" id="flSalva" ${pendentes ? '' : 'disabled'}>Salvar alterações${pendentes ? ` (${pendentes})` : ''}</button><button class="btn primary" id="flProj">PROJETAR FOLHA — ${esc(area || (vis.length === 1 ? vis[0] : 'todas as áreas'))}</button>` : `<span class="tag">${versaoEditavel() ? 'somente leitura neste perfil' : 'versão fechada — somente leitura'}</span>`}
   </div>
   <div id="flAviso" hidden></div>
   ${flQuadroAlteracoes(posA)}
+  <div class="csub">Situação das posições: ${FL_SIT_ORD.filter(k => SIT[k]).map(k => `${folhaSitTag(k)} ${SIT[k]}`).join(' · ') || '—'} · <b>trava do quadro</b>: por área e mês, CLT + aprendiz do GESTOR ≤ posição de out/2026 (vaga que passa fica fora; reposição vale; exceção só autorizada pela Controladoria).</div>
   <section class="kpis">
     <div class="kpi k5"><div class="lab">Pessoas na folha</div><div class="val">${nFolha}</div><div class="meta">+ ${nPJ} PJ (provisório) · vagas novas ${vagas} · desligamentos ${soma(pes.des)} · promoções ${soma(pes.pro)}</div></div>
     <button class="kpi ${cen === 'MODELO' ? 'sel' : ''}" data-flcen="MODELO"><div class="lab">Folha 2027 — MODELO</div><div class="val">${rsC(soma(tM))}</div><div class="meta">quadro atual × dissídio · sem honorários PJ</div></button>
@@ -772,7 +800,7 @@ TELAS.folha = () => {
     html += `<div class="card"><h3>Folha analítica — ${esc(area || 'todas as áreas visíveis')} <small>${lst.length} linha(s) · ID anônimo</small></h3>
       <div class="csub">Controladoria e CEO veem todas as áreas; gestores e demais só a sua (trava no banco). Amarelo = movimentação (gestor da área e Controladoria); salário, função, convenção, tipo e plano de posição existente: só Controladoria. Depois de alterar: <b>Salvar</b> e <b>PROJETAR FOLHA</b>.</div>
       ${area && podeEditarFolha(area) ? `<button class="btn" id="flVaga">+ Vaga nova em ${esc(area)}</button>` : ''}
-      <div class="tw" style="margin-top:8px"><table class="t" id="flTab"><thead><tr><th class="fx">ID</th><th>Área</th><th>Função</th><th>Tipo</th><th>Conv.</th><th>Admissão</th><th class="n">Salário</th><th class="n">Adicionais</th><th>Plano</th><th>Afast.</th>
+      <div class="tw" style="margin-top:8px"><table class="t" id="flTab"><thead><tr><th class="fx">ID</th><th>Área</th><th>Função</th><th>Tipo</th><th>Conv.</th><th>Admissão</th><th class="n">Salário</th><th class="n">Adicionais</th><th>Plano</th><th>Afast.</th><th>Situação</th>
         <th class="ed">Qtd</th><th class="ed">Mês admissão</th><th class="ed">Mês desligamento</th><th class="ed">Tipo de desligamento</th><th class="ed">Mês promoção</th><th class="ed">% promoção</th><th class="ed">Justificativa</th></tr></thead><tbody>
       ${lst.map(x => { const e = podeEditarFolha(x.area), vg = /^V/.test(x.id), ctl = est.papel === 'controladoria' && e, cad = e && (vg || ctl);
         const alt = flAlteradoPos(x);
@@ -782,6 +810,7 @@ TELAS.folha = () => {
           <td>${cad ? sel(x.id, 'convencao', ['BA', 'SP', 'SEM BENEFÍCIO'], x.convencao) : esc(x.convencao)}</td><td>${esc(x.admissao || '')}</td>
           <td class="n">${cad ? inp(x.id, 'salario', x.salario, false, 90) : fmt(+x.salario, { uni: 'R$', dec: 2 })}</td>${tdN(+x.adicional, { uni: 'R$', dec: 2 })}
           <td>${cad ? sel(x.id, 'plano', ['S', 'N'], x.plano) : esc(x.plano)}</td><td>${esc(x.afastado)}</td>
+          <td class="nw">${folhaSitCelula(x, TRV[x.id])}</td>
           <td class="ed">${inp(x.id, 'qtd', x.qtd, !e, 55)}</td><td class="ed">${inp(x.id, 'mes_adm', x.mes_adm, !e, 55)}</td><td class="ed">${inp(x.id, 'mes_desl', x.mes_desl, !e, 55)}</td>
           <td class="ed">${sel(x.id, 'tipo_desl', ['SEM JUSTA CAUSA', 'PEDIDO', 'ACORDO'], x.tipo_desl, !e)}</td><td class="ed">${inp(x.id, 'mes_promo', x.mes_promo, !e, 55)}</td>
           <td class="ed">${inp(x.id, 'pct_promo', x.pct_promo == null ? '' : +(x.pct_promo * 100).toFixed(2), !e, 60)}</td><td class="ed">${inp(x.id, 'justificativa', x.justificativa, !e, 200, 'text')}</td></tr>`; }).join('')}
@@ -828,6 +857,14 @@ POS.folha = () => {
   const an = $('flAnal'); if (an) an.onclick = () => { est.f.flAnal = !est.f.flAnal; desenha(); };
   const sv = $('flSalva'); if (sv) sv.onclick = async () => { await salvaFolha(); desenha(); };
   const pj = $('flProj'); if (pj) pj.onclick = async () => { pj.disabled = true; pj.textContent = 'Projetando…'; await projetaFolha(); };
+  const mo = $('flModelo'); if (mo) mo.onclick = () => baixaModeloFolha();
+  document.querySelectorAll('#tela [data-flaut]').forEach(b => b.onclick = () => {       // 17/11/2026: exceção à trava do quadro (só Controladoria)
+    const x = FOLHA.pos.find(p => p.id === b.dataset.flaut); if (!x) return;
+    if (b.dataset.flautv === '1') { x.autorizada_por = window.USUARIO_EMAIL || 'controladoria'; x.autorizada_em = new Date().toISOString(); }
+    else { x.autorizada_por = null; x.autorizada_em = null; }
+    FOLHA.sujo.add(x.id); desenha();
+    avisoFolha(b.dataset.flautv === '1' ? `Aumento de quadro autorizado em ${x.id} — Salvar e PROJETAR FOLHA (o banco registra quem e quando).` : `Autorização retirada em ${x.id} — Salvar e PROJETAR FOLHA.`);
+  });
   const vg = $('flVaga'); if (vg) vg.onclick = () => { const a = est.f.flArea, id = proximaVaga(a);
     FOLHA.pos.push({ id, area: a, funcao: '', filial: '', convencao: 'BA', tipo: 'CLT', admissao: '', meses_casa: 0, salario: 0, adicional: 0, plano: 'S', he_media: 0, afastado: 'N', qtd: 1, mes_adm: 1 });
     FOLHA.sujo.add(id); desenha(); };
