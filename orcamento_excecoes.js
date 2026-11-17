@@ -18,6 +18,69 @@ const excEdita = () => est.papel === 'controladoria';
 const excAtiva = () => EXC.instalada === true && EXC.semeada;
 const excTipo = ch => ch === EXC_AUT ? 'AUTORIZA' : /^([0-9]{3,9}|SEM CC)$/.test(ch || '') ? 'CC' : 'TAG';
 const excT = v => String(v ?? '').trim() || null;
+/* 16/11/2026 — PASSO 1 DA SIMPLIFICAÇÃO DOS DE-PARAS: num lugar só, TUDO o que tira o gasto do centro de custo onde foi lançado — qual regra, de
+   que área para qual, quanto (razão jul–out/26 desta versão, |D − C|) e onde se altera. Só leitura: explica o PT desta versão (o que mudar no app depois
+   do PT entra na próxima geração). Regra (a 1ª que casar): exceção conta × CC/marcação (app ou regra do CC 0418) · fornecedor que prevalece sobre o CC
+   (central) · lançamento sem CC → área padrão da conta · conta centralizada → área dona (ou Gastos Comuns) · outra regra do modelo. */
+const EXC_MAPA_T = { CONTA: 'Conta centralizada → área dona', GC: 'Conta de Gastos Comuns (ninguém gere)', SEMCC: 'Sem centro de custo → área padrão da conta',
+  FORN: 'Fornecedor que prevalece sobre o CC', EXC: 'Exceção conta × CC / marcação', REGRA: 'Regra do CC 0418 (RJ)', OUTRO: 'Outra regra do modelo' };
+const EXC_MAPA_ONDE = { CONTA: 'De-para de contas', GC: 'De-para de contas', SEMCC: 'De-para de contas (área padrão sem CC)', FORN: 'Central de de-para (fornecedor)',
+  EXC: 'Exceções (esta tela)', REGRA: 'gerador do PT (regra fixa)', OUTRO: 'regra do modelo' };
+function excPedeRazao() {
+  if (RAZAO || EXC.razaoPedido || typeof carregaRazao !== 'function') return;
+  EXC.razaoPedido = true;
+  carregaRazao().then(() => { if (est.tela === 'cfg_excecoes') desenha(); })
+    .catch(e => { EXC.razaoErro = e.message || String(e); if (est.tela === 'cfg_excecoes') desenha(); });
+}
+function excMapa() {
+  if (!RAZAO) return null;
+  if (EXC._mapa && EXC._mapaR === RAZAO && EXC._mapaD === D) return EXC._mapa;
+  const M = (D.meta && D.meta.razao) || {}, C = M.cols || [], st = (M.dic && M.dic.setor) || [], I = n => C.indexOf(n);
+  const iC = I('conta'), iCC = I('cc'), iV = I('valor'), iS = I('setor_cc'), iF = I('setor_final'), iFo = I('forn'), iT = I('tag');
+  const ap = excApoio(), ex = new Map(ap.pt.map(x => [`${x.conta}|${x.chave}`, x]));
+  const fo = new Map(((D.cfg_fornecedor && D.cfg_fornecedor.rows) || []).map(r => [`${r[0]}|${r[2]}`, r]));
+  const G = new Map(); let tot = 0;
+  RAZAO.forEach(x => {
+    const v = Math.abs(+x[iV] || 0); tot += v;
+    const s = st[x[iS]] || '', f = st[x[iF]] || '';
+    if (s === f) return;
+    const c = String(x[iC]), cc = String(x[iCC] || ''), tag = iT >= 0 ? String(x[iT] || '') : '', fn = iFo >= 0 ? String(x[iFo] || '') : '';
+    const e = ex.get(`${c}|${cc}`) || (tag ? ex.get(`${c}|${tag}`) : null), ct = ap.conta.get(c) || {}, fr = fo.get(`${fn}|${c}`);
+    let k = 'OUTRO', mot = '', quem = '';
+    if (e && e.area === f) { k = e.regra ? 'REGRA' : 'EXC'; mot = e.motivo || ''; }
+    else if (fr && fr[21] === 'S' && fr[10] === f) { k = 'FORN'; quem = fr[1] || fn; mot = fr[14] || ''; }
+    else if (!s) { k = 'SEMCC'; mot = 'lançamento sem centro de custo'; }
+    else if (ct.cen && !ct.rateio && ct.gestor === f) { k = f === 'Gastos Comuns (sem gestor)' ? 'GC' : 'CONTA'; mot = ct.fund || ''; }
+    const id = [k, c, s, f, quem].join('|');
+    let g = G.get(id); if (!g) G.set(id, g = { k, c, de: s, para: f, quem, mot, v: 0, n: 0 });
+    g.v += v; g.n++;
+  });
+  EXC._mapa = { L: [...G.values()].sort((a, b) => b.v - a.v), tot }; EXC._mapaR = RAZAO; EXC._mapaD = D; return EXC._mapa;
+}
+const excSeguram = () => { const ap = excApoio(); return ap.pt.filter(x => excTipo(x.chave) === 'CC' && (ap.cc.get(x.chave) || {}).setor === x.area).length; };
+function excMapaCard() {
+  const M = excMapa(), tit = 'Tudo o que tira o gasto do centro de custo — num lugar só';
+  if (!M) { excPedeRazao();
+    return `<div class="card"><h3>${tit}</h3>${EXC.razaoErro ? `<div class="aviso">Não foi possível carregar o razão desta versão: ${esc(EXC.razaoErro)}</div>` : '<div class="status">Carregando o razão desta versão…</div>'}</div>`; }
+  const f = est.f, tipo = f.excMapaTipo || '', busca = String(f.excMapaBusca || '').toUpperCase().trim(), desc = c => (D.contaDesc && D.contaDesc[c]) || '';
+  const porT = new Map(); M.L.forEach(g => { const t = porT.get(g.k) || { v: 0, n: 0, c: new Set() }; t.v += g.v; t.n += g.n; t.c.add(g.c); porT.set(g.k, t); });
+  const mov = soma(M.L, g => g.v), fica = M.tot - mov, seg = excSeguram();
+  const L = M.L.filter(g => (!tipo || g.k === tipo) && (!busca || `${g.c} ${desc(g.c)} ${g.de} ${g.para} ${g.quem}`.toUpperCase().includes(busca)));
+  const resumo = Object.keys(EXC_MAPA_T).filter(k => porT.has(k)).map(k => { const t = porT.get(k);
+    return `<tr><td>${esc(EXC_MAPA_T[k])}</td><td class="n">${t.c.size}</td><td class="n">${t.n.toLocaleString('pt-BR')}</td>${tdN(t.v)}<td class="n">${pc(div(t.v, M.tot))}</td><td><small>${esc(EXC_MAPA_ONDE[k])}</small></td></tr>`; }).join('');
+  return `<div class="card"><h3>${tit} <small>${pc(div(mov, M.tot))} da base muda de área</small></h3>
+    <div class="csub">Do PT desta versão (razão jul–out/26, |D − C|): cada linha diz <b>qual regra</b> tirou o gasto da área do centro de custo onde foi lançado, <b>para onde</b>, <b>quanto</b> e <b>onde se altera</b>. Só leitura — o que mudar no app depois do PT entra na próxima geração.</div>
+    <div class="tw" style="margin-top:8px"><table class="t"><thead><tr><th>Regra</th><th class="n">Contas</th><th class="n">Lançamentos</th><th class="n">R$ (jul–out)</th><th class="n">% da base</th><th>Onde se altera</th></tr></thead><tbody>
+      <tr><td>Fica no próprio centro de custo (nenhuma regra mexe)</td><td></td><td></td>${tdN(fica)}<td class="n">${pc(div(fica, M.tot))}</td><td></td></tr>
+      ${resumo}
+      <tr style="font-weight:600"><td>Base total</td><td></td><td></td>${tdN(M.tot)}<td class="n">${pc(1)}</td><td></td></tr></tbody></table></div>
+    ${seg ? `<div class="csub" style="margin-top:6px">Além disso, <b>${seg}</b> exceção(ões) só seguram no próprio centro de custo o que a centralização da conta tiraria (ex.: frete do Pós-Venda, CC 0418) — no passo 2 deixam de ser necessárias.</div>` : ''}
+    <div class="filtros" style="margin:10px 0 6px"><select id="excMapaTipo"><option value="">Todas as regras</option>${Object.entries(EXC_MAPA_T).filter(([k]) => porT.has(k)).map(([k, t]) => `<option value="${k}" ${tipo === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <input id="excMapaBusca" placeholder="Conta, área ou fornecedor" value="${esc(f.excMapaBusca || '')}" style="width:220px"></div>
+    <div class="tw" style="max-height:420px"><table class="t"><thead><tr><th>Regra</th><th class="fx">Conta</th><th>Sai de (área do CC)</th><th>Vai para</th><th>Fornecedor</th><th class="n">R$ (jul–out)</th><th class="n">% da base</th><th class="n">Lanç.</th><th>Onde se altera · motivo</th></tr></thead><tbody>
+    ${L.slice(0, 300).map(g => `<tr><td class="nw"><small>${esc(EXC_MAPA_T[g.k])}</small></td><td class="fx w"><b>${esc(g.c)}</b> ${esc(desc(g.c))}</td><td>${esc(g.de || 'sem CC')}</td><td>${esc(g.para)}</td><td><small>${esc(g.quem)}</small></td>${tdN(g.v)}<td class="n">${pc(div(g.v, M.tot))}</td><td class="n">${g.n}</td><td class="w"><small><b>${esc(EXC_MAPA_ONDE[g.k])}</b>${g.mot ? ' · ' + esc(String(g.mot).slice(0, 140)) : ''}</small></td></tr>`).join('') || '<tr><td colspan="9" class="vazio">Nada neste filtro.</td></tr>'}
+    </tbody></table></div>${L.length > 300 ? '<div class="csub">Mostrando 300 linhas — use o filtro ou a busca.</div>' : ''}</div>`;
+}
 
 async function excCarrega() {
   if (EXC.carregando || EXC.pronto) return;
@@ -44,7 +107,7 @@ async function excCarrega() {
 /* apoio (só leitura, do PT desta versão): descrição e regra da conta, descrição e setor do centro de custo, marcações, áreas */
 function excApoio() {
   if (EXC._ap && EXC._apD === D) return EXC._ap;
-  const conta = new Map(((D.cfg_conta && D.cfg_conta.rows) || []).map(r => [String(r[0]), { desc: r[1] || '', cen: r[4] === 'S', gestor: r[5] || '', rateio: r[6] === 'S' }]));
+  const conta = new Map(((D.cfg_conta && D.cfg_conta.rows) || []).map(r => [String(r[0]), { desc: r[1] || '', cen: r[4] === 'S', gestor: r[5] || '', rateio: r[6] === 'S', fund: r[10] || '' }]));
   const cc = new Map(((D.cfg_cc && D.cfg_cc.rows) || []).filter(r => /^([0-9]{3,9}|SEM CC)$/.test(String(r[0]))).map(r => [String(r[0]), { desc: r[1] || '', setor: r[2] || '' }]));
   const pt = ((D.cfg_excecoes && D.cfg_excecoes.rows) || []).map(r => ({ conta: String(r[0]), chave: String(r[1]), area: r[2], motivo: r[4] || '',
     regra: r.length > 5 && r[5] != null ? /^REGRA/.test(String(r[5])) : /prevalece sobre a conta centralizada/.test(String(r[4] || '')), origem: r.length > 5 ? r[5] : null }));
@@ -107,10 +170,11 @@ function telaCfgExcecoes(antiga) {
       <td class="ed"><input type="text" data-excid="${esc(r.id)}" data-exck="motivo" value="${esc(r.motivo || '')}" style="width:330px" ${dis}></td>
       <td class="nw">${novo ? '<span class="tag y">nova · salvar</span>' : mud ? '<span class="tag y">alterada · salvar</span>' : `<small style="color:var(--ink3)">${r.origem === 'PT' ? 'veio do PT' : 'incluída no app'}${r.atualizado_em && r.origem !== 'PT' ? ' · ' + esc(new Date(r.atualizado_em).toLocaleDateString('pt-BR')) : ''}</small>`}</td>
       <td>${ed ? `<button class="btn" data-excdel="${esc(r.id)}">Remover</button>` : ''}</td></tr>`; };
-  return `${cabecalho(tit, 'A exceção tem <b>prioridade máxima</b> na área final do gasto: o lançamento da conta naquele <b>centro de custo</b> (ou com aquela <b>marcação</b>) vai para a área indicada, mesmo que a conta seja centralizada em outra área — e a área passa a poder orçar a conta. É o que resolve a conta centralizada que uma área precisa orçar.')}
+  return `${cabecalho(tit, 'A exceção tem <b>prioridade máxima</b> na área final do gasto: o lançamento da conta naquele <b>centro de custo</b> (ou com aquela <b>marcação</b>) vai para a área indicada, mesmo que a conta seja centralizada em outra área — e a área passa a poder orçar a conta. É o que resolve a conta centralizada que uma área precisa orçar. No topo, <b>tudo o que tira o gasto do centro de custo</b>, num lugar só: qual regra, quanto e onde se altera.')}
   <div id="excAviso" class="${EXC.msg && EXC.msg.erro ? 'aviso' : 'ok-box'}" ${EXC.msg ? '' : 'hidden'}>${EXC.msg ? esc(EXC.msg.t) : ''}</div>
   ${dif.length ? `<div class="aviso">⚠ <b>${dif.length} diferença(s) entre as exceções do app e as do PT desta versão</b>: ${dif.slice(0, 6).map(esc).join(' · ')}${dif.length > 6 ? ` · e mais ${dif.length - 6}` : ''}. A alocação e os números só mudam quando o PT for gerado de novo — ele lê esta tela a cada geração.</div>`
     : `<div class="info">${m && m.lida_em && !m.sem_leitura ? `O PT desta versão foi gerado com estas exceções (lidas do app em <b>${esc(m.lida_em)}</b>).` : 'As exceções do app são as mesmas que o PT desta versão usou.'} O que for incluído, alterado ou removido aqui entra na <b>próxima geração do PT</b>.</div>`}
+  ${excMapaCard()}
   ${ed ? `<div class="card"><h3>Incluir exceção</h3>
     <datalist id="excListaConta">${[...ap.conta.entries()].map(([c, x]) => `<option value="${esc(c)}">${esc(x.desc)}</option>`).join('')}</datalist>
     <div class="filtros" style="align-items:flex-end;gap:10px">
@@ -138,6 +202,8 @@ function telaCfgExcecoes(antiga) {
 function posCfgExcecoes() {
   if (!excAtiva()) return;
   const F = EXC.form, ap = excApoio(); EXC.msg = null;
+  const mt = $('excMapaTipo'); if (mt) mt.onchange = e => { est.f.excMapaTipo = e.target.value; desenha(); };      // 16/11/2026: mapa do que sai do CC
+  const mb = $('excMapaBusca'); if (mb) mb.onchange = e => { est.f.excMapaBusca = e.target.value; desenha(); };
   const liga = (id, k, redesenha) => { const el = $(id); if (el) el.onchange = e => { F[k] = String(e.target.value).trim(); if (k === 'tipo') F.chave = ''; if (redesenha) desenha(); }; };
   liga('excConta', 'conta', true); liga('excTipo', 'tipo', true); liga('excChave', 'chave'); liga('excArea', 'area'); liga('excMotivo', 'motivo');
   const inc = $('excIncluir'); if (inc) inc.onclick = () => {
