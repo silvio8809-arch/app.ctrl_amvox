@@ -39,6 +39,59 @@ function folhaPosicao(x, P) {
   return { x, U, PJ, PL, W, Y, Z, ativo, remG, remM, BK, BM: BL * ativoW, BN: BL, BO, BP, BQ, BR, BU, BV, BW, desl };
 }
 
+/* 17/11/2026 — TRAVA DO QUADRO (Silvio: "Não está autorizado aumento de quadro em relação à posição 10/2026"; simulador de folha revisado).
+   Por área e por mês: pessoas CLT + aprendiz do cenário GESTOR ≤ pessoas da posição de out/2026 (posições P; linha de base = pt.qtd, ou 1).
+   · posição P: não passa da quantidade da linha de base (aumentar uma posição existente = aumento de quadro);
+   · vaga V: na ordem de admissão (mês; depois o código), entra se couber no quadro da área em TODOS os meses em que estiver ativa; senão fica
+     fora do GESTOR (quantidade efetiva 0) = "AUMENTO DE QUADRO — CORTE ORÇAMENTÁRIO". Reposição (admissão no mês ≥ desligamento) cabe → vale;
+   · autorizada pela Controladoria (autorizada_por, migração 059) → vale sempre; PJ, pró-labore e estagiário ficam fora da trava.
+   MESMA REGRA em .claude/scripts/pt_folha_2027.py (calcula_trava) — app = PT. Saída: {id: {qtd, corte, aumento, autorizada}}. */
+const FOLHA_TRAVA_TIPOS = ['CLT', 'APRENDIZ'];
+function folhaTrava(posicoes) {
+  const out = {}, porArea = {};
+  posicoes.forEach(x => (porArea[x.area] = porArea[x.area] || []).push(x));
+  const nat = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+  const base = x => (x.pt && x.pt.qtd != null && x.pt.qtd !== '') ? (+x.pt.qtd || 0) : 1;
+  const ativa = (x, m) => { const a = +x.mes_adm || 0, d = +x.mes_desl || 0; return !((a > 0 && m < a) || (d > 0 && m >= d)); };
+  for (const L of Object.values(porArea)) {
+    const conta = x => FOLHA_TRAVA_TIPOS.includes(x.tipo), hc = Array(12).fill(0);
+    const teto = L.filter(x => /^P/.test(x.id) && conta(x)).reduce((s, x) => s + base(x), 0);
+    for (const x of L.filter(x => /^[PJ]/.test(x.id))) {
+      const q = +x.qtd || 0, aut = !!x.autorizada_por;
+      const qe = (/^P/.test(x.id) && conta(x) && !aut) ? Math.min(q, base(x)) : q;
+      out[x.id] = { qtd: qe, corte: qe < q, aumento: false, autorizada: false };
+      if (/^P/.test(x.id) && conta(x)) for (let m = 1; m <= 12; m++) if (ativa(x, m)) hc[m - 1] += qe;
+    }
+    const V = L.filter(x => /^V/.test(x.id)).sort((a, b) => ((+a.mes_adm || 1) - (+b.mes_adm || 1)) || (String(a.id).length - String(b.id).length) || nat(String(a.id), String(b.id)));
+    for (const x of V) {
+      const q = +x.qtd || 0, aut = !!x.autorizada_por;
+      if (q <= 0 || !conta(x)) { out[x.id] = { qtd: q, corte: false, aumento: false, autorizada: false }; continue; }
+      let cabe = true;
+      for (let m = 1; m <= 12; m++) if (ativa(x, m) && hc[m - 1] + q > teto + 1e-9) { cabe = false; break; }
+      if (cabe || aut) {
+        for (let m = 1; m <= 12; m++) if (ativa(x, m)) hc[m - 1] += q;
+        out[x.id] = { qtd: q, corte: false, aumento: !cabe, autorizada: !cabe && aut };
+      } else out[x.id] = { qtd: 0, corte: true, aumento: true, autorizada: false };
+    }
+  }
+  return out;
+}
+/* posições com a quantidade EFETIVA do GESTOR (depois da trava) — usar antes de folhaPosicao em toda conta do cenário GESTOR */
+function folhaComTrava(posicoes) {
+  const T = folhaTrava(posicoes);
+  return posicoes.map(x => (T[x.id] && T[x.id].qtd !== (+x.qtd || 0)) ? Object.assign({}, x, { qtd: T[x.id].qtd }) : x);
+}
+/* 17/11/2026 — situação da posição (simulador revisado): a 1ª que casar */
+function folhaSituacao(x, t) {
+  const j = String(x.justificativa || '').trim().toUpperCase(), q = +x.qtd || 0, sal = +x.salario || 0;
+  if (t && t.corte) return 'AUMENTO DE QUADRO — CORTE ORÇAMENTÁRIO';   // vaga que passa do quadro ou posição P aumentada sem autorização
+  if (j.startsWith('CORTE ORÇAMENTÁRIO')) return 'CORTE ORÇAMENTÁRIO';
+  if (sal > 0 && q <= 0) return 'VAGA NÃO OCUPADA';
+  if (t && t.autorizada) return 'AUMENTO DE QUADRO — AUTORIZADO';
+  if (/^V/.test(x.id)) return q > 0 ? 'VAGA PREVISTA' : '';
+  return 'OCUPADA';
+}
+
 /* direcionadores de uma área num cenário: { REM:[12], ..., base:{...} } */
 function folhaDirecionadores(linhas, area, cen, P) {
   const L = linhas.filter(l => l.x.area === area), z = () => Array(12).fill(0);
@@ -115,7 +168,8 @@ function folhaComponentes(D, area, cen, P) {
       case 'Ajuste da provisão de férias pelo dissídio': return g('AJFER');
       case 'Ajuste da provisão de 13º pelo dissídio': return g('AJ13');
       case 'INSS sobre provisões e ajustes': return encProv * prov * INSS_T;
-      case 'FGTS sobre provisões e ajustes': return encProv * prov * p.fgts;
+      // 17/11/2026 (simulador revisado): FGTS do jovem aprendiz sobre as provisões = 2% (fgts_apr), não 8% — igual ao pt_folha_2027.py
+      case 'FGTS sobre provisões e ajustes': return encProv * ((prov - g('REM_APR') * (p.prov_fer + p.prov_13)) * p.fgts + g('REM_APR') * (p.prov_fer + p.prov_13) * p.fgts_apr);
       case 'Aviso prévio indenizado (rescisão)': return g('AVISO');
       case 'Multa do FGTS (rescisão)': return g('MULTA');
       case FOLHA_NPJ: return g('PJ');
@@ -147,7 +201,7 @@ function folhaComponentes(D, area, cen, P) {
 /* PROJETAR FOLHA: posições (com as edições) → linhas por área e cenário; areas = lista a projetar */
 function projetarFolha(P, posicoes, areas) {
   P._dis = null;
-  const linhas = posicoes.map(x => folhaPosicao(x, P));
+  const linhas = folhaComTrava(posicoes).map(x => folhaPosicao(x, P));   // 17/11/2026: GESTOR com a trava do quadro (MODELO não usa a quantidade)
   const out = [];
   for (const area of areas) for (const cen of ['MODELO', 'GESTOR']) out.push(...folhaComponentes(folhaDirecionadores(linhas, area, cen, P), area, cen, P));
   return out;
