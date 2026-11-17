@@ -555,6 +555,13 @@ TELAS.ciclo = () => {
 POS.ciclo = () => document.querySelectorAll('#tela [data-setor]').forEach(b => b.onclick = () => { est.f.mxgSetor = b.dataset.setor; vai('mxg'); });
 
 /* ---------------------------------------------------------------- MEU ORÇAMENTO */
+/* 16/11/2026 (passo 2): linhas desta área levadas à linha da área dona (conta de uma área só) — o gasto é decidido lá, uma vez */
+function meuLevados(s) {
+  const chave = 'orçado por ' + s + ', levado à área dona ', L = (D.orcado || []).filter(o => String(o.arq || '').includes(chave));
+  if (!L.length) return '';
+  return `<div class="info">📤 <b>${L.length} linha(s) desta área foram para a linha da área dona da conta</b> (conta de uma área só — o gasto é decidido lá, uma vez): ` +
+    L.slice(0, 8).map(o => `${esc(o.c)} ${esc(o.d || '')} → ${esc(o.s)} (${rsC(+o.tot || 0)})`).join(' · ') + (L.length > 8 ? ` · e mais ${L.length - 8}` : '') + '.</div>';
+}
 TELAS.meu = () => {
   const vis = [...setoresVisiveis()].filter(s => s !== 'A CLASSIFICAR');
   let s = est.f.meuSetor; if (!vis.includes(s)) s = est.f.meuSetor = (vis.includes(est.escSetor) ? est.escSetor : vis.find(x => D.orcado.some(o => o.s === x)) || vis[0]);
@@ -568,6 +575,7 @@ TELAS.meu = () => {
   return `${cabecalho('Meu orçamento — ' + esc(s), `Gestor: <b>${esc(setorDe(s).gestor || '—')}</b> · grade conta × mês com justificativa. Origem: arquivo entregue pelo gestor (V1_Inicial), carregado na geração da versão.`,
     vis.length > 1 ? `<div class="filtros" style="margin-left:auto"><span class="rot">Área</span><select id="meuSetor">${vis.map(x => `<option ${x === s ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>` : '')}
   ${trava('O orçado é o do arquivo entregue pelo gestor. Correção de valor: em <b>Decisões por linha</b> (OUTRO, com valor e motivo). O preenchimento pelo próprio gestor aqui é a próxima etapa do app.')}
+  ${meuLevados(s)}
   <section class="kpis">
     <button class="kpi ${!fil ? 'sel' : ''}" data-fil=""><div class="lab">Orçado 2027</div><div class="val">${rsC(T.o)}</div><div class="meta">${O.length} linha(s)</div></button>
     <div class="kpi k5"><div class="lab">Base 2026 (anualizada)</div><div class="val">${rsC(T.b)}</div><div class="meta">Δ orçado ${pc(div(T.o - T.b, T.b))}</div></div>
