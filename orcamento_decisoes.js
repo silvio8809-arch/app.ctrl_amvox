@@ -160,7 +160,7 @@ function telaDecisoes(antiga) {
         : `<span class="tag" title="${esc(r.trava)}">🔒 regra do modelo</span>`) : dcsResp(l, r) ? dcsRespHtml(l, id, ed) : x.pend ? '<span class="tag r" title="O PT desta versão ainda não reflete esta linha">alterada · fora do PT</span>'
       : x.sem ? '<span class="tag y">a decidir</span>' : dcsNada(l) ? '—' : '<span class="tag g">decidida</span>';
     return `<tr ${r && DCS.sujo.has(id) ? 'style="background:#FFF7E6"' : ''}>
-      <td class="fx nw"><small style="color:var(--ink3)">${esc(l.s)}</small><br>${esc(l.c)}</td><td class="w">${esc(l.d)}${dcsLevTxt(l)}</td><td class="nw">${esc(l.me)}</td>${tdN(l.mo)}${tdN(l.ge)}${temCt ? tdN(Math.abs(l.ct || 0) > 0.005 ? l.mc : null) : ''}
+      <td class="fx nw"><small style="color:var(--ink3)">${esc(l.s)}</small><br>${esc(l.c)}</td><td class="w">${esc(l.d)}${dcsLevTxt(l)}</td><td class="nw">${esc(l.me)}</td><td class="n" title="${rs(+l.mo || 0)} — clique para ver a composição do modelo"><a href="#" data-dcsmod="${esc(id)}" style="color:inherit;text-decoration:underline dotted;text-underline-offset:3px">${fmt(l.mo)}</a></td>${tdN(l.ge)}${temCt ? tdN(Math.abs(l.ct || 0) > 0.005 ? l.mc : null) : ''}
       <td class="ed"><input type="text" data-dcsid="${esc(id)}" data-dcsk="explicacao" value="${esc(r ? (tr ? r.explicacao_pt : r.explicacao) || '' : l.ex || '')}" style="width:150px" ${dl}></td>
       <td class="ed">${dcsTravaDup(r) ? `<span data-dcslib="${esc(id)}" style="cursor:pointer;display:inline-block" title="Conta centralizada: clique para ver como liberar">` : ''}<select data-dcsid="${esc(id)}" data-dcsk="decisao" ${dl}${dcsTravaDup(r) ? ' style="pointer-events:none"' : ''}><option value="">(padrão: ${esc(dcsPadrao(l))})</option>${ops.concat(dec && !ops.includes(dec) ? [dec] : []).map(o => `<option ${dec === o ? 'selected' : ''}>${o}</option>`).join('')}</select>${dcsTravaDup(r) ? '</span>' : ''}</td>
       <td class="n ed"><input type="text" inputmode="decimal" data-dcsid="${esc(id)}" data-dcsk="valor_outro" value="${dcsBr(vo)}" style="width:104px;text-align:right" ${dec === 'OUTRO' ? dl : 'disabled'}></td>
@@ -212,6 +212,9 @@ function posDecisoes() {
     dcsMarca(r); desenha();
     if (k === 'decisao' && r.decisao === 'OUTRO' && r.valor_outro == null) { const i = document.querySelector(`#dcsTab input[data-dcsk="valor_outro"][data-dcsid="${CSS.escape(r.id)}"]`); if (i) i.focus(); }
   });
+  document.querySelectorAll('#dcsTab [data-dcsmod]').forEach(a => a.onclick = e => {         // 16/11/2026: composição do modelo da linha
+    e.preventDefault(); const l = (D.linhas || []).find(x => dcsId(x) === a.dataset.dcsmod); if (l) dcsComposicao(l);
+  });
   document.querySelectorAll('#dcsTab [data-dcslib]').forEach(el => el.onclick = async () => {        // 16/11/2026: linha travada pela duplicidade
     const l = (D.linhas || []).find(x => dcsId(x) === el.dataset.dcslib); if (!l) return;
     if (!RAZAO && typeof carregaRazao === 'function') { try { await carregaRazao(); } catch (e) { } }
@@ -237,6 +240,75 @@ function posDecisoes() {
     DCS.sujo.clear(); DCS.msg = null; desenha();
   };
   const t = $('dcsTodas'); if (t) t.onclick = () => { f.dcsTodas = true; desenha(); };
+}
+
+/* ------------------------------------------------------------------ COMPOSIÇÃO DO MODELO (16/11/2026 — "Não seria ideal poder clicar sobre o valor do modelo,
+   e ser exibida a composição que o modelo montou?"). Clique no MODELO da linha abre o painel com: a conta do modelo (realizado jul–out/26 que ficou na área ×
+   anualização × (1 + reajuste), ou % do faturamento × faturamento 2027), a base por fornecedor e por mês (ajuste gerencial à parte), o modelo mês a mês e, para
+   confrontar com o orçado, os itens do gestor e a conta do CONTRATO. Tudo dos dados da versão (linha do PT, razão, orçado e contratos do app): nada é
+   recalculado no banco nem gravado. dcsCompoe() = os números (a conferência usa a mesma função); dcsComposicao() = o painel. */
+function dcsCompoe(l, R) {
+  const dic = D.meta.razao.dic, iS = dic.setor.indexOf(l.s), fator = D.meta.fator || 3, pa = +l.pa || 0, conta = String(l.c);
+  const L = R.filter(r => String(r[4]) === conta && r[11] === iS), meses = [...new Set(R.map(r => r[0]))].sort();
+  const pct = l.me === '% FATURAMENTO', fat = dreLinha('Faturamento'), k = pct ? (fat.base ? fat.orc / fat.base : 0) : 1 + pa;   // modelo = base anual × k
+  const tot = soma(L, r => r[6]), base = tot * fator, calc = base * k, resto = (+l.mo || 0) - calc;
+  const G = new Map();
+  L.forEach(r => {
+    const aj = String(r[2]).toUpperCase() === 'AJUSTE', nome = r[13] ? (dic.nome[r[14]] || r[13]) : '', key = (aj ? 'AJ|' : '') + (r[13] || '—');
+    const g = G.get(key) || { nome: aj ? 'Ajuste gerencial' + (nome ? ' — ' + nome : '') : (nome || 'Sem fornecedor (folha, provisões, tributos e lançamentos manuais)'),
+      forn: r[13] || '', aj, m: {}, t: 0, n: 0 };
+    g.m[r[0]] = (g.m[r[0]] || 0) + r[6]; g.t += r[6]; g.n++; G.set(key, g);
+  });
+  const grupos = [...G.values()].sort((a, b) => Math.abs(b.t) - Math.abs(a.t));
+  const outras = L.length ? [] : [...new Set(R.filter(r => String(r[4]) === conta && r[10] === iS).map(r => dic.setor[r[11]]))];   // lançou no CC, base foi para outra área
+  return { L, meses, pct, fat, k, pa, fator, tot, base, calc, resto, grupos, outras, conta };
+}
+async function dcsComposicao(l) {
+  const cab = sub => `<div class="pl-top"><div><h3>Composição do modelo — ${esc(l.s)} · ${esc(l.c)}</h3><p>${sub}</p></div><button class="x" data-fecha>Fechar ✕</button></div>`;
+  abrePainel(cab('Carregando o razão…'));
+  let R; try { R = await carregaRazao(); } catch (e) { abrePainel(cab('Não foi possível ler o razão: ' + esc(e.message || e))); return; }
+  if (typeof ctCarrega === 'function') { try { await ctCarrega(); } catch (e) { } }
+  const x = dcsCompoe(l, R), v = n => fmt(n, { uni: 'R$', dec: 2, zero: '–' }), mo = +l.mo || 0, mes = m => MESES[+String(m).slice(4) - 1] + '/' + String(m).slice(2, 4);
+  const cfg = ((D.cfg_conta && D.cfg_conta.rows) || []).find(r => String(r[0]) === x.conta), reajConta = !!(cfg && cfg[15] === 'S');
+  const sl = (t, n, forte, txt) => `<div class="sumline${forte ? ' big' : ''}"><span class="t">${t}</span><span class="v">${txt != null ? txt : v(n)}</span></div>`;
+  let calc = sl(`Realizado jul–out/26 que ficou nesta área <small>${x.L.length} lançamento(s)</small>`, x.tot) + sl(`× ${x.fator} — anualização da janela de 4 meses`, x.base);
+  if (x.pct) calc += sl(`÷ faturamento base 2026 (${v(x.fat.base)})`, null, false, pc(div(x.base, x.fat.base), 2) + ' do faturamento')
+    + sl(`× faturamento 2027 — cenário ${esc(D.meta.cenario || '')} (${v(x.fat.orc)})`, x.calc);
+  else calc += x.pa ? sl(`× (1 + ${pc(x.pa, 2)}) — inflação 2027 ${reajConta ? '(conta de compra: reajusta)' : '(área sem orçamento próprio: inflação em todas as contas)'}`, x.calc)
+    : sl('sem reajuste — conta fora das compras (folha, comissões, tributos, provisões, financeiro…)', x.calc);
+  if (Math.abs(x.resto) >= 0.05) calc += sl('+ fora da base jul–out — compra anual ou gasto fora da janela, no mesmo mês de 2027 (aba PROJECAO_INERCIAL do PT)', x.resto);
+  calc += sl('= Modelo 2027', mo, true);
+  const ctr = (typeof CTR !== 'undefined' && CTR.versao === est.versao ? CTR.rows : []).filter(c => !c.excluido && c.area === l.s && String(c.conta) === x.conta);
+  const clvl = c => c.clvl || (String(c.id || '').match(/^(F\d+)\|/) || [])[1] || '', comCt = new Set(ctr.filter(c => c.natureza === 'FIXO').map(clvl).filter(Boolean));
+  const LIM = 30, gs = x.grupos.slice(0, LIM), resto = x.grupos.slice(LIM);
+  const linhaG = (g, nome) => `<tr><td class="w">${nome}${g.forn && comCt.has(g.forn) && !g.aj ? ' <span class="tag b" title="Fornecedor com contrato nesta linha (Contratos recorrentes)">contrato</span>' : ''}</td>${x.meses.map(m => `<td class="n">${v(g.m[m] || 0)}</td>`).join('')}<td class="n">${v(g.t)}</td><td class="n"><b>${v(g.t * x.fator * x.k)}</b></td></tr>`;
+  const outrosG = resto.length ? { m: {}, t: 0, forn: '', aj: false } : null;
+  if (outrosG) resto.forEach(g => { x.meses.forEach(m => outrosG.m[m] = (outrosG.m[m] || 0) + (g.m[m] || 0)); outrosG.t += g.t; });
+  const tabG = x.grupos.length ? `<div class="tw solta" style="flex:none"><table class="t"><thead><tr><th>Fornecedor (R$)</th>${x.meses.map(m => `<th class="n">${mes(m)}</th>`).join('')}<th class="n">Janela</th><th class="n" title="Janela × ${x.fator} × ${x.pct ? 'faturamento 2027 ÷ faturamento base' : '(1 + reajuste)'}">No modelo 2027</th></tr></thead><tbody>
+      ${gs.map(g => linhaG(g, esc(g.nome))).join('')}${outrosG ? linhaG(outrosG, `Outros ${resto.length} fornecedor(es)`) : ''}</tbody>
+      <tfoot><tr><td>Total da base</td>${x.meses.map(m => `<td class="n">${v(soma(x.L.filter(r => r[0] === m), r => r[6]))}</td>`).join('')}<td class="n">${v(x.tot)}</td><td class="n">${v(x.calc)}</td></tr></tfoot></table></div>`
+    : `<div class="vazio">${x.outras.length ? `Sem base nesta área: os lançamentos dos centros de custo da área nesta conta foram para <b>${esc(x.outras.join(', '))}</b> (conta centralizada, exceção ou fornecedor que prevalece).` : 'Sem lançamentos na janela jul–out/26 nesta área e conta.'}</div>`;
+  const sem = i => `<tr>${MESES.slice(i, i + 6).map(m => `<th style="position:static;text-align:right;font-size:10px;font-weight:700;color:var(--ink3);text-transform:uppercase;padding:6px 10px 0;border:0">${m}/27</th>`).join('')}</tr><tr>${l.mm.slice(i, i + 6).map(n => `<td class="n">${v(n)}</td>`).join('')}</tr>`;
+  const mm = (l.mm || []).length === 12 ? `<div class="tw solta" style="flex:none"><table class="t"><tbody>${sem(0)}${sem(6)}</tbody><tfoot><tr><td colspan="5">Total 2027</td><td class="n">${v(soma(l.mm))}</td></tr></tfoot></table></div>` : '';
+  const orc = (D.orcado || []).filter(o => o.s === l.s && String(o.c) === x.conta);
+  const tabO = orc.length ? `<div class="tw solta" style="flex:none"><table class="t"><thead><tr><th>Item do orçado do gestor</th><th>Fornecedor</th><th>Recorrência</th><th class="n">Total 2027 (R$)</th></tr></thead><tbody>
+      ${orc.map(o => `<tr><td class="w">${esc(o.d)}</td><td class="w">${esc(o.f || '')}</td><td>${esc(o.rec || o.n || '')}</td><td class="n">${v(o.tot)}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>Total do gestor (coluna GESTOR)</td><td></td><td></td><td class="n">${v(+l.ge || 0)}</td></tr></tfoot></table></div>`
+    : `<div class="vazio">O gestor não orçou esta linha (GESTOR = ${v(+l.ge || 0)}).</div>`;
+  const ct = +l.ct || 0, bc = +l.bc || 0, mc = +l.mc || 0, totCt = c => typeof ctTotal === 'function' ? ctTotal(c) : (+c.valor_2027 || 0) * 12;
+  const blocoCt = (Math.abs(ct) > 0.005 || Math.abs(bc) > 0.005 || ctr.length) ? `<h4 style="margin:14px 0 6px">Contratos da linha e a coluna CONTRATO</h4>
+      ${x.pct ? '<div class="csub">Linha por % do faturamento: a coluna CONTRATO é o próprio modelo.</div>'
+        : `<div class="csub">CONTRATO = modelo ${v(mo)} − base dos fornecedores com contrato ${v(bc)} × (1 + ${pc(x.pa, 2)}) + contratos 2027 ${v(ct)} = <b>${v(mc)}</b> (valores do PT desta versão).</div>`}
+      ${ctr.length ? `<div class="tw solta" style="flex:none"><table class="t"><thead><tr><th>Contrato no app</th><th>Natureza</th><th>Ação</th><th class="n">Valor mensal 2027</th><th class="n">Total 2027</th></tr></thead><tbody>
+        ${ctr.map(c => `<tr><td class="w">${esc(c.fornecedor || c.id)}</td><td>${esc(c.natureza || '')}</td><td>${esc(c.acao || (String(c.existe_2027 || '').startsWith('S') ? 'RENOVA' : 'ENCERRA'))}${c.mes_acao ? ' · mês ' + esc(c.mes_acao) : ''}</td><td class="n">${v(+c.valor_2027 || 0)}</td><td class="n">${v(c.natureza === 'FIXO' ? totCt(c) : 0)}</td></tr>`).join('')}</tbody></table></div>
+        <div class="csub">Só os contratos FIXOS somam. Edição feita no app depois do PT entra na próxima geração.</div>` : ''}` : '';
+  abrePainel(cab(`${esc((D.contaDesc && D.contaDesc[x.conta]) || l.d || '')} · método ${esc(l.me || '')} · decisão no PT: ${esc(l.da || '—')}`) + `<div class="pl-corpo">
+    <div class="card"><h3>Como o modelo chegou a ${v(mo)}</h3>${calc}</div>
+    <h4 style="margin:14px 0 6px">Base por fornecedor — o que o modelo levou em conta</h4>${tabG}
+    ${x.L.length ? `<div style="margin:8px 0"><button class="btn" id="dcsLanc">Ver os ${x.L.length} lançamento(s)</button></div>` : ''}
+    ${mm ? `<h4 style="margin:14px 0 6px">Modelo mês a mês (2027)</h4>${mm}` : ''}
+    <h4 style="margin:14px 0 6px">Para confrontar: orçado do gestor nesta linha</h4>${tabO}${blocoCt}</div>`);
+  const b = $('dcsLanc'); if (b) b.onclick = () => abreLancamentos(l.s, x.conta, `${l.s} · ${x.conta} — base 2026`);
 }
 
 /* ------------------------------------------------------------------ instalação (chamada pelo orcamento.js antes de inicia(), depois dos outros ganchos) */
