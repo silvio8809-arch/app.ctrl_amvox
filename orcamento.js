@@ -1,4 +1,4 @@
-/* App ORÇAMENTO & CONTROLADORIA 2027 — lógica das telas (fase 1: leitura + layout das telas de trabalho).
+/* App ORÇAMENTO & CONTROLADORIA 2027 — lógica das telas (16/11/2026: o app é a fonte da configuração; o PT é o espelho, gerado do app).
    Dados: blocos da tabela orc_bloco (Supabase, RLS por aplicativo 'orcamento'); na prévia local, window.ORC_FONTE_LOCAL.
    Contrato dos blocos: .claude/scripts/orc_app_dados.py · Especificação: docs/ESPECIFICACAO_APP_ORCAMENTO.md */
 "use strict";
@@ -195,7 +195,7 @@ function prepara() {
 /* ------------------------------------------------------------------------------------------- seletores, menu, usuário */
 function montaSeletores() {
   $('selPer').innerHTML = '<option value="ano">Ano 2027</option>' + MESES.map((m, i) => `<option value="${i}">${m}/2027</option>`).join('');
-  $('selCen').innerHTML = D.meta.cenarios.map(c => `<option value="${esc(c)}" ${c === D.meta.cenario ? '' : 'disabled'}>${esc(c)}${c === D.meta.cenario ? ' — ' + rsC(D.meta.receita) : ' (motor — fase 3)'}</option>`).join('');
+  $('selCen').innerHTML = D.meta.cenarios.map(c => `<option value="${esc(c)}" ${c === D.meta.cenario ? '' : 'disabled'}>${esc(c)}${c === D.meta.cenario ? ' — ' + rsC(D.meta.receita) : ' (exige nova geração)'}</option>`).join('');
   $('selVer').innerHTML = (est.versoes || []).map(v => `<option value="${esc(v.codigo)}" ${v.codigo === est.versao ? 'selected' : ''}>${esc(v.codigo)}${v.nome ? ' · ' + esc(v.nome.replace(/^V\d+\s*·\s*/, '')) : ''} — ${esc(v.status)}</option>`).join('');
   $('selVer').onchange = e => trocaVersao(e.target.value);
   const u = lsGet('uni'); if (u) est.uni = u;
@@ -204,10 +204,11 @@ function montaSeletores() {
   $('selUni').onchange = e => { est.uni = e.target.value; lsSet('uni', est.uni); desenha(); };
   $('menuBtn').onclick = e => { e.stopPropagation(); document.body.classList.toggle('menu-on'); };
   document.querySelector('.main').addEventListener('click', () => document.body.classList.remove('menu-on'));   // celular: tocar fora fecha o menu
-  const f = $('faixaFase');
+  const f = $('faixaFase');                       // 16/11/2026 (Silvio): o app é o protagonista — a configuração se faz aqui; o PT é o espelho, gerado do app
+  const ptV = (String(D.meta.arquivo || '').match(/_V(\d+)_/) || [])[1];
   f.hidden = false;
-  f.innerHTML = `<b>PRÉVIA · Fase ${esc(D.meta.fase)}.</b> Números: ${esc(D.meta.arquivo)} (salvo ${esc(D.meta.arquivo_mod)}) — fonte provisória até a carga do Protheus (fase 2/3). ` +
-    `Campos de entrada aparecem em amarelo e ficam travados até a fase 2; o PT continua sendo a ferramenta de trabalho.`;
+  f.innerHTML = `<b>O app é a fonte; o PT é o espelho.</b> Premissas, de-paras, exceções, centros de custo, setores, folha e decisões por linha se alteram aqui, com histórico de quem e quando. ` +
+    `O PT de gestão orçamentária é gerado a partir do app quando o Silvio pedir, para envio e análise. Números da versão ${esc(est.versao || '')}: ${ptV ? 'PT V' + esc(ptV) : esc(D.meta.arquivo)} de ${esc(D.meta.arquivo_mod)} — o que for salvo depois entra na próxima geração.`;
   $('foot').innerHTML = `Orçamento &amp; Controladoria 2027 · contrato de dados ${esc(D.meta.contrato)} · blocos gerados em ${esc(D.meta.gerado_em)} · base realizada jul–out/26 (data-base ${esc(D.meta.data_base)})`;
 }
 function montaMenu() {
@@ -276,7 +277,7 @@ const vazioTela = t => `<div class="card"><h3>${esc(t)}</h3><div class="csub">Em
 const dreLinha = nome => D.dre.linhas.find(l => l.l === nome) || { base: 0, orc: 0, tcp: 0, m: Array(12).fill(0) };
 const cxLinha = nome => D.caixa.linhas.find(l => l.l === nome) || { tot: 0, m: Array(12).fill(0) };
 function cabecalho(t, p, extra = '') { return `<div class="head-row"><div class="title"><h2>${t}</h2>${p ? `<p>${p}</p>` : ''}</div>${extra}</div>`; }
-function trava(txt) { return `<div class="aviso">🔒 <b>Edição na fase 2.</b> ${txt || 'Os campos em amarelo serão editáveis aqui, com histórico de quem alterou e quando. Até lá, a fonte é o PT.'}</div>`; }
+function trava(txt) { return `<div class="aviso">🔒 <b>Ainda não editável nesta tela.</b> ${txt || 'O que muda os números se altera em Configuração e em Decisões por linha, com histórico de quem e quando.'}</div>`; }
 function chips(nome, opcoes, atual, multi = false) {
   return `<div class="chips" data-chips="${nome}">` + opcoes.map(o => {
     const v = typeof o === 'string' ? o : o.v, t = typeof o === 'string' ? o : o.t, on = multi ? (atual || []).includes(v) : atual === v;
@@ -549,7 +550,7 @@ TELAS.ciclo = () => {
   <div class="tw solta"><table class="t"><thead><tr><th></th><th>Área</th><th>Gestor</th><th>Diretoria</th><th>Entregou</th><th class="n">Linhas</th><th class="n">Base 2026</th><th class="n">Modelo</th><th class="n">Gestor</th><th class="n">Δ %</th><th class="n">A explicar</th><th class="n">Sem decisão</th><th>Situação</th></tr></thead><tbody>
    ${fz.map(({ s, x, f }) => `<tr class="clic" data-setor="${esc(s)}"><td><span class="sem ${f[2]}"></span></td><td>${esc(s)}</td><td>${esc(setorDe(s).gestor)}</td><td>${esc(setorDe(s).dir)}</td><td>${esc(setorDe(s).en)}</td><td class="n">${x.n}</td>${tdN(x.b)}${tdN(x.mo)}${tdN(x.ge)}<td class="n ${cd(x.ge - x.mo, true)}">${pc(div(x.ge - x.mo, x.mo))}</td><td class="n">${x.ex || '–'}</td><td class="n">${x.sd || '–'}</td><td>${esc(f[1])}</td></tr>`).join('')}
   </tbody></table></div>
-  <div class="info">Próximo passo do ciclo no app (fase 2): o gestor explica as variações na tela <b>Meu orçamento</b>, a Controladoria decide em <b>Decisões por linha</b>, e cada entrega fica registrada com quem e quando. Nenhum comunicado sai sem ordem do Silvio.</div>`;
+  <div class="info">O ciclo acontece no app: a Controladoria configura (premissas, de-paras, exceções) e decide em <b>Decisões por linha</b>, com histórico de quem e quando; o PT é gerado a partir do app quando o Silvio pedir, para envio e análise. Próxima etapa no app: o gestor explicar as variações em <b>Meu orçamento</b>. Nenhum comunicado sai sem ordem do Silvio.</div>`;
 };
 POS.ciclo = () => document.querySelectorAll('#tela [data-setor]').forEach(b => b.onclick = () => { est.f.mxgSetor = b.dataset.setor; vai('mxg'); });
 
@@ -564,9 +565,9 @@ TELAS.meu = () => {
   const T = { o: soma(O, o => o.tot), b: soma(L, l => l.b), mo: soma(L, l => l.mo) };
   const nj = O.filter(o => o.ck === 'FALTA JUSTIFICATIVA').length, nn = O.filter(o => o.ck === 'FALTA NATUREZA').length;
   const ckTag = c => c === 'OK' ? '<span class="tag g">OK</span>' : c === 'FALTA JUSTIFICATIVA' ? '<span class="tag r">falta justificativa</span>' : c === 'FALTA NATUREZA' ? '<span class="tag y">falta natureza</span>' : `<span class="tag b">${esc(c)}</span>`;
-  return `${cabecalho('Meu orçamento — ' + esc(s), `Gestor: <b>${esc(setorDe(s).gestor || '—')}</b> · grade conta × mês com justificativa. Origem atual: arquivo do gestor (V1_Inicial) carregado no PT.`,
+  return `${cabecalho('Meu orçamento — ' + esc(s), `Gestor: <b>${esc(setorDe(s).gestor || '—')}</b> · grade conta × mês com justificativa. Origem: arquivo entregue pelo gestor (V1_Inicial), carregado na geração da versão.`,
     vis.length > 1 ? `<div class="filtros" style="margin-left:auto"><span class="rot">Área</span><select id="meuSetor">${vis.map(x => `<option ${x === s ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></div>` : '')}
-  ${trava('O gestor vai preencher e justificar aqui; a Controladoria vê na hora. Até lá, alterações continuam no PT.')}
+  ${trava('O orçado é o do arquivo entregue pelo gestor. Correção de valor: em <b>Decisões por linha</b> (OUTRO, com valor e motivo). O preenchimento pelo próprio gestor aqui é a próxima etapa do app.')}
   <section class="kpis">
     <button class="kpi ${!fil ? 'sel' : ''}" data-fil=""><div class="lab">Orçado 2027</div><div class="val">${rsC(T.o)}</div><div class="meta">${O.length} linha(s)</div></button>
     <div class="kpi k5"><div class="lab">Base 2026 (anualizada)</div><div class="val">${rsC(T.b)}</div><div class="meta">Δ orçado ${pc(div(T.o - T.b, T.b))}</div></div>
@@ -894,7 +895,7 @@ TELAS.decisoes = () => {
    <button class="kpi k5 ${stf === 'pad' ? 'sel' : ''}" data-st="pad"><div class="lab">Sem decisão (padrão)</div><div class="val warn">${Lv.filter(l => l.semDec).length}</div><div class="meta">linhas usando o padrão do PT</div></button></section>
   <div class="tw"><table class="t"><thead><tr><th class="fx">Área · conta</th><th>Descrição</th><th>Método</th><th class="n">Modelo</th><th class="n">Gestor</th><th>Explicação do gestor</th><th class="ed">Decisão</th><th class="n ed">Valor outro</th><th>Aplicada</th><th class="n">Valor final</th><th class="n">Δ final − modelo</th><th>Status</th><th class="ed">Comentário da Controladoria</th></tr></thead><tbody>
   ${L.slice(0, lim).map(l => `<tr><td class="fx nw"><small style="color:var(--ink3)">${esc(l.s)}</small><br>${esc(l.c)}</td><td class="w">${esc(l.d)}</td><td class="nw">${esc(l.me)}</td>${tdN(l.mo)}${tdN(l.ge)}<td class="w">${esc(l.ex) || '—'}</td>
-    <td class="ed"><select disabled title="Edição na fase 2"><option>${esc(l.de || '(padrão)')}</option>${ro ? '' : '<option>GESTOR</option><option>MODELO</option><option>OUTRO</option>'}</select></td><td class="n ed">${l.vo == null ? '—' : fmt(l.vo)}</td><td>${esc(l.da)}</td>${tdN(l.vf)}<td class="n ${cd(l.dfm, true)}">${fmt(l.dfm, { sinal: true })}</td><td class="nw">${l.semDec ? '<span class="tag y">a decidir</span>' : esc(l.st)}</td><td class="w ed">${esc(l.co) || '—'}</td></tr>`).join('')}
+    <td class="ed"><select disabled title="Decida na tela Decisões por linha"><option>${esc(l.de || '(padrão)')}</option>${ro ? '' : '<option>GESTOR</option><option>MODELO</option><option>OUTRO</option>'}</select></td><td class="n ed">${l.vo == null ? '—' : fmt(l.vo)}</td><td>${esc(l.da)}</td>${tdN(l.vf)}<td class="n ${cd(l.dfm, true)}">${fmt(l.dfm, { sinal: true })}</td><td class="nw">${l.semDec ? '<span class="tag y">a decidir</span>' : esc(l.st)}</td><td class="w ed">${esc(l.co) || '—'}</td></tr>`).join('')}
   </tbody><tfoot><tr><td class="fx">Total (${L.length})</td><td></td><td></td>${tdN(soma(L, l => l.mo))}${tdN(soma(L, l => l.ge))}<td></td><td></td><td></td><td></td>${tdN(soma(L, l => l.vf))}<td class="n">${fmt(soma(L, l => l.dfm), { sinal: true })}</td><td></td><td></td></tr></tfoot></table></div>
   ${L.length > lim ? `<button class="btn" id="decTodas">Mostrar as ${L.length} linhas</button>` : ''}`;
 };
@@ -940,7 +941,7 @@ TELAS.versoes = () => {
   </tbody></table></div>
   <div class="row2">
    <div class="card"><h3>Cenários de receita 2027</h3><div class="csub">Curva mensal do faturamento</div>
-    ${Object.entries(rec).filter(([k]) => k !== 'Adotado').map(([k, r]) => `<div class="sumline"><span class="t">${esc(k)} ${k === D.meta.cenario ? '<span class="tag g">calculado</span>' : '<span class="tag">motor — fase 3</span>'}<br><small style="color:var(--ink3)">${esc(r.rotulo)}</small></span><span class="v">${rsC(r.tot)}</span></div>`).join('')}</div>
+    ${Object.entries(rec).filter(([k]) => k !== 'Adotado').map(([k, r]) => `<div class="sumline"><span class="t">${esc(k)} ${k === D.meta.cenario ? '<span class="tag g">calculado</span>' : '<span class="tag">exige nova geração</span>'}<br><small style="color:var(--ink3)">${esc(r.rotulo)}</small></span><span class="v">${rsC(r.tot)}</span></div>`).join('')}</div>
    <div class="card"><div class="legend"><i><span class="sw" style="background:#C8102E"></span>P&amp;D</i><i><span class="sw" style="background:#1F6FEB"></span>Plano TCP</i></div>
     ${grafLinhas([{ t: 'P&D', v: rec['P&D'].m, cor: '#C8102E' }, { t: 'Plano TCP', v: rec['Plano TCP'].m, cor: '#1F6FEB', tr: true }])}</div>
   </div>
@@ -1044,15 +1045,15 @@ TELAS.aud_recor = () => {
   <section class="kpis"><div class="kpi"><div class="lab">Normalizações na base 2026</div><div class="val">${rsC(soma(rows, r => r[10]))}</div><div class="meta">${rows.length} lançamento(s) · efeito anualizado ${rsC(soma(rows, r => r[14]))}</div></div>
    <div class="kpi k3"><div class="lab">Contratos informados pelos gestores</div><div class="val">${ct.length}</div><div class="meta">linhas do orçado com CONTRATO = S</div></div></section>
   ${tabelaSimples(A, rows, [0, 3, 5, 6, 8, 10, 11, 12, 13, 14])}
-  ${ct.length ? '' : '<div class="info">Nenhum gestor marcou CONTRATO = S no template 2027 — a coluna existe na grade de Meu orçamento (fase 2: obrigatória para despesa recorrente).</div>'}`;
+  ${ct.length ? '' : '<div class="info">Nenhum gestor marcou CONTRATO = S no template 2027 — a coluna existe na grade de Meu orçamento (obrigatória para despesa recorrente quando o gestor preencher no app).</div>'}`;
 };
 TELAS.aud_mapa = () => `${cabecalho('Mapa de anomalias de contabilização', 'Fornecedor × conta × mês: fornecedor que troca de conta, conta que muda de padrão, lançamento fora do comportamento histórico. Pré-final do fechamento desde 11/11/2026.')}
-  <div class="info">Fonte: rotina do detector de contabilização (skill <b>detector-contabilizacao</b>) sobre o razão do Protheus. Entra no app com a carga mensal (fase 2) — o mês fechado gera o mapa e a tela mostra o que mudou em relação ao mês anterior, com abertura até o lançamento.</div>
+  <div class="info">Fonte: rotina do detector de contabilização (skill <b>detector-contabilizacao</b>) sobre o razão do Protheus. Entra no app com a carga mensal do Protheus (a construir) — o mês fechado gera o mapa e a tela mostra o que mudou em relação ao mês anterior, com abertura até o lançamento.</div>
   <div class="tw solta"><table class="t"><thead><tr><th>Fornecedor</th><th>Conta habitual</th><th>Conta no mês</th><th>Mês</th><th class="n">Valor</th><th>Tipo</th><th>Situação</th></tr></thead><tbody><tr><td colspan="7" class="vazio">Aguardando a primeira carga mensal.</td></tr></tbody></table></div>`;
 TELAS.aud_ajustes = () => {
   const A = D.ajustes, por = {}; A.rows.forEach(r => { const x = por[r[1]] ||= { n: 0, v: 0, e: 0 }; x.n++; x.v += r[10]; x.e += r[14]; });
   return `${cabecalho('Ajustes gerenciais do realizado 2026', esc(A.nota))}
-  ${trava('STATUS e APLICAR (S/N) viram campos editáveis; cada mudança recalcula a base 2026 e fica no histórico.')}
+  ${trava('STATUS e APLICAR (S/N) ainda não se alteram no app: hoje os ajustes vêm da lista da Controladoria e entram a cada geração da versão. A edição aqui, com histórico, é uma próxima etapa.')}
   <section class="kpis">${Object.entries(por).map(([t, x]) => `<div class="kpi k5"><div class="lab">${esc(t)}</div><div class="val">${rsC(x.v)}</div><div class="meta">${x.n} ajuste(s) · efeito anualizado ${rsC(x.e)}</div></div>`).join('')}</section>
   ${tabelaSimples(A, A.rows, [0, 1, 2, 3, 5, 6, 8, 9, 10, 11, 12, 13, 14])}`;
 };
@@ -1061,7 +1062,7 @@ TELAS.aud_anom = () => {
   const lista = A.lista.filter(r => (!area || r[0] === area) && (!grav || r[4] === grav));
   const gravs = [...new Set(A.lista.map(r => r[4]))];
   return `${cabecalho('Relatório de anomalias orçamentárias por área', `Fonte: ${esc(A.fonte)}. Regras R1–R6 + I1 (acima da inflação sem explicação, sem histórico, gasto não orçado, conta de outro gestor, linha incompleta, diretoria não segregada, % do faturamento).`)}
-  <div class="aviso">🔒 <b>Envio bloqueado.</b> Nenhum comunicado aos gestores sai sem ordem do Silvio (revisão área por área). O botão de envio pelo Thor fica desligado nesta fase.</div>
+  <div class="aviso">🔒 <b>Envio bloqueado.</b> Nenhum comunicado aos gestores sai sem ordem do Silvio (revisão área por área). O envio pelo Thor só sai com ordem dele, depois dos de-paras concluídos.</div>
   <div class="tw solta"><table class="t"><thead><tr>${A.cab_resumo.map((c, i) => `<th class="${i ? 'n' : ''}">${esc(c)}</th>`).join('')}</tr></thead><tbody>
    ${A.resumo.map(r => `<tr class="clic" data-area="${esc(r[0])}"><td>${esc(r[0])}</td>${tdN(r[1])}${tdN(r[2])}<td class="n">${pc(r[3])}</td>${r.slice(4).map(v => `<td class="n">${v || '–'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
   <div class="filtros"><span class="rot">Área</span><select id="anArea"><option value="">Todas</option>${A.resumo.map(r => `<option ${r[0] === area ? 'selected' : ''}>${esc(r[0])}</option>`).join('')}</select>
@@ -1074,6 +1075,9 @@ POS.aud_anom = () => { $('anArea').onchange = e => { est.f.anArea = e.target.val
 
 /* ---------------------------------------------------------------- CONFIGURAÇÃO (tabelas genéricas) */
 const FILTRAVEIS = /^(TIPO DE PJ|CONTA × TIPO|BENEFÍCIO|ÁREA PELO TIPO|STATUS|SITUAÇÃO|RUBRICA|NATUREZA|CENTRALIZADA|DEPTO GESTOR|LINHA DA DRE|MÉTODO|SETOR|SETOR ORÇAMENTÁRIO|ÁREA RESPONSÁVEL|ÁREA PREDOMINANTE|LINHA DRE TCP|GRUPO|LISTA DO COMUNICADO|REAJUSTE|RATEIO|PREVALECE|CAIXA|AUDITAR|CLASSIFICAÇÃO|GERENTE|UF)/;
+const CFG_NOTA = {          // 16/11/2026: o app é a fonte — estas telas mostram o que o PT desta versão usou e dizem onde se altera
+  fornecedor: 'Só leitura: é o que o PT desta versão usou. A regra de cada fornecedor se altera em <a href="#cfg_central">Configuração › Central de de-para (fornecedores)</a>; o PT lê a central a cada geração.',
+  representantes: 'Só leitura: lista do app Comercial, lida a cada geração do PT. A comissão é % da receita bruta (premissa).' };
 function telaCfg(chave, titulo, desc) {
   const b = D['cfg_' + chave], fk = 'cfg_' + chave, f = est.f[fk] ||= { filtros: {}, ord: null, lim: 200 };
   const filtraveis = b.cols.map((c, i) => [c, i]).filter(([c, i]) => FILTRAVEIS.test(c) && new Set(b.rows.map(r => r[i])).size <= 60);
@@ -1082,7 +1086,7 @@ function telaCfg(chave, titulo, desc) {
   const iSt = b.cols.findIndex(c => c === 'STATUS'), cont = {}; if (iSt >= 0) b.rows.forEach(r => cont[r[iSt]] = (cont[r[iSt]] || 0) + 1);
   const tipos = b.tipos || [];
   return `${cabecalho(titulo, desc || esc(b.nota))}
-  ${trava('Colunas em amarelo = entrada da Controladoria. Quando os de-paras do PT forem concluídos, eles são importados para cá (você não refaz).')}
+  ${CFG_NOTA[chave] ? `<div class="info">${CFG_NOTA[chave]}</div>` : ''}
   ${iSt >= 0 ? `<section class="kpis">${Object.entries(cont).sort((a, c) => c[1] - a[1]).map(([s, n]) => `<button class="kpi ${/VALIDAR/.test(s) ? 'k3' : 'k4'} ${f.filtros[iSt] === s ? 'sel' : ''}" data-stv="${esc(s)}"><div class="lab">${esc(s || '(vazio)')}</div><div class="val">${n}</div><div class="meta">${pc(div(n, b.rows.length))} das linhas</div></button>`).join('')}</section>` : ''}
   ${filtraveis.length ? `<div class="filtros">${filtraveis.map(([c, i]) => `<span class="rot">${esc(c)}</span><select data-fi="${i}"><option value="">Todos</option>${[...new Set(b.rows.map(r => String(r[i] ?? '')))].sort().map(v => `<option ${f.filtros[i] === v ? 'selected' : ''} value="${esc(v)}">${esc(v || '(vazio)')}</option>`).join('')}</select>`).join('')}<span class="rot" style="margin-left:auto">${rows.length} de ${b.rows.length}</span></div>` : ''}
   <div class="tw"><table class="t"><thead><tr>${b.cols.map((c, i) => `<th class="sort ${tipos[i] === 'n' || tipos[i] === 'p' ? 'n' : ''} ${b.edit.includes(i) ? 'ed' : ''}" data-ord="${i}">${esc(c)}${f.ord && f.ord[0] === i ? (f.ord[1] > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead><tbody>
@@ -1105,7 +1109,7 @@ function posCfg(chave) {
 
 TELAS.cfg_premissas = () => {
   const P = D.premissas, val = v => typeof v === 'number' ? (Math.abs(v) < 1 && v !== 0 ? pc(v, 2) : fmt(v, { uni: 'R$' })) : esc(v);
-  return `${cabecalho('Premissas do orçamento, da DRE e do caixa 2027', 'Mudou a premissa, tudo recalcula (motor — fase 3). Inflação = IPCA 2027 do Boletim Focus, atualizar a cada boletim.')}
+  return `${cabecalho('Premissas do orçamento, da DRE e do caixa 2027', 'As premissas se alteram no app e entram na próxima geração do PT. Inflação = IPCA 2027 do Boletim Focus, atualizar a cada boletim.')}
   ${trava('Os valores em amarelo serão editáveis (só Controladoria), com histórico de quem mudou.')}
   <div class="row2">
    <div class="card"><h3>Parâmetros gerais</h3>${P.params.concat(P.modelo_gestor).map(p => `<div class="sumline"><span class="t">${esc(p[0])}<br><small style="color:var(--ink3)">${esc(p[2])}</small></span><span class="v" style="background:var(--ed);padding:2px 6px;border-radius:4px">${val(p[1])}</span></div>`).join('')}</div>
@@ -1121,12 +1125,11 @@ TELAS.cfg_premissas = () => {
 TELAS.cfg_arvore = () => {
   const b = D.cfg_arvore, g = {}; b.rows.forEach(r => (g[r[0]] ||= []).push(r));
   return `${cabecalho('Árvore de centros de custo', 'Validada pelo Silvio em 11/11/2026. É a base do acesso por área (cada perfil enxerga o seu nó e tudo abaixo dele).')}
-  ${trava('Área do orçamento, Manter e Observação editáveis aqui; CC novo no Protheus aparece como pendência.')}
   <div class="card arvore"><ul>${Object.entries(g).sort().map(([gr, rs]) => `<li><span class="no">${esc(gr === '—' ? 'Fora da árvore (NÃO USAR)' : gr)}</span> <span class="tag">${rs.length} CC</span><ul>
    ${rs.sort((a, c) => String(a[1]).localeCompare(String(c[1]))).map(r => `<li class="cc"><code>${esc(r[1])}</code> ${esc(r[2])} → <b>${esc(r[3])}</b> <span class="tag ${r[4] === 'VÁLIDO' ? 'g' : 'r'}">${esc(r[4])}</span> ${r[6] === 'S' ? '' : '<span class="tag y">sai da lista</span>'} <small style="color:var(--ink3)">${typeof r[5] === 'number' ? r[5] + ' lanç. desde 01/07' : ''} ${esc(r[7])}</small></li>`).join('')}</ul></li>`).join('')}</ul></div>`;
 };
 TELAS.cfg_setores = () => `${cabecalho('Setores e usuários', 'Setor orçamentário → gestor, grupo comparativo, bloco da DRE (onde cai o pessoal) e diretoria. A diretoria de cada setor é derivada da árvore de CC (maioria dos CCs ativos) — A VALIDAR.')}
-  ${trava('Gestor, grupo, bloco e diretoria editáveis; o cadastro de usuários (e-mail → perfil e áreas) nasce aqui na fase 2.')}
+  ${trava('Setores e gestores se alteram aqui quando a tabela do app está ativa; os usuários (e-mail → perfil e áreas) são cadastrados pelo administrador.')}
   <div class="tw solta"><table class="t"><thead><tr><th>Setor</th><th class="ed">Gestor responsável</th><th class="ed">Grupo comparativo</th><th class="ed">Bloco da DRE (pessoal)</th><th>Entregou</th><th class="ed">Diretoria (derivada)</th><th>Ramo da árvore</th><th>CCs</th><th>Observação</th></tr></thead><tbody>
   ${D.setores.map(s => `<tr><td><b>${esc(s.s)}</b></td><td class="ed">${esc(s.gestor)}</td><td class="ed">${esc(s.gc)}</td><td class="ed">${esc(s.bloco)}</td><td>${esc(s.en)}</td><td class="ed">${esc(s.dir)} <span class="tag y">a validar</span></td><td>${esc(s.ramo)}</td><td>${esc(s.ccs.join(', '))}</td><td class="w">${esc(s.obs)}</td></tr>`).join('')}</tbody></table></div>
   <div class="card"><h3>Perfis de acesso</h3><div class="csub">O banco trava por área (RLS sobre a árvore de CC), não só a tela.</div>
@@ -1173,9 +1176,9 @@ TELAS.sis_checks = () => {
   <div class="info">Status geral do PT: <b>${esc(C.status)}</b></div>`;
 };
 POS.sis_checks = () => document.querySelectorAll('#tela [data-ck]').forEach(b => b.onclick = () => { est.f.ckSt = est.f.ckSt === b.dataset.ck ? null : b.dataset.ck; desenha(); });
-TELAS.sis_hist = () => `${cabecalho('Histórico de alterações', 'Trilha imutável: toda alteração de premissa, de-para, orçado, decisão ou ajuste grava quem, quando, tela, registro, antes e depois. Ninguém altera nem apaga — só se acrescenta.')}
+TELAS.sis_hist = () => `${cabecalho('Histórico de alterações', 'Trilha imutável: toda alteração salva no app (premissas, de-paras, exceções, centros de custo, setores, decisões, contratos e folha) grava quem, quando, registro, antes e depois. Ninguém altera nem apaga — só se acrescenta.')}
   <div class="tw solta"><table class="t"><thead><tr><th>Quando</th><th>Quem</th><th>Tela</th><th>Registro</th><th>Campo</th><th>Antes</th><th>Depois</th><th>Versão</th></tr></thead>
-  <tbody><tr><td colspan="8" class="vazio">Nenhuma alteração — a edição no app abre na fase 2.</td></tr></tbody></table></div>`;
+  <tbody><tr><td colspan="8" class="vazio">A trilha já é gravada no banco a cada alteração salva no app. A exibição da lista aqui é uma próxima etapa.</td></tr></tbody></table></div>`;
 TELAS.sis_bases = () => {
   const M = D.meta, cargas = [
     ['Razão de resultado (CT2, contas 3.x)', 'extrai_base_orcamento.py', 'linhas · razao_*', 'mensal (após o fechamento) + sob demanda'],
@@ -1184,15 +1187,23 @@ TELAS.sis_bases = () => {
     ['Saldos de disponibilidades (1110*)', 'extrai_saldo_caixa.py', 'base_caixa · caixa', 'mensal'],
     ['Aging a receber e a pagar', 'extrai_aging_orcamento.py', 'aging · caixa', 'mensal'],
     ['Ajustes gerenciais do realizado', 'ajustes_gerenciais_orcamento.py', 'ajustes', 'quando houver ajuste novo'],
-    ['Realizado 2027 (CT2)', 'carga mensal (fase 2)', 'acompanhamento', 'mensal a partir de jan/2027']];
-  return `${cabecalho('Bases e cargas', 'O app lê o Protheus (somente leitura) por extração para o Supabase — como os demais apps. O PT Excel é só referência de conferência.')}
-  <div class="row2"><div class="card"><h3>Origem dos números desta prévia</h3>
-   ${[['Fonte', M.fonte_desc], ['Arquivo', M.arquivo], ['Salvo em', M.arquivo_mod], ['Blocos gerados em', M.gerado_em], ['Data-base do realizado', M.data_base + ' (jul–out/26 × ' + M.fator + ')'], ['Cenário', M.cenario + ' — ' + rs(M.receita)], ['Razão por lançamento', M.razao.linhas.toLocaleString('pt-BR') + ' lançamentos em ' + M.razao.partes + ' bloco(s)'],
+    ['Realizado 2027 (CT2)', 'carga mensal (a construir)', 'acompanhamento', 'mensal a partir de jan/2027']];
+  return `${cabecalho('Bases e cargas', 'O app é a fonte da configuração; o Protheus entra por extração somente leitura. A cada geração (só com ordem do Silvio), o gerador lê a configuração do app e os dados do Protheus, monta o PT — o espelho do app, para envio e análise — e a versão é carregada aqui.')}
+  <div class="row2"><div class="card"><h3>Origem dos números desta versão</h3>
+   ${[['Fonte', 'PT de gestão orçamentária gerado a partir da configuração do app (o espelho do app)'], ['Arquivo', M.arquivo], ['Salvo em', M.arquivo_mod], ['Blocos gerados em', M.gerado_em], ['Data-base do realizado', M.data_base + ' (jul–out/26 × ' + M.fator + ')'], ['Cenário', M.cenario + ' — ' + rs(M.receita)], ['Razão por lançamento', M.razao.linhas.toLocaleString('pt-BR') + ' lançamentos em ' + M.razao.partes + ' bloco(s)'],
      ...(M.central ? [['Central de de-para (fornecedores)', 'lida do app pelo gerador do PT em ' + M.central.lida_em + ' · última alteração ' + M.central.ultima + ' · ' + M.central.validados + ' de ' + M.central.fornecedores + ' validados · ' + M.central.excecoes + ' exceção(ões)']] : []), ['Contrato de dados', M.contrato]]
      .map(([t, v]) => `<div class="sumline"><span class="t">${esc(t)}</span><span class="v" style="max-width:62%;font-weight:500">${esc(v)}</span></div>`).join('')}</div>
    <div class="card"><h3>Blocos (orc_bloco) <small>assinatura SHA-256</small></h3><div class="tw solta" style="max-height:330px"><table class="t"><thead><tr><th>Bloco</th><th>SHA-256 (12)</th></tr></thead><tbody>
     ${Object.entries(M.sha || {}).map(([k, v]) => `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td></tr>`).join('')}</tbody></table></div></div></div>
-  <div class="tw solta"><table class="t"><thead><tr><th>Carga do Protheus (fase 2)</th><th>Extrator (somente leitura, .env)</th><th>Alimenta</th><th>Periodicidade</th></tr></thead><tbody>
+  <div class="tw solta"><table class="t"><thead><tr><th>Configuração no app (a fonte)</th><th>Onde se altera</th><th>Tabela</th></tr></thead><tbody>
+   ${[['Premissas gerais', 'Configuração › Premissas', 'orc_premissa'], ['De-para de contas e linha da DRE TCP', 'Configuração › De-para de contas / De-para DRE TCP', 'orc_depara_conta'],
+      ['Exceções de área (conta × CC ou marcação)', 'Configuração › Exceções', 'orc_excecao'], ['Centros de custo → área', 'Configuração › De-para de CC', 'orc_depara_cc'],
+      ['Setores × gestores', 'Configuração › Setores e usuários', 'orc_setor'], ['Regras por fornecedor e apelidos', 'Configuração › Central de de-para (fornecedores)', 'orc_depara_fornecedor · orc_depara_excecao · orc_fornecedor_apelido'],
+      ['Decisões por linha (GESTOR · MODELO · OUTRO)', 'Orçamento 2027 › Decisões por linha', 'orc_decisao'], ['Contratos recorrentes 2027', 'Orçamento 2027 › Contratos recorrentes', 'orc_contrato'],
+      ['Folha 2027 (posições e premissas)', 'Orçamento 2027 › Folha 2027 (simulador)', 'orc_folha_posicao · orc_folha_premissa']]
+     .map(c => `<tr><td>${esc(c[0])}</td><td>${esc(c[1])}</td><td><code>${esc(c[2])}</code></td></tr>`).join('')}</tbody></table></div>
+  <div class="info">Na geração do PT (só com ordem do Silvio), o gerador lê toda a configuração acima direto do app e os dados do Protheus abaixo; o PT sai como espelho do app, para envio e análise, e a versão é carregada aqui.</div>
+  <div class="tw solta"><table class="t"><thead><tr><th>Dados do Protheus (somente leitura)</th><th>Extrator (somente leitura, .env)</th><th>Alimenta</th><th>Periodicidade</th></tr></thead><tbody>
    ${cargas.map(c => `<tr><td>${esc(c[0])}</td><td><code>${esc(c[1])}</code></td><td>${esc(c[2])}</td><td>${esc(c[3])}</td></tr>`).join('')}</tbody></table></div>`;
 };
 
