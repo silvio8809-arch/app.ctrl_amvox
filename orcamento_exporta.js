@@ -422,7 +422,7 @@ function expModeloFolha() {
       linhas: nomes.map(n => { const a = comp[n] || z13, o = outro[n] || z13; return { c: [n, ...a.slice(0, 12), a[12], n === NPJ ? null : div(a[12], soma(totC)), o[12], a[12] - o[12]] }; })
         .concat([{ e: 't', c: ['Total da folha (sem PJ)', ...totC, soma(totC), 1, soma(totO), soma(totC) - soma(totO)] }]) };
   };
-  const posA = FOLHA.pos.filter(x => areas.includes(x.area)), calc = posA.map(x => folhaPosicao(x, P));
+  const posA = FOLHA.pos.filter(x => areas.includes(x.area)), calc = folhaComTrava(posA).map(x => folhaPosicao(x, P));   // 17/11/2026: trava do quadro
   const pes = { fG: Array(12).fill(0), pjG: Array(12).fill(0), fM: Array(12).fill(0), adm: Array(12).fill(0), des: Array(12).fill(0), pro: Array(12).fill(0) };
   calc.forEach(l => { for (let i = 0; i < 12; i++) { if (l.PJ) pes.pjG[i] += l.ativo[i]; else pes.fG[i] += l.ativo[i]; if (!l.PJ) pes.fM[i] += l.BK; }
     const x = l.x; if (+x.mes_adm) pes.adm[x.mes_adm - 1] += +x.qtd || 0; if (+x.mes_desl) pes.des[x.mes_desl - 1]++; if (+x.mes_promo) pes.pro[x.mes_promo - 1]++; });
@@ -441,6 +441,11 @@ function expModeloFolha() {
       linhas: lin.concat([{ e: 't', c: ['Total', T_(1), T_(2), T_(3), T_(4), 1, T_(6), T_(7), T_(8)] }]) });
   }
   quadros.push(pessoas);
+  const TRV_ = folhaTrava(posA), SIT_ = {}; posA.forEach(x => { const s_ = folhaSituacao(x, TRV_[x.id]); if (s_) SIT_[s_] = (SIT_[s_] || 0) + 1; });
+  quadros.push({ nome: 'Situação', titulo: 'Situação das posições — simulador de folha revisado (só contagens)', cong: 1, w0: 50,     // 17/11/2026
+    nota: 'Trava do quadro: por área e mês, CLT + aprendiz do GESTOR ≤ posição de out/2026 — vaga que passa fica fora (AUMENTO DE QUADRO — CORTE ORÇAMENTÁRIO); reposição vale; exceção só autorizada pela Controladoria',
+    cols: [{ t: 'Situação', tipo: 't', w: 46 }, { t: 'Posições', tipo: 'i', w: 12 }],
+    linhas: Object.entries(SIT_).map(([k, n]) => ({ c: [k, n] })) });
   quadros.push({ nome: 'Efeito de caixa', titulo: 'Efeito de caixa — 13º e férias (cenário MODELO)', cong: 1, w0: 70, cols: [{ t: 'Linha', tipo: 't', w: 44 }, ...expMesesCols(), { t: 'Total', tipo: 'n' }],
     linhas: folhaCaixa(rows, P).map(([n, a], i) => ({ e: i === 4 ? 't' : '', c: [n, ...a, soma(a)] })) });
   quadros.push({ nome: 'Dissídio', titulo: 'Premissas — dissídio 2027 por convenção', cong: 1, w0: 60, novaPagina: true,
