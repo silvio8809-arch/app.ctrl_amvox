@@ -12,6 +12,33 @@
 const DCS = { versao: null, carregando: false, instalada: null, erro: null, rows: new Map(), orig: new Map(), sujo: new Set(), msg: null };
 const DCS_CAMPOS = ['decisao', 'valor_outro', 'explicacao', 'comentario'];
 const DCS_OPC = ['GESTOR', 'MODELO', 'OUTRO', 'CONTRATO'];
+
+/* 17/11/2026 — TRAVA DOS APROVADOS (migração 061; Silvio: "não quero correr o risco de perder nada do que já foi configurado e aprovado para a área, por conta de
+   atualização do orçamento"). Salvar uma decisão (ou "Aprovar a área") grava a APROVAÇÃO da linha: a decisão que vale, o número do gestor e o valor final; o banco
+   carimba quando e quem. Na geração do PT, linha aprovada com GESTOR cujo orçado do gestor mudou depois mantém o valor aprovado (o PT traz OUTRO e o comentário
+   "🔶 RECONFIRMAR") até a reconfirmação aqui: aceitar o número novo ou manter o aprovado. Sem a migração 061 nada disso aparece. */
+const DCS_APROV = ['aprovado_gestor', 'aprovado_valor', 'aprovado_decisao'];
+const dcsTemAprov = () => { for (const r of DCS.rows.values()) return 'aprovado_em' in r; return false; };
+const dcsAp = (k, v) => k === 'aprovado_decisao' ? (String(v ?? '').trim() || null) : (v == null || v === '' || !isFinite(+v) ? null : Math.round(+v * 100) / 100);
+const dcsMudouAp = r => { const o = DCS.orig.get(r.id) || {}; return DCS_APROV.filter(k => dcsAp(k, r[k]) !== dcsAp(k, o[k])); };
+const dcsMantido = r => !!(r && r.aprovado_decisao === 'GESTOR' && r.decisao_pt === 'OUTRO' && /^🔶 RECONFIRMAR/.test(r.comentario_pt || ''));
+const dcsReconf = (l, r) => dcsMantido(r) && Math.abs((+l.ge || 0) - (+r.aprovado_gestor || 0)) > 1;      // o PT manteve o aprovado e o gestor ainda está noutro número
+const dcsDataBr = ts => { const d = ts ? new Date(ts) : null; return d && !isNaN(d) ? d.toLocaleDateString('pt-BR') : ''; };
+function dcsFoto(l, r) {                 // aprovação = o que a tela mostra agora: a decisão que vale, o número do gestor e o valor final
+  const d = r.decisao || dcsPadrao(l), fin = d === 'GESTOR' ? l.ge : d === 'MODELO' ? l.mo : d === 'CONTRATO' ? (l.mc ?? l.mo) : (r.valor_outro ?? 0);
+  return { aprovado_decisao: d, aprovado_gestor: dcsAp('aprovado_gestor', +l.ge || 0), aprovado_valor: dcsAp('aprovado_valor', +fin || 0) };
+}
+function dcsAprovHtml(l, r, id, ed) {
+  if (!r || r.trava) return '';
+  const quem = String(r.aprovado_por || '').startsWith('semente') ? 'semente das decisões já digitadas' : String(r.aprovado_por || '').split('@')[0];
+  const det = r.aprovado_em ? `Aprovado em ${dcsDataBr(r.aprovado_em)}${quem ? ' (' + quem + ')' : ''}: ${r.aprovado_decisao} ${rs(+r.aprovado_valor || 0)} — gestor ${rs(+r.aprovado_gestor || 0)}` : '';
+  if (DCS.sujo.has(id) && dcsMudouAp(r).length) return '<span class="tag b" title="A aprovação é gravada ao salvar">aprova ao salvar</span>';
+  if (dcsReconf(l, r)) return `<span class="tag y" title="${esc(det)}. O gestor mudou o orçado para ${esc(rs(+l.ge || 0))}: o PT manteve o aprovado até você decidir.">🔶 reconfirmar</span>
+    <br><small style="color:var(--ink3)">aprovado ${rs(+r.aprovado_valor || 0)}<br>gestor agora ${rs(+l.ge || 0)}</small>${ed ? `<br><button class="btn" data-dcsaceita="${esc(id)}" style="padding:2px 8px;font-size:12px;margin-top:4px">Aceitar o novo</button>
+    <button class="btn" data-dcsmantem="${esc(id)}" style="padding:2px 8px;font-size:12px;margin-top:4px">Manter o aprovado</button>` : ''}`;
+  if (dcsMantido(r)) return `<span class="tag b" title="${esc(det)}">aceito · o número novo entra na próxima geração</span>`;
+  return r.aprovado_em ? `<span class="tag g" title="${esc(det)}">✔ ${dcsDataBr(r.aprovado_em)}</span>` : '';
+}
 const dcsAtiva = () => DCS.instalada === true && DCS.versao === est.versao && DCS.rows.size > 0;
 const dcsEdita = () => est.papel === 'controladoria' && versaoEditavel();
 const dcsN = (k, v) => k === 'valor_outro' ? (v == null || v === '' || !isFinite(+v) ? null : Math.round(+v * 100) / 100) : (String(v ?? '').trim() || null);
@@ -31,15 +58,16 @@ async function dcsCarrega() {
     else { DCS.instalada = null; DCS.erro = e.message || String(e); }
   }
   rows.forEach(r => DCS_CAMPOS.forEach(k => { r[k] = dcsN(k, r[k]); r[k + '_pt'] = dcsN(k, r[k + '_pt']); }));
+  rows.forEach(r => { if ('aprovado_em' in r) DCS_APROV.forEach(k => { r[k] = dcsAp(k, r[k]); }); });          // 17/11/2026: trava dos aprovados (061)
   DCS.rows = new Map(rows.map(r => [r.id, r])); DCS.orig = new Map(rows.map(r => [r.id, { ...r }]));
   DCS.sujo.clear(); DCS.msg = null; DCS.versao = v; DCS.carregando = false; DCS._ids = null;
   if (est.tela === 'decisoes') desenha();
 }
 
 const dcsMudou = r => { const o = DCS.orig.get(r.id) || {}; return DCS_CAMPOS.filter(k => dcsN(k, r[k]) !== dcsN(k, o[k])); };
-function dcsMarca(r) { if (dcsMudou(r).length) DCS.sujo.add(r.id); else DCS.sujo.delete(r.id); }
+function dcsMarca(r) { if (dcsMudou(r).length || (dcsTemAprov() && dcsMudouAp(r).length)) DCS.sujo.add(r.id); else DCS.sujo.delete(r.id); }
 /* o PT desta versão ainda não reflete a linha: linha livre em que o que vale no app ≠ o que o PT carregado traz */
-const dcsPend = r => !!r && !r.trava && DCS_CAMPOS.some(k => dcsN(k, r[k]) !== dcsN(k, r[k + '_pt']));
+const dcsPend = r => !!r && !r.trava && !dcsMantido(r) && DCS_CAMPOS.some(k => dcsN(k, r[k]) !== dcsN(k, r[k + '_pt']));   // 17/11: aprovado mantido não é pendência
 /* sem decisão digitada vale o padrão do PT: CAPEX = GESTOR · área que não entregou ou conta por % do faturamento = MODELO · senão GESTOR */
 function dcsPadrao(l) {
   if (l.c === 'CAPEX') return 'GESTOR';
@@ -54,7 +82,7 @@ function dcsFinal(l, r) {
   return d === 'GESTOR' ? l.ge : d === 'MODELO' ? l.mo : d === 'CONTRATO' ? (l.mc ?? l.mo) : (r.valor_outro ?? 0);
 }
 const dcsNada = l => Math.abs(l.mo) < 0.01 && Math.abs(l.ge) < 0.01;      // modelo e gestor zerados: não há o que decidir
-const dcsSemDec = (l, r) => r ? !r.trava && !r.decisao && !dcsNada(l) : l.semDec;
+const dcsSemDec = (l, r) => r ? !r.trava && !r.decisao && !r.aprovado_em && !dcsNada(l) : l.semDec;      // 17/11: linha aprovada (área) não fica "a decidir"
 /* 16/11/2026 (Silvio): linha travada pela DUPLICIDADE (conta centralizada em outra área, sem base nem exceção) — a decisão não tem efeito; ao tentar
    alterar, um alerta diz por quê e como liberar (exceção conta × centro de custo em Configuração › Exceções, ou "Só autoriza a área a orçar") */
 const dcsTravaDup = r => !!(r && r.trava && /^Trava de duplicidade/i.test(r.trava));
@@ -106,9 +134,13 @@ async function dcsSalva() {
   if (semValor.length) { dcsAviso(`A decisão OUTRO exige o valor (R$/ano): ${semValor.slice(0, 6).map(r => r.area + ' × ' + r.conta).join(' · ')}${semValor.length > 6 ? ' …' : ''}.`, true); return false; }
   const semMotivo = ids.map(id => DCS.rows.get(id)).filter(r => r && r.decisao === 'GESTOR' && dcsRespPT(r.id) && !String(r.comentario || '').trim());   // 16/11/2026 (passo 2)
   if (semMotivo.length) { dcsAviso(`Gasto novo (GESTOR) em linha a responder exige o motivo no comentário: ${semMotivo.slice(0, 6).map(r => r.area + ' × ' + r.conta).join(' · ')}${semMotivo.length > 6 ? ' …' : ''}.`, true); return false; }
+  const ap_ = dcsTemAprov();             // 17/11/2026: decisão alterada leva a aprovação (o que a tela mostra agora); aprovação sozinha (área / reconfirmação) já vem pronta
+  if (ap_) ids.forEach(id => { const r = DCS.rows.get(id), l = r && (D.linhas || []).find(x => dcsId(x) === id); if (r && l && !r.trava && dcsMudou(r).length) Object.assign(r, dcsFoto(l, r)); });
+  const nAp = ap_ ? ids.filter(id => { const r = DCS.rows.get(id); return r && dcsMudouAp(r).length; }).length : 0;
   if (window.ORC_FONTE_LOCAL) {
     const agora_ = new Date().toISOString();
-    ids.forEach(id => { const r = DCS.rows.get(id); if (r) { r.atualizado_em = agora_; r.atualizado_por = 'prévia local'; DCS.orig.set(id, { ...r }); } });
+    ids.forEach(id => { const r = DCS.rows.get(id); if (r) { if (ap_ && dcsMudouAp(r).length) { r.aprovado_em = agora_; r.aprovado_por = 'prévia local'; }
+      r.atualizado_em = agora_; r.atualizado_por = 'prévia local'; DCS.orig.set(id, { ...r }); } });
     DCS.sujo.clear(); dcsAviso('Prévia local: decisões guardadas só nesta tela (no app publicado vão para o banco, com histórico de quem e quando).'); return true;
   }
   let n = 0;
@@ -116,15 +148,17 @@ async function dcsSalva() {
     for (const id of ids) {
       const r = DCS.rows.get(id); if (!r) { DCS.sujo.delete(id); continue; }
       const campos = {}; dcsMudou(r).forEach(k => campos[k] = dcsN(k, r[k]));
+      if (ap_) dcsMudouAp(r).forEach(k => campos[k] = dcsAp(k, r[k]));
       if (Object.keys(campos).length) {
-        const { data, error } = await SB.from('orc_decisao').update(campos).eq('versao', est.versao).eq('id', id).select('id,decisao,valor_outro,explicacao,comentario,atualizado_em,atualizado_por');
+        const { data, error } = await SB.from('orc_decisao').update(campos).eq('versao', est.versao).eq('id', id).select('id,decisao,valor_outro,explicacao,comentario,atualizado_em,atualizado_por' + (ap_ ? ',aprovado_gestor,aprovado_valor,aprovado_decisao,aprovado_em,aprovado_por' : ''));
         if (error) throw error;
         if (!data || !data.length) throw new Error(`a linha ${r.area} × ${r.conta} não foi alterada (sem permissão, versão fechada ou linha fora do app)`);
         DCS_CAMPOS.forEach(k => r[k] = dcsN(k, data[0][k])); r.atualizado_em = data[0].atualizado_em; r.atualizado_por = data[0].atualizado_por; n++;
+        if (ap_) { DCS_APROV.forEach(k => r[k] = dcsAp(k, data[0][k])); r.aprovado_em = data[0].aprovado_em; r.aprovado_por = data[0].aprovado_por; }
       }
       DCS.orig.set(id, { ...r }); DCS.sujo.delete(id);
     }
-    dcsAviso(`✓ ${n} linha(s) salva(s), com histórico de quem e quando. Entram na DRE, no caixa e nos resumos na próxima geração do PT, que lê estas decisões.`); return true;
+    dcsAviso(`✓ ${n} linha(s) salva(s)${nAp ? ` (${nAp} com a aprovação gravada)` : ''}, com histórico de quem e quando. Entram na DRE, no caixa e nos resumos na próxima geração do PT, que lê estas decisões.`); return true;
   } catch (e) { dcsAviso(`Não foi possível salvar${n ? ` (${n} linha(s) já salvas)` : ''}: ` + (e.message || e), true); return false; }
 }
 
@@ -133,7 +167,7 @@ function dcsLista() {
   const Lv = linhasVis().map(l => { const r = DCS.rows.get(dcsId(l)); return { l, r, vale: dcsVale(l, r), fin: dcsFinal(l, r), pend: dcsPend(r), sem: dcsSemDec(l, r) }; });
   const base = Lv.filter(x => (!f.dcsArea || x.l.s === f.dcsArea) && (!busca || `${x.l.s} ${x.l.c} ${x.l.d} ${x.l.r || ''} ${(x.r && x.r.comentario) || ''}`.toUpperCase().includes(busca)));
   const fil = { GESTOR: x => x.vale === 'GESTOR', MODELO: x => x.vale === 'MODELO', OUTRO: x => x.vale === 'OUTRO', CONTRATO: x => x.vale === 'CONTRATO',
-    pad: x => x.sem, trav: x => !!(x.r && x.r.trava), mud: x => x.pend || (x.r && DCS.sujo.has(x.r.id)), resp: x => dcsResp(x.l, x.r) };
+    pad: x => x.sem, trav: x => !!(x.r && x.r.trava), mud: x => x.pend || (x.r && DCS.sujo.has(x.r.id)), resp: x => dcsResp(x.l, x.r), aprov: x => !!(x.r && x.r.aprovado_em), reconf: x => !!x.r && dcsReconf(x.l, x.r) };
   const card = f.dcsCard || '', L_ = card && fil[card] ? base.filter(fil[card]) : base;
   return { Lv, base, fil, card, L_ };
 }
@@ -166,7 +200,7 @@ function telaDecisoes(antiga) {
       <td class="n ed"><input type="text" inputmode="decimal" data-dcsid="${esc(id)}" data-dcsk="valor_outro" value="${dcsBr(vo)}" style="width:104px;text-align:right" ${dec === 'OUTRO' ? dl : 'disabled'}></td>
       <td class="nw">${esc(x.vale || '')}</td>
       <td class="n" title="${x.pend ? 'Estimativa com a decisão da tela; o PT confirma na próxima geração' : ''}">${fmt(x.fin)}${x.pend ? `<br><small style="color:var(--ink3)">PT: ${fmt(l.vf)}</small>` : ''}</td>
-      <td class="n ${cd(x.fin - l.mo, true)}">${fmt(x.fin - l.mo, { sinal: true })}</td><td class="nw">${sit}</td>
+      <td class="n ${cd(x.fin - l.mo, true)}">${fmt(x.fin - l.mo, { sinal: true })}</td><td class="nw">${sit}</td>${dcsTemAprov() ? `<td class="nw">${dcsAprovHtml(l, r, id, ed)}</td>` : ''}
       <td class="ed"><input type="text" data-dcsid="${esc(id)}" data-dcsk="comentario" value="${esc(r ? (tr ? r.comentario_pt : r.comentario) || '' : l.co || '')}" style="width:230px" ${dl}>${tr ? `<br><small style="color:var(--ink3)">🔒 ${esc(r.trava)}</small>` : ''}</td></tr>`; };
   return `${cabecalho(tit, 'A Controladoria decide em cada linha qual número vale para 2027: <b>GESTOR</b> (orçado), <b>MODELO</b> (base × inflação ou % do faturamento), <b>OUTRO</b> (valor definido pela Controladoria) ou <b>CONTRATO</b> (modelo com o valor fixo dos contratos). Sem decisão vale o padrão. A decisão alimenta a Projeção final, a DRE, a DRE TCP, o caixa e os resumos. Linha <b>a responder</b>: a área orçou sem histórico e outra área tem o histórico da conta — fica fora até você dizer se já está contado lá ou se é gasto novo. Orçado de outra área em conta de uma área só aparece na linha da dona (📥).',
     `<div class="filtros" style="margin-left:auto"><input id="dcsBusca" placeholder="Área, conta ou descrição" value="${esc(f.dcsBusca || '')}" style="width:210px">
@@ -176,17 +210,17 @@ function telaDecisoes(antiga) {
     : `<div class="info">${m && m.lida_em && !m.sem_leitura ? `O PT desta versão foi gerado com estas decisões (lidas do app em <b>${esc(m.lida_em)}</b>).` : 'O PT desta versão foi gerado <b>antes</b> de as decisões virem para o app: os números seguem o que está no PT.'} O que for decidido e salvo aqui entra na <b>próxima geração do PT</b>.</div>`}
   <section class="kpis">
     ${kp('GESTOR', 'Decisão GESTOR', '')}${kp('MODELO', 'Decisão MODELO', 'k2')}${kp('OUTRO', 'Decisão OUTRO', 'k3')}${temCt ? kp('CONTRATO', 'Decisão CONTRATO', 'k4') : ''}
-    ${Lv.some(x => /^RESPONDER/.test(x.l.st || '')) ? kp('resp', 'Responder', 'k2', 'já contado em outra área ou gasto novo?') : ''}${kp('pad', 'Sem decisão (padrão)', 'k5', 'linhas usando o padrão')}${kp('trav', 'Definidas por regra', 'k5', 'só leitura: a regra do modelo prevalece')}${kp('mud', 'Alteradas · fora do PT', 'k3', 'entram na próxima geração')}
+    ${Lv.some(x => /^RESPONDER/.test(x.l.st || '')) ? kp('resp', 'Responder', 'k2', 'já contado em outra área ou gasto novo?') : ''}${dcsTemAprov() && Lv.some(x => x.r && dcsReconf(x.l, x.r)) ? kp('reconf', '🔶 Reconfirmar', 'k2', 'o gestor mudou o número depois da aprovação') : ''}${dcsTemAprov() ? kp('aprov', 'Aprovadas', 'k4', 'linhas com a aprovação gravada') : ''}${kp('pad', 'Sem decisão (padrão)', 'k5', 'linhas usando o padrão')}${kp('trav', 'Definidas por regra', 'k5', 'só leitura: a regra do modelo prevalece')}${kp('mud', 'Alteradas · fora do PT', 'k3', 'entram na próxima geração')}
   </section>
   <div class="card"><h3>Decisão de cada linha ${card ? '— filtro do cartão' : ''} <small>${L_.length} linha(s)</small></h3>
     <div class="csub">Amarelo = editável pela Controladoria${ed ? '' : versaoEditavel() ? ' — <b>somente leitura neste perfil</b>' : ' — <b>esta versão está fechada</b>'}. O <b>valor final</b> de linha alterada é uma estimativa (o número do gestor, do modelo, do contrato ou o valor digitado); o PT confirma na próxima geração.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0">
       ${ed ? `<button class="btn primary" id="dcsSalvar" ${pend ? '' : 'disabled'}>Salvar alterações${pend ? ` (${pend})` : ''}</button>
-      <button class="btn" id="dcsDesfaz" ${pend ? '' : 'disabled'}>Desfazer</button>` : ''}</div>
+      <button class="btn" id="dcsDesfaz" ${pend ? '' : 'disabled'}>Desfazer</button>` : ''}${ed && dcsTemAprov() ? (f.dcsArea ? `<button class="btn" id="dcsAprovaArea" title="Grava a aprovação das linhas de ${esc(f.dcsArea)} com os números de agora; se o gestor mudar o número depois, o PT mantém o aprovado até você reconfirmar">✔ Aprovar a área ${esc(f.dcsArea)}</button>` : '<small style="color:var(--ink3);align-self:center">Para aprovar uma área inteira, escolha a área no filtro.</small>') : ''}</div>
     <div class="tw" style="margin-top:6px"><table class="t" id="dcsTab"><thead><tr><th class="fx">Área · conta</th><th>Descrição</th><th>Método</th><th class="n">Modelo</th><th class="n">Gestor</th>${temCt ? '<th class="n" title="Modelo com o valor fixo dos contratos da linha">Contrato</th>' : ''}
-      <th class="ed">Explicação do gestor</th><th class="ed">Decisão</th><th class="n ed">Valor outro (R$/ano)</th><th>Vale</th><th class="n">Valor final</th><th class="n">Δ final − modelo</th><th>Situação</th><th class="ed">Comentário da Controladoria</th></tr></thead><tbody>
-    ${L_.slice(0, lim).map(linha).join('') || `<tr><td colspan="${temCt ? 14 : 13}" class="vazio">Nenhuma linha neste filtro.</td></tr>`}
-    </tbody><tfoot><tr><td class="fx">Total (${L_.length})</td><td></td><td></td>${tdN(soma(L_, x => x.l.mo))}${tdN(soma(L_, x => x.l.ge))}${temCt ? '<td></td>' : ''}<td></td><td></td><td></td><td></td>${tdN(soma(L_, x => x.fin))}<td class="n">${fmt(soma(L_, x => x.fin - x.l.mo), { sinal: true })}</td><td></td><td></td></tr></tfoot></table></div>
+      <th class="ed">Explicação do gestor</th><th class="ed">Decisão</th><th class="n ed">Valor outro (R$/ano)</th><th>Vale</th><th class="n">Valor final</th><th class="n">Δ final − modelo</th><th>Situação</th>${dcsTemAprov() ? '<th title="Aprovação gravada da linha — trava dos aprovados (17/11/2026)">Aprovação</th>' : ''}<th class="ed">Comentário da Controladoria</th></tr></thead><tbody>
+    ${L_.slice(0, lim).map(linha).join('') || `<tr><td colspan="${(temCt ? 14 : 13) + (dcsTemAprov() ? 1 : 0)}" class="vazio">Nenhuma linha neste filtro.</td></tr>`}
+    </tbody><tfoot><tr><td class="fx">Total (${L_.length})</td><td></td><td></td>${tdN(soma(L_, x => x.l.mo))}${tdN(soma(L_, x => x.l.ge))}${temCt ? '<td></td>' : ''}<td></td><td></td><td></td><td></td>${tdN(soma(L_, x => x.fin))}<td class="n">${fmt(soma(L_, x => x.fin - x.l.mo), { sinal: true })}</td><td></td>${dcsTemAprov() ? '<td></td>' : ''}<td></td></tr></tfoot></table></div>
     ${L_.length > lim ? `<button class="btn" id="dcsTodas">Mostrar as ${L_.length} linhas</button>` : ''}</div>
   ${orf.length ? `<div class="card"><h3>Decisões guardadas de linhas que não estão no PT desta versão <small>${orf.length}</small></h3><div class="csub">A linha (área × conta) saiu do PT — em geral pela política de alocação. A decisão fica guardada e volta a valer se a linha voltar; não entra nos números.</div>
     <div class="tw"><table class="t"><thead><tr><th>Área</th><th>Conta</th><th>Decisão</th><th class="n">Valor outro</th><th>Comentário</th></tr></thead><tbody>
@@ -234,6 +268,33 @@ function posDecisoes() {
     r.valor_outro = null; DCS.msg = null; dcsMarca(r); desenha();
     dcsAviso(`Resposta registrada em ${r.area} × ${r.conta} (${r.decisao}). Clique em Salvar alterações — entra na próxima geração do PT.`);
   });
+  document.querySelectorAll('#dcsTab [data-dcsaceita]').forEach(b => b.onclick = () => {      // 17/11/2026: aceitar o número novo do gestor (trava dos aprovados)
+    if (!dcsEdita()) return;
+    const r = DCS.rows.get(b.dataset.dcsaceita), l = r && (D.linhas || []).find(x => dcsId(x) === r.id); if (!r || !l || r.trava) return;
+    Object.assign(r, { aprovado_decisao: 'GESTOR', aprovado_gestor: dcsAp('aprovado_gestor', +l.ge || 0), aprovado_valor: dcsAp('aprovado_valor', +l.ge || 0) });
+    DCS.msg = null; dcsMarca(r); desenha();
+    dcsAviso(`Número novo aceito em ${r.area} × ${r.conta}: ${rs(+l.ge || 0)}. Clique em Salvar alterações — entra na próxima geração do PT.`);
+  });
+  document.querySelectorAll('#dcsTab [data-dcsmantem]').forEach(b => b.onclick = () => {      // 17/11/2026: manter o aprovado = OUTRO com o valor aprovado
+    if (!dcsEdita()) return;
+    const r = DCS.rows.get(b.dataset.dcsmantem), l = r && (D.linhas || []).find(x => dcsId(x) === r.id); if (!r || !l || r.trava) return;
+    const v = +r.aprovado_valor || 0, nota = `mantido o aprovado de ${dcsDataBr(r.aprovado_em)} (o gestor mudou para ${rs(+l.ge || 0)})`;
+    r.decisao = 'OUTRO'; r.valor_outro = dcsAp('aprovado_valor', v); r.comentario = (r.comentario ? r.comentario + ' · ' : '') + nota;
+    Object.assign(r, { aprovado_decisao: 'OUTRO', aprovado_gestor: dcsAp('aprovado_gestor', +l.ge || 0), aprovado_valor: dcsAp('aprovado_valor', v) });
+    DCS.msg = null; dcsMarca(r); desenha();
+    dcsAviso(`Aprovado mantido em ${r.area} × ${r.conta}: OUTRO ${rs(v)}. Clique em Salvar alterações — entra na próxima geração do PT.`);
+  });
+  const apA = $('dcsAprovaArea'); if (apA) apA.onclick = () => {                          // 17/11/2026: aprovar a área inteira com os números de agora
+    if (!dcsEdita()) return;
+    const { base } = dcsLista(), alvo = base.filter(x => x.r && !x.r.trava && !dcsNada(x.l) && !dcsReconf(x.l, x.r)), rec = base.filter(x => x.r && dcsReconf(x.l, x.r)).length;
+    const muda = alvo.filter(x => { const ft = dcsFoto(x.l, x.r); return !x.r.aprovado_em || DCS_APROV.some(k => dcsAp(k, ft[k]) !== dcsAp(k, x.r[k])); });
+    if (!muda.length) { dcsAviso(`Nada a aprovar em ${f.dcsArea}: as linhas já estão aprovadas com os números de agora${rec ? ` (${rec} a reconfirmar uma a uma)` : ''}.`); return; }
+    if (!confirm(`Aprovar ${muda.length} linha(s) de ${f.dcsArea} com os números de agora (decisão que vale, número do gestor e valor final)?\n\nSe o gestor mudar o número `
+      + 'depois, o PT mantém o aprovado até você reconfirmar.' + (rec ? `\n${rec} linha(s) a reconfirmar ficam de fora (decida uma a uma).` : ''))) return;
+    muda.forEach(x => { Object.assign(x.r, dcsFoto(x.l, x.r)); dcsMarca(x.r); });
+    DCS.msg = null; desenha();
+    dcsAviso(`${muda.length} linha(s) de ${f.dcsArea} marcadas para aprovar. Clique em Salvar alterações para gravar (com histórico de quem e quando).`);
+  };
   const s = $('dcsSalvar'); if (s) s.onclick = async () => { s.disabled = true; await dcsSalva(); desenha(); };
   const dz = $('dcsDesfaz'); if (dz) dz.onclick = () => {
     DCS.sujo.forEach(id => { const r = DCS.rows.get(id), o = DCS.orig.get(id); if (r && o) Object.assign(r, o); });
