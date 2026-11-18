@@ -673,8 +673,29 @@ function flCaminhos(P) {        // = orc_folha_app.caminhos: só o que a tela al
   (P.beneficios || []).forEach(b => { if (!b.nome) return;
     o[b.nome + ' · valor'] = +(+b.valor || 0).toFixed(2); o[b.nome + ' · reajuste'] = +(+b.reaj || 0).toFixed(6); o[b.nome + ' · mês'] = Math.round(+b.mes) || 13;
     o[b.nome + ' · fornecedor'] = (b.forn || []).slice().sort().join(';') || null;
-    Object.entries(b.pessoas || {}).forEach(([a, n]) => { if (+n) o[b.nome + ' · pessoas ' + a] = +(+n).toFixed(2); }); });
+    Object.entries(b.pessoas || {}).forEach(([a, n]) => { if (+n) o[b.nome + ' · pessoas ' + a] = +(+n).toFixed(2); });
+    // 18/11/2026: benefício POR PESSOA (código → S / valor / 0) — = orc_folha_app.caminhos
+    Object.entries(b.por_id || {}).forEach(([c, v]) => { o[b.nome + ' · ' + c] = (v === true || String(v).trim().toUpperCase() === 'S') ? 'S' : +(+v || 0).toFixed(2); }); });
   return o;
+}
+/* 18/11/2026 — BENEFÍCIOS POR PESSOA (planilha do RH): código anônimo × benefício. S = recebe o valor padrão · número = R$/mês próprio · 0 = não recebe ·
+   vazio = vale a regra. É a tabela BENEFÍCIOS POR PESSOA da PREMISSAS_FOLHA do PT (o que muda aqui entra no PT na próxima geração). */
+const flPpTot = b => Object.values(b.por_id || {}).reduce((s, v) => s + (String(v).trim().toUpperCase() === 'S' ? (+b.valor || 0) : (+v || 0)), 0);
+function flCardPorPessoa(P, pe) {
+  const BS = P.beneficios.map((b, i) => [b, i]).filter(([b]) => b.quem === 'LISTA' || Object.keys(b.por_id || {}).length);
+  if (!BS.length) return '';
+  const pos = Object.fromEntries((FOLHA.pos || []).map(x => [x.id, x]));
+  const ord = c => [String(c)[0], +(String(c).replace(/\D/g, '') || 0)];
+  const cods = [...new Set(BS.flatMap(([b]) => Object.keys(b.por_id || {})).concat(FOLHA._ppExtra || []))]
+    .sort((a, b) => { const x = ord(a), y = ord(b); return x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1]; });
+  const vv = (b, c) => { const v = (b.por_id || {})[c]; return v == null ? '' : (String(v).trim().toUpperCase() === 'S' ? 'S' : String(+v)); };
+  const livres = (FOLHA.pos || []).map(x => x.id).filter(id => !cods.includes(id)).sort();
+  return `<div class="card"><h3>Benefícios por pessoa ${pe ? '' : '<small>leitura</small>'} <small>${cods.length} códigos · planilha do RH</small></h3>
+    <div class="csub">Código anônimo × benefício: <b>S</b> = recebe o valor padrão · número = valor próprio (R$/mês) · <b>0</b> = não recebe · vazio = vale a regra (quem recebe e convenção). Benefício LISTA = só quem tem valor aqui. Vale no PROJETAR FOLHA e entra no PT na próxima geração.</div>
+    <div class="tw solta" style="max-height:440px"><table class="t"><thead><tr><th class="fx">Código</th><th>Área</th><th>Função</th>${BS.map(([b]) => `<th class="ed n" title="${esc(b.nome)}">${esc(b.nome.replace(/ \(.*\)$/, ''))}</th>`).join('')}</tr></thead><tbody>
+    ${cods.map(c => `<tr><td class="fx nw"><b>${esc(c)}</b></td><td class="nw">${esc((pos[c] || {}).area || '—')}</td><td class="nw">${esc((pos[c] || {}).funcao || '')}</td>${BS.map(([b, i]) => `<td class="ed n"><input type="text" data-fpid="${i}" data-fpc="${esc(c)}" value="${esc(vv(b, c))}" ${pe ? '' : 'disabled'} style="width:62px"></td>`).join('')}</tr>`).join('')}
+    </tbody><tfoot><tr><td colspan="3">Total R$/mês (S × valor padrão + valores próprios)</td>${BS.map(([b, i]) => `<td class="n" data-fppt="${i}">${Math.round(flPpTot(b)).toLocaleString('pt-BR')}</td>`).join('')}</tr></tfoot></table></div>
+    ${pe ? `<div style="margin-top:6px"><select id="flPpCod"><option value="">+ incluir código…</option>${livres.map(id => `<option>${esc(id)}</option>`).join('')}</select></div>` : ''}</div>`;
 }
 function flAlteradoPrem() {
   if (!FOLHA || !FOLHA.Pbase) return [];
@@ -829,7 +850,7 @@ TELAS.folha = () => {
     </tbody></table></div><div class="csub">percentuais em pontos (20 = 20%)</div></div>
   </div>
   <div class="tw solta"><table class="t"><thead><tr><th>Benefício</th><th class="ed n">R$/pessoa/mês</th><th class="ed n">Reajuste %</th><th class="ed n">Mês</th><th>Quem</th><th>Convenção</th><th>Conta</th><th class="ed" title="Raiz do CNPJ (8 dígitos) do fornecedor deste benefício; vários separados por ponto e vírgula. No painel Fornecedores × meses, o esperado desse fornecedor passa a ser o do simulador (quadro da área × valor por pessoa).">Fornecedor do benefício (raiz do CNPJ)</th></tr></thead><tbody>
-    ${P.beneficios.map((b, i) => `<tr><td>${esc(b.nome)}</td>${b.quem === 'HISTÓRICO' ? `<td class="n" title="Benefício pelo histórico: vale a média mensal jul–out/26 do fornecedor em cada área (centro de custo), sem valor por pessoa. Soma das áreas ao lado.">histórico · ${Math.round(Object.values(b.hist || {}).reduce((s, v) => s + (+v || 0), 0)).toLocaleString('pt-BR')}/mês</td>` : `<td class="ed">${pin(`beneficios.${i}.valor`, +(+b.valor).toFixed(2), 90)}</td>`}<td class="ed">${pin(`beneficios.${i}.reaj%`, +(b.reaj * 100).toFixed(2), 60)}</td><td class="ed">${pin(`beneficios.${i}.mes`, b.mes > 12 ? '' : b.mes, 50)}</td><td${b.quem === 'PESSOAS' ? ` title="Nº de pessoas informado por área (tabela PESSOAS POR ÁREA do PT) × valor por pessoa: ${esc(Object.entries(b.pessoas || {}).map(([a, n]) => a + ' ' + n).join(' · ') || 'sem pessoas informadas')}"` : ''}>${esc(b.quem)}${b.quem === 'PESSOAS' ? ' · ' + Object.values(b.pessoas || {}).reduce((s, v) => s + (+v || 0), 0) : ''}</td><td>${esc(b.conv)}</td><td>${esc(b.conta)}</td><td class="ed">${pin(`beneficios.${i}.forn`, (b.forn || []).join('; '), 150, 'text')}</td></tr>`).join('')}
+    ${P.beneficios.map((b, i) => `<tr><td>${esc(b.nome)}</td>${b.quem === 'HISTÓRICO' ? `<td class="n" title="Benefício pelo histórico: vale a média mensal jul–out/26 do fornecedor em cada área (centro de custo), sem valor por pessoa. Soma das áreas ao lado.">histórico · ${Math.round(Object.values(b.hist || {}).reduce((s, v) => s + (+v || 0), 0)).toLocaleString('pt-BR')}/mês</td>` : (b.quem === 'LISTA' && !(+b.valor) ? `<td class="n" title="Valor próprio de cada pessoa — cartão Benefícios por pessoa abaixo">por pessoa · ${Math.round(flPpTot(b)).toLocaleString('pt-BR')}/mês</td>` : `<td class="ed">${pin(`beneficios.${i}.valor`, +(+b.valor).toFixed(2), 90)}</td>`)}<td class="ed">${pin(`beneficios.${i}.reaj%`, +(b.reaj * 100).toFixed(2), 60)}</td><td class="ed">${pin(`beneficios.${i}.mes`, b.mes > 12 ? '' : b.mes, 50)}</td><td${b.quem === 'PESSOAS' ? ` title="Nº de pessoas informado por área (tabela PESSOAS POR ÁREA do PT) × valor por pessoa: ${esc(Object.entries(b.pessoas || {}).map(([a, n]) => a + ' ' + n).join(' · ') || 'sem pessoas informadas')}"` : ''}>${esc(b.quem)}${b.quem === 'PESSOAS' ? ' · ' + Object.values(b.pessoas || {}).reduce((s, v) => s + (+v || 0), 0) : ''}${Object.keys(b.por_id || {}).length ? ' · por pessoa ' + Object.keys(b.por_id).length : ''}</td><td>${esc(b.conv)}</td><td>${esc(b.conta)}</td><td class="ed">${pin(`beneficios.${i}.forn`, (b.forn || []).join('; '), 150, 'text')}</td></tr>`).join('')}
   </tbody></table></div>
   ${(() => { const PS = P.beneficios.map((b, i) => [b, i]).filter(([b]) => b.quem === 'PESSOAS'); if (!PS.length) return '';
     const AR = Object.keys(P.areas || {}), tot = b => Object.values(b.pessoas || {}).reduce((t_, n) => t_ + (+n || 0), 0);
@@ -837,6 +858,7 @@ TELAS.folha = () => {
       <div class="tw solta" style="max-height:440px"><table class="t"><thead><tr><th>Área</th>${PS.map(([b]) => `<th class="ed n">${esc(b.nome)}</th>`).join('')}</tr></thead><tbody>
       ${AR.map(a => `<tr><td class="nw">${esc(a)}</td>${PS.map(([b, i]) => `<td class="ed n"><input type="number" min="0" step="1" data-fpes="${i}" data-fpa="${esc(a)}" value="${esc((b.pessoas || {})[a] || '')}" ${pe ? '' : 'disabled'} style="width:70px"></td>`).join('')}</tr>`).join('')}
       </tbody><tfoot><tr><td>Total</td>${PS.map(([b, i]) => `<td class="n" data-fpt="${i}">${tot(b)}</td>`).join('')}</tr></tfoot></table></div></div>`; })()}
+  ${flCardPorPessoa(P, pe)}
   <div class="card"><h3>Efeito de caixa — 13º e férias <small>cenário MODELO · R$ mil</small></h3><div class="tw solta"><table class="t"><thead><tr><th>Linha</th>${MESES.map(x => `<th class="n">${x}</th>`).join('')}<th class="n">Total</th></tr></thead><tbody>
     ${caixa.map(([n, a], i) => `<tr ${i === 4 ? 'style="font-weight:700"' : ''}><td class="nw">${esc(n)}</td>${a.map(x => tdN(x, { uni: 'mil', dec: 0 })).join('')}${tdN(soma(a), { uni: 'mil', dec: 0 })}</tr>`).join('')}</tbody></table></div></div>`;
   if ((est.papel === 'controladoria' || est.papel === 'ceo') && D.folha && D.folha.calibracao) {
@@ -897,6 +919,19 @@ POS.folha = () => {
     const t = document.querySelector(`#tela [data-fpt="${el.dataset.fpes}"]`); if (t) t.textContent = Object.values(b.pessoas).reduce((t_, x) => t_ + (+x || 0), 0);
     el.closest('td').style.background = '#FFF7E6'; FOLHA.premSuja = true; marca();
   });
+  // 18/11/2026: benefícios POR PESSOA (b.por_id[código] = 'S' | número | 0; vazio = sai do mapa e vale a regra)
+  document.querySelectorAll('#tela [data-fpid]').forEach(el => el.onchange = () => {
+    const b = FOLHA.P.beneficios[+el.dataset.fpid], c = el.dataset.fpc, t = el.value.trim().toUpperCase().replace(',', '.');
+    if (t !== '' && t !== 'S' && !(Number.isFinite(+t) && +t >= 0)) {
+      alert('Use S (valor padrão), um valor em R$ (0 = não recebe) ou deixe vazio (vale a regra).'); el.value = ((b.por_id || {})[c] ?? '') + ''; return;
+    }
+    b.por_id = b.por_id || {};
+    if (t === '') delete b.por_id[c]; else b.por_id[c] = t === 'S' ? 'S' : +t;
+    if (!Object.keys(b.por_id).length) delete b.por_id;
+    const tt = document.querySelector(`#tela [data-fppt="${el.dataset.fpid}"]`); if (tt) tt.textContent = Math.round(flPpTot(b)).toLocaleString('pt-BR');
+    el.closest('td').style.background = '#FFF7E6'; FOLHA.premSuja = true; marca();
+  });
+  const ppSel = $('flPpCod'); if (ppSel) ppSel.onchange = () => { if (!ppSel.value) return; (FOLHA._ppExtra = FOLHA._ppExtra || []).push(ppSel.value); desenha(); };
 };
 
 /* ---------------------------------------------------------------- MODELO × GESTOR */
