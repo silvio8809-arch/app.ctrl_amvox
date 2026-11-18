@@ -92,6 +92,29 @@ function folhaSituacao(x, t) {
   return 'OCUPADA';
 }
 
+/* 18/11/2026 — BENEFÍCIO POR PESSOA (planilha do RH de 18/11/2026: "o resumo dos benefícios, as regras, os beneficiários estão no anexo").
+   b.por_id = {código: valor} — o que está no mapa PREVALECE sobre a regra: 'S' (ou true) = recebe o valor padrão do benefício (b.valor); número = recebe
+   esse valor (R$/mês); 0, 'N' ou vazio = não recebe. QUEM = 'LISTA' = só quem está no mapa recebe. Fora do mapa vale a regra de sempre (TODOS / PLANO /
+   OPERACIONAL / GERENTE, por convenção) — sem mapa o resultado é o de antes. Valor da posição × ativo no mês (GESTOR: quantidade e meses de admissão e
+   desligamento, com a trava; MODELO: 1 por posição P/J) × (1 + reajuste a partir do mês). MESMA REGRA em .claude/scripts/pt_folha_2027.py. */
+function folhaBenefValor(l, b) {
+  const M = b.por_id, id = l.x.id;
+  if (M && Object.prototype.hasOwnProperty.call(M, id)) {
+    const v = M[id];
+    if (v === true || String(v).trim().toUpperCase() === 'S') return +b.valor || 0;
+    return +v || 0;
+  }
+  if (b.quem === 'LISTA') return 0;
+  const cv = l.x.convencao;
+  const cOk = b.conv === 'BA' ? cv === 'BA' : b.conv === 'SP' ? cv === 'SP' : (cv === 'BA' || cv === 'SP');
+  if (!cOk) return 0;
+  const f = String(l.x.funcao || '').toUpperCase();
+  const ok = b.quem === 'PLANO' ? l.x.plano === 'S'
+    : b.quem === 'OPERACIONAL' ? (!l.PL && !/^(DIRETOR|GERENTE)/.test(f))
+    : b.quem === 'GERENTE' ? (!l.PL && /^GERENTE/.test(f)) : !l.PL;
+  return ok ? (+b.valor || 0) : 0;
+}
+
 /* direcionadores de uma área num cenário: { REM:[12], ..., base:{...} } */
 function folhaDirecionadores(linhas, area, cen, P) {
   const L = linhas.filter(l => l.x.area === area), z = () => Array(12).fill(0);
@@ -128,6 +151,19 @@ function folhaDirecionadores(linhas, area, cen, P) {
       if (cv === 'SP' && !l.PL && ger(l)) D.HCG_SP[i] += at[i];
     }
   }
+  // 18/11/2026: benefício = Σ (valor da posição × ativo) — por pessoa (b.por_id) ou pela regra; HISTÓRICO e PESSOAS seguem por área (folhaComponentes)
+  D.BEN = (P.beneficios || []).map(b => {
+    const r = { m: Array(12).fill(0), base: 0 };
+    if (b.quem === 'HISTÓRICO' || b.quem === 'PESSOAS') return r;
+    for (const l of L) {
+      const v = folhaBenefValor(l, b);
+      if (!v) continue;
+      const at = cen === 'GESTOR' ? l.ativo : Array(12).fill(l.BK);
+      for (let i = 0; i < 12; i++) r.m[i] += at[i] * v;
+      r.base += l.BK * v;
+    }
+    return r;
+  });
   for (let i = 0; i < 12; i++) D.HE[i] = D.REM[i] * he * (+P.curvas.he[i] || 0);
   // mês-base (calibração): quadro atual sem dissídio, HE real jul–out, sem eventos
   const B = { REM: 0, REM_APR: 0, PL: 0, PJ: 0, HE: 0, ABONO: 0, RETRO: 0, AVISO: 0, MULTA: 0, AJ13: 0, AJFER: 0, HC_BA: 0, HC_SP: 0, HCP_BA: 0, HCP_SP: 0,
@@ -184,16 +220,16 @@ function folhaComponentes(D, area, cen, P) {
       out.push({ cenario: cen, area, componente: nome, destino, conta, setor_final: setorFinal(conta), m, base: cen === 'MODELO' ? formula(nome, 'base') * fator : null });
     }
   }
-  for (const b of P.beneficios) {
+  for (const [k, b] of P.beneficios.entries()) {
     // 15/11/2026: QUEM = HISTÓRICO — não é valor × pessoas: vale a média mensal da janela do fornecedor do benefício na área (b.hist[área], R$/mês,
     // calculada pelo PT a partir do razão), igual nos dois cenários; o reajuste, se houver, entra a partir do mês de aplicação
     // 15/11/2026: QUEM = PESSOAS — nº de pessoas INFORMADO por área (b.pessoas[área], tabela do PT) × valor por pessoa do fornecedor, igual nos dois cenários
-    const H = b.quem === 'HISTÓRICO', PS = b.quem === 'PESSOAS', vb = H ? 1 : (+b.valor || 0);
-    const hc = k => H ? (+(b.hist || {})[area] || 0) : PS ? (+(b.pessoas || {})[area] || 0) : (b.conv === 'SP' ? 0 : (b.quem === 'PLANO' ? val('HCP_BA', k) : b.quem === 'OPERACIONAL' ? val('HCO_BA', k) : b.quem === 'GERENTE' ? val('HCG_BA', k) : val('HC_BA', k)))
-      + (b.conv === 'BA' ? 0 : (b.quem === 'PLANO' ? val('HCP_SP', k) : b.quem === 'OPERACIONAL' ? val('HCO_SP', k) : b.quem === 'GERENTE' ? val('HCG_SP', k) : val('HC_SP', k)));
-    const m = []; for (let i = 0; i < 12; i++) m.push(hc(i) * vb * (1 + ((i + 1) >= (+b.mes || 13) ? (+b.reaj || 0) : 0)));
+    // 18/11/2026: os demais = Σ por posição (valor da pessoa ou da regra × ativo) — folhaDirecionadores (D.BEN), pela folhaBenefValor
+    const H = b.quem === 'HISTÓRICO', PS = b.quem === 'PESSOAS', bp = (D.BEN || [])[k] || { m: Array(12).fill(0), base: 0 };
+    const hc = i => H ? (+(b.hist || {})[area] || 0) : PS ? (+(b.pessoas || {})[area] || 0) * (+b.valor || 0) : (i === 'base' ? bp.base : bp.m[i]);
+    const m = []; for (let i = 0; i < 12; i++) m.push(hc(i) * (1 + ((i + 1) >= (+b.mes || 13) ? (+b.reaj || 0) : 0)));
     out.push({ cenario: cen, area, componente: b.nome, destino: 'DESPESA', conta: +b.conta, setor_final: setorFinal(b.conta), m,
-      base: cen === 'MODELO' ? hc('base') * vb : null });
+      base: cen === 'MODELO' ? hc('base') : null });
   }
   return out;
 }
