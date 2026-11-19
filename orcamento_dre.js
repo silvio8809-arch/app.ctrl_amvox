@@ -245,7 +245,7 @@ function decoraCaixa() {
   trs.forEach((tr, i) => {
     const l = D.caixa.linhas[i], lb = tr.querySelector('.lbl'); if (!lb) return;
     const raw = Object.keys(PREM_CX).find(k => k.trim() === l.l.trim());
-    const sec = raw ? PREM_CX[raw] : /Sinal já pago|plano P&D/.test(l.l) ? 'compras' : /aging/.test(l.l) ? 'compras' : '';
+    const sec = raw ? PREM_CX[raw] : /RJ_PLANO_2027/.test(l.l) ? 'rj' : /Sinal já pago|plano P&D/.test(l.l) ? 'compras' : /aging/.test(l.l) ? 'compras' : '';
     if (sec) lb.insertAdjacentHTML('beforeend', iconePrem(sec, 'Premissas: ' + l.l.trim()));
   });
   ligaIconesPrem(document.querySelector('#tela'));
@@ -453,11 +453,38 @@ function telaPremissas() {
   if (CP) h += tabelaPA(CP);
   /* RJ */
   const cxRJ = (D.caixa.linhas.find(l => /credores da RJ/.test(l.l)) || { m: [0] }).m, cxPa = (D.caixa.linhas.find(l => /Parcelamentos de impostos/.test(l.l)) || { m: [0] }).m;
-  h += secPrem('rj', 'Plano da RJ e parcelamentos', rsC(soma(cxRJ) + soma(cxPa)),
-    'Pagamentos do plano de recuperação judicial (modelo da TCP, 27/08/2026; 2027 é igual nas opções 1, 2 e 3 por carência) e parcelamentos fiscais extraconcursais. A concursal do aging (emissão até 29/05/2026) sai pelo plano da RJ, não pelo aging.',
-    ad.filter(a => /RJ|fiscal/i.test(a[0])).map(a => [esc(a[0]), pFmt(a[1]), onde('PREMISSAS!' + a[3], 'Configuração › Premissas'), esc(a[2] || '')]),
-    ['Início das parcelas Classe I e III (fev/27) ainda A CONFIRMAR com a TCP.']);
+  const RJ = D.rj, cxUS = RJ && RJ.cambio ? RJ.cambio.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : 'câmbio do parâmetro';
+  /* 19/11/2026: plano da RJ por classe = critério do modelo da TCP (REGRA DURA); US$ ao câmbio do parâmetro (padronização) */
+  h += RJ ? secPrem('rj', 'Plano da RJ e parcelamentos', rsC(soma(cxRJ) + soma(cxPa)),
+    `<b>Critério do modelo da TCP por classe (opção 2) — regra dura:</b> taxa, carência, prazo, deságio e capitalização são os da TCP (Configuração › Premissas, grupo "Plano da RJ"; valor diferente da TCP vira pendência no CHECKS). Uma linha por classe no fluxo de caixa: sob "(−) Pagamento aos credores da RJ" (com os honorários do administrador judicial) e sob "(−) Parcelamentos de impostos" (classe fiscal). <b>Câmbio:</b> US$ dos fornecedores estrangeiros e dos bancos 4131 × ${cxUS} — padronização com as demais linhas em US$ do orçamento (a TCP usa o câmbio de 26/05/2026: US$ 5,0211); EUR e RMB no câmbio da TCP. Retardatários (credor fora da lista com título até 29/05/2026 ou marcado pelo Financeiro) entram na classe da TCP correspondente; impostos vencidos até 31/12/2026 que não estão na lista entram nas condições da classe fiscal (45%, carência de 6 e prazo de 120 meses). O deságio (Classe III bancos e fornecedores nacionais) aparece abaixo da DRE, no mês da homologação. Detalhe e prova do motor: aba RJ_PLANO_2027 do PT; casamento título a título: aba RJ_TITULOS.`,
+    [...RJ.classes.map(c => [esc(c.l), rsC(c.caixa), onde('RJ_PLANO_2027', 'Configuração › Premissas'),
+        `${pc(c.taxa, 1)} a.a. · carência ${c.car} · prazo ${c.prazo} · deságio ${pc(c.des_pct, 0)} · 1º pagamento ${esc(c.pag1)} · saldo em 31/12/27 ${rsC(c.saldo)}`
+        + (c.cap27 ? ` · juros capitalizados ${rsC(c.cap27)}` : '') + (Math.abs(c.dif) >= 0.5 ? ` · Δ × TCP ${rsC(c.dif)}: ${esc(c.motivo)}` : '')]),
+     ...(RJ.aj ? [['Administrador judicial — honorários', rsC(RJ.aj.caixa), onde('RJ_PLANO_2027', 'Configuração › Premissas'), 'cronograma da TCP (honorário mensal × 12); sem lançamento na base e fora do orçado']] : []),
+     ['Câmbio do US$ (estrangeiros e bancos 4131)', cxUS, onde('PREMISSAS (compras do P&D)', 'Configuração › Premissas'), 'padronização (TCP: 5,0211 em 26/05/2026)']],
+    [Math.abs(RJ.total.dif) >= 0.5 ? `Caixa 2027 do plano ${rsC(RJ.total.caixa)} × modelo da TCP ${rsC(RJ.total.tcp)}: diferença ${rsC(RJ.total.dif)} — câmbio do parâmetro, retardatários e impostos vencidos depois da lista (detalhe por classe acima).` : '']) + tabelaRJ(RJ)
+  : secPrem('rj', 'Plano da RJ e parcelamentos', rsC(soma(cxRJ) + soma(cxPa)), 'Pagamentos do plano de recuperação judicial (modelo da TCP) e parcelamentos fiscais extraconcursais. A concursal do aging (emissão até 29/05/2026) sai pelo plano da RJ, não pelo aging.',
+    ad.filter(a => /RJ|fiscal/i.test(a[0])).map(a => [esc(a[0]), pFmt(a[1]), onde('PREMISSAS!' + a[3], 'Configuração › Premissas'), esc(a[2] || '')]), []);
   return h;
+}
+function tabelaRJ(RJ) {
+  const t = RJ.total, f = RJ.fiscal || [];
+  return `<details class="card prem-det" ${est.f.premRJ ? 'open' : ''} id="premRJ"><summary>Plano da RJ — por classe (critério da TCP) · habilitado, deságio, caixa 2027 e saldo devedor</summary>
+   <div class="tw solta"><table class="t"><thead><tr><th>Classe</th><th class="n">Habilitado (câmbio TCP)</th><th class="n">Habilitado no orçamento</th><th class="n">Deságio</th><th class="n">Após o deságio</th><th class="n">Caixa 2027</th><th class="n">Juros capitalizados 2027</th><th class="n">Saldo devedor 31/12/27</th><th class="n">TCP 2027</th><th class="n">Δ × TCP</th></tr></thead><tbody>
+   ${RJ.classes.map(c => `<tr><td class="w">${esc(c.l)}</td>${tdN(c.hab_tcp)}${tdN(c.hab)}<td class="n">${pc(c.des_pct, 0)}</td>${tdN(c.valor)}${tdN(c.caixa)}${tdN(c.cap27)}${tdN(c.saldo)}${tdN(c.tcp)}${tdN(c.dif)}</tr>`).join('')}
+   ${RJ.aj ? `<tr><td class="w">${esc(RJ.aj.l)}</td><td></td><td></td><td></td><td></td>${tdN(RJ.aj.caixa)}<td></td><td></td>${tdN(RJ.aj.tcp)}${tdN(RJ.aj.dif)}</tr>` : ''}</tbody>
+   <tfoot><tr><td>Total (com o administrador judicial no caixa)</td>${tdN(t.hab_tcp)}${tdN(t.hab)}<td></td>${tdN(t.valor)}${tdN(t.caixa)}${tdN(t.cap27)}${tdN(t.saldo)}${tdN(t.tcp)}${tdN(t.dif)}</tr></tfoot></table></div>
+   ${f.length ? `<div class="csub" style="margin-top:8px"><b>Classe fiscal:</b> ${f.slice(0, 6).map(x => `${esc(x[0])}: ${rsC(x[1])}`).join(' · ')}</div>` : ''}
+   ${(RJ.conferencia || []).length ? `<div class="csub" style="margin-top:4px"><b>Conferência com a TCP:</b> parâmetros ${RJ.conferencia.every(x => /^IGUAL/.test(x.param)) ? 'iguais aos da TCP em todas as classes' : 'DIFERENTES da TCP em ' + RJ.conferencia.filter(x => !/^IGUAL/.test(x.param)).map(x => esc(x.l)).join(', ')} · motor na base da TCP × planilha da TCP: ${RJ.conferencia.every(x => Math.abs(x.dif) < 0.01) ? 'igual (Δ 0)' : 'diferença — ver CHECKS'}.</div>` : ''}
+  </details>`;
+}
+/* 19/11/2026: abaixo da DRE padrão — Lucro Líquido · (+) deságio esperado do plano de RJ (TCP) · Lucro Líquido ajustado */
+function quadroDesagio() {
+  const q = D.dre && D.dre.desagio; if (!q || !q.linhas || q.linhas.length < 3) return '';
+  return `<div class="card"><h3>Lucro líquido ajustado pelo deságio da RJ <small>critério da TCP · reconhecido na homologação</small>${iconePrem('rj', 'Premissas: plano da RJ')}</h3>
+   <div class="tw solta"><table class="t dq"><thead><tr><th class="fx">Linha</th><th class="n">Total 2027</th>${MESES.map(x => `<th class="n">${x}/27</th>`).join('')}</tr></thead><tbody>
+   ${q.linhas.map((l, i) => `<tr${i === 2 ? ' style="font-weight:700;background:#EDF1F7"' : ''}><td class="fx"><div class="lbl">${esc(l.l)}</div></td>${tdN(l.tot)}${l.m.map(x => tdN(x)).join('')}</tr>`).join('')}</tbody></table></div>
+   <div class="csub" style="margin-top:6px">${esc(q.nota)}</div></div>`;
 }
 function tabelaPA(CP) {
   const P_ = CP.pos.filter(p => p.sit === 'NO PLANO');
@@ -510,7 +537,8 @@ table.dre tr.grp-oculta{display:none}
 .grp-tg:hover{border-color:#C8102E;color:#C8102E}table.dre tr.t .grp-tg{background:transparent;color:#fff}
 .grp-barra{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:6px 0}.grp-dica{font-size:12px;color:var(--ink2);margin-right:auto}
 @media (max-width:700px){.grp-tg{width:24px;height:24px;font-size:16px}.grp-dica{width:100%}}
-@media (max-width:700px){.prem-tab th:nth-child(4),.prem-tab td:nth-child(4){display:none}}`;
+@media (max-width:700px){.prem-tab th:nth-child(4),.prem-tab td:nth-child(4){display:none}}
+table.dq td.fx,table.dq th.fx{min-width:340px;max-width:460px;white-space:normal}`;
   document.head.appendChild(st);
   const g = MENU.find(x => x.g === 'orc');
   if (g && !g.itens.some(i => i.id === 'premissas_orc')) {
@@ -524,5 +552,7 @@ table.dre tr.grp-oculta{display:none}
   POS.dre_tcp = () => { if (pt) pt(); decoraTCP(); agrupaTabela('dre_tcp', D.dre_tcp && D.dre_tcp.linhas); };
   POS.caixa = () => { if (pc_) pc_(); decoraCaixa(); agrupaTabela('caixa', D.caixa && D.caixa.linhas); };
   if (tc) TELAS.cfg_premissas = () => tc() + adicionaisHtml();
+  const tdre = TELAS.dre; if (tdre) TELAS.dre = () => tdre() + quadroDesagio();          // 19/11/2026: deságio da RJ abaixo da DRE padrão
+  const pp_ = POS.premissas_orc; POS.premissas_orc = () => { if (pp_) pp_(); const d_ = document.getElementById('premRJ'); if (d_) d_.ontoggle = () => { est.f.premRJ = d_.open; }; };
   POS.cfg_premissas = () => { if (pcf) pcf(); ligaIconesPrem(document.querySelector('#tela')); };
 }
