@@ -1141,7 +1141,7 @@ TELAS.aud_anom = () => {
   const A = D.anomalias, area = est.f.anArea || '', grav = est.f.anGrav || null;
   const lista = A.lista.filter(r => (!area || r[0] === area) && (!grav || r[4] === grav));
   const gravs = [...new Set(A.lista.map(r => r[4]))];
-  return `${cabecalho('Relatório de anomalias orçamentárias por área', `Fonte: ${esc(A.fonte)}. Regras R1–R6 + I1 (acima da inflação sem explicação, sem histórico, gasto não orçado, conta de outro gestor, linha incompleta, diretoria não segregada, % do faturamento).`)}
+  return `${cabecalho('Relatório de anomalias orçamentárias por área', `Fonte: ${esc(A.fonte)}. Regras R1–R6 + I1 (acima da inflação sem explicação, sem histórico, gasto não orçado, conta de outro gestor, linha incompleta, diretoria não segregada, % do faturamento) + F1–F3 da folha (promoção e aumento de quadro pedidos no simulador, redução do time).`)}
   <div class="aviso">🔒 <b>Envio bloqueado.</b> Nenhum comunicado aos gestores sai sem ordem do Silvio (revisão área por área). O envio pelo Thor só sai com ordem dele, depois dos de-paras concluídos.</div>
   <div class="tw solta"><table class="t"><thead><tr>${A.cab_resumo.map((c, i) => `<th class="${i ? 'n' : ''}">${esc(c)}</th>`).join('')}</tr></thead><tbody>
    ${A.resumo.map(r => `<tr class="clic" data-area="${esc(r[0])}"><td>${esc(r[0])}</td>${tdN(r[1])}${tdN(r[2])}<td class="n">${pc(r[3])}</td>${r.slice(4).map(v => `<td class="n">${v || '–'}</td>`).join('')}</tr>`).join('')}</tbody></table></div>
