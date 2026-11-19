@@ -546,6 +546,173 @@ function expModeloPremissas(op) {
 }
 
 /* ------------------------------------------------------------------------------------------- botões nas telas */
+/* ======================= FOLHA APROVADA POR ÁREA (19/11/2026) =======================
+   "Quando o gestor perguntar 'Como ficou minha folha e meu time?' iremos gerar a folha aprovada … coloque duas versões. No Excel/PDF do gestor não terá
+   uma seção que o modelo Controladoria terá, listando quais pleitos do gestor foram negados por corte orçamentário." Da versão (rodada) escolhida:
+   · time aprovado = posições do app com a trava do quadro (2027 ≤ out/26) e os cortes já aplicados; salário aprovado = out/26 + dissídio da convenção a
+     partir do mês de aplicação (promoção só se estiver na posição — as negadas ficam só na decisão da conta e nunca aparecem aqui); folha 2027 do time =
+     motor do app, cenário GESTOR, sem honorários de PJ;
+   · versão do GESTOR: sem texto interno, sem comparação com o pedido e sem o motivo do corte (quem sai aparece só como "desligamento em mm/27");
+   · versão da CONTROLADORIA (Controladoria e CEO): + pleitos negados por corte orçamentário ("CORTE ORÇAMENTÁRIO — …" nas posições e nas decisões das
+     contas de folha; vagas cortadas pela trava), reduções do time definidas pela Controladoria, demais cortes na folha, aumentos de quadro autorizados e
+     a conferência com o orçamento aprovado nas contas de folha. Sem dupla contagem: o mesmo pleito na posição e na conta entra uma vez (pela conta).
+   Só o código anônimo da posição (sigilo da folha). */
+const FA_CAT = ['Promoções e reajustes', 'Vagas e aumento de quadro', 'Redução do time (Controladoria)', 'Demais cortes na folha'];
+const faCat = t => /\bHE\b|hora extra|erro do simulador|sem justificativa|rescis/i.test(t) ? FA_CAT[3] : /promo|reajust/i.test(t) ? FA_CAT[0]
+  : /redução do time/i.test(t) ? FA_CAT[2] : /vaga|quadro|reposi|contrata|admiss/i.test(t) ? FA_CAT[1] : FA_CAT[3];      // HE e correções = demais cortes
+const faNum = s_ => +String(s_).replace(/\./g, '').replace(',', '.');
+const faMes = m => (m >= 1 && m <= 12) ? `${MESES[m - 1]}/27` : '';
+const faSlug = t => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '');
+const faCtrl = () => ['controladoria', 'ceo'].includes(est.papelReal);
+function faCorte(txt) {          // "CORTE ORÇAMENTÁRIO — <tipo> (<motivo>): R$ 1.234,56. …" → { tipo, motivo, valor, liquido } (= relatorio_cortes_orcamento_2027.le_corte)
+  const t = String(txt || '').trim(); if (!/^CORTE ORÇAMENTÁRIO/i.test(t)) return null;
+  const corpo = t.replace(/^CORTE ORÇAMENTÁRIO\s*[—–-]\s*/i, '');
+  let k = 0; while (k < corpo.length && !'(:=.'.includes(corpo[k])) k++;
+  const tipo = corpo.slice(0, k).trim();
+  if (corpo[k] === '(') { let n = 0; for (let j = k; j < corpo.length; j++) { n += corpo[j] === '(' ? 1 : corpo[j] === ')' ? -1 : 0; if (n === 0) { k = j + 1; break; } } }
+  const cab = t.split(/\.\s/)[0], v = cab.match(/\)?:\s*R\$\s*([\d.]+,\d{2})/) || cab.match(/=\s*R\$\s*([\d.]+,\d{2})/);
+  const lq = t.match(/efeito l[íi]quido\s*(?:de\s*)?[−-]?\s*R\$\s*([\d.]+,\d{2})/i);
+  return { tipo, motivo: corpo.slice(0, k).trim(), valor: v ? faNum(v[1]) : null, liquido: lq ? faNum(lq[1]) : null };
+}
+function faContasFolha(P) {        // contas da folha = componentes (despesa e MOD) + benefícios; fora a de honorários de PJ (Assessoria, que tem outros serviços)
+  return new Set([...(P.componentes || []).flatMap(c => [c[1], c[2]]), ...(P.beneficios || []).map(b => b.conta)]
+    .filter(c => c && String(c) !== '3120301001').map(String));
+}
+function faDados(area, ctrl) {
+  const P = FOLHA.P, posA = FOLHA.pos.filter(x => x.area === area), TRV = folhaTrava(posA);
+  P._dis = null;
+  const calc = folhaComTrava(posA).map(x => folhaPosicao(x, P)), orig = Object.fromEntries(posA.map(x => [x.id, folhaPosicao(x, P)]));
+  const dis = Object.fromEntries((P.dissidio || []).filter(d => d.conv).map(d => [d.conv, d]));
+  const time = [];
+  calc.forEach(l => {
+    const x = l.x, adm = +x.mes_adm || 0, desl = +x.mes_desl || 0;
+    if (!l.ativo.some(a => a > 0) && !(desl > 0 && /^[PJ]/.test(x.id))) return;            // vaga cortada, não ocupada ou zerada: fora do time
+    let k = -1; for (let i = 11; i >= 0; i--) if (l.ativo[i] > 0) { k = i; break; }
+    const af = x.afastado === 'S', pr = +x.mes_promo && +x.pct_promo;
+    const sit = af ? 'afastado (sem remuneração no orçamento)'
+      : [adm ? `admissão em ${faMes(adm)}` : '', desl ? `desligamento em ${faMes(desl)}` : '', pr ? `promoção em ${faMes(+x.mes_promo)} (${pc(+x.pct_promo, 1)})` : '']
+          .filter(Boolean).join(' · ') || 'ativo de jan a dez/27';
+    time.push({ id: x.id, funcao: x.funcao || (/^V/.test(x.id) ? 'vaga' : ''), tipo: x.tipo || '', conv: x.convencao || '', qtd: Math.max(0, ...l.ativo),
+                sit, z: l.Z, sal: k >= 0 ? l.remG[k] / l.ativo[k] : null, rem: soma(l.remG), PJ: l.PJ, ativo: l.ativo });
+  });
+  time.sort((a, b) => (a.PJ - b.PJ) || String(a.funcao).localeCompare(String(b.funcao), 'pt-BR') || a.id.localeCompare(b.id));
+  const clt = t => FOLHA_TRAVA_TIPOS.includes(t.tipo) && !t.PJ, hc = m => soma(time.filter(clt), t => t.ativo[m]);
+  const base = soma(posA.filter(x => /^P/.test(x.id) && FOLHA_TRAVA_TIPOS.includes(x.tipo)), x => (x.pt && x.pt.qtd != null && x.pt.qtd !== '') ? (+x.pt.qtd || 0) : 1);
+  const comp = {};
+  projetarFolha(P, posA, [area]).filter(r => r.cenario === 'GESTOR').forEach(r => { const a = comp[r.componente] || (comp[r.componente] = Array(12).fill(0)); r.m.forEach((v, i) => a[i] += v); });
+  const nomes = COMP_FOLHA_ORDEM().filter(n => (comp[n] || []).some(v => Math.abs(v) > 0.5));
+  const totM = Array(12).fill(0); nomes.filter(n => n !== FOLHA_NPJ).forEach(n => comp[n].forEach((v, i) => totM[i] += v));
+  const out = { area, time, base, hc0: hc(0), hc11: hc(11), pj0: soma(time.filter(t => t.PJ), t => t.ativo[0]), comp, nomes, totM, tot: soma(totM),
+                dis: [...new Set(posA.map(x => x.convencao).filter(Boolean))].map(c => dis[c]).filter(Boolean) };
+  if (!ctrl) return out;
+  const itens = [];
+  posA.forEach(x => {
+    const c = faCorte(x.justificativa), t = TRV[x.id] || {};
+    if (c) itens.push({ origem: 'posição', ref: x.id, desc: x.funcao || (/^V/.test(x.id) ? 'vaga' : ''), cat: faCat(c.tipo), tipo: c.tipo, motivo: c.motivo, valor: c.valor,
+                        liquido: c.liquido, mes: +x.mes_desl || +x.mes_adm || 0 });
+    else if (t.corte && !t.autorizada) {
+      const cut = calc.find(l => l.x.id === x.id);
+      itens.push({ origem: 'posição (trava do quadro)', ref: x.id, desc: x.funcao || 'vaga', cat: FA_CAT[1], tipo: 'aumento de quadro',
+                   motivo: 'quadro de 2027 acima da posição de out/26 — remuneração evitada, sem encargos', valor: soma(orig[x.id].remG) - (cut ? soma(cut.remG) : 0),
+                   mes: +x.mes_adm || 0 });
+    }
+  });
+  const CF = faContasFolha(P);
+  if (typeof DCS !== 'undefined' && DCS.rows) DCS.rows.forEach(r => {
+    if (r.area !== area || !CF.has(String(r.conta))) return;
+    const c = faCorte(r.comentario); if (!c) return;
+    const l = (D.linhas || []).find(y => y.s === area && String(y.c) === String(r.conta));
+    itens.push({ origem: 'conta', ref: String(r.conta), desc: l ? l.d : '', cat: faCat(c.tipo), tipo: c.tipo, motivo: c.motivo, valor: c.valor, liquido: c.liquido });
+  });
+  const naConta = new Set(itens.filter(i => i.origem === 'conta').map(i => i.cat));
+  itens.forEach(i => { i.soma = !(i.origem !== 'conta' && i.cat !== FA_CAT[2] && naConta.has(i.cat)); });
+  out.itens = itens.sort((a, b) => FA_CAT.indexOf(a.cat) - FA_CAT.indexOf(b.cat) || (b.valor || 0) - (a.valor || 0));
+  out.totCorte = soma(itens.filter(i => i.soma), i => i.valor || 0);
+  out.autorizadas = posA.filter(x => (TRV[x.id] || {}).autorizada || x.autorizada_por)
+    .map(x => ({ id: x.id, funcao: x.funcao || 'vaga', qtd: +x.qtd || 0, mes: +x.mes_adm || 0, por: x.autorizada_por || '' }));
+  out.dcsOk = typeof DCS !== 'undefined' && !!DCS.instalada;
+  if (out.dcsOk && D.linhas) {
+    const L = D.linhas.filter(y => y.s === area && CF.has(String(y.c)));
+    out.orcFolha = soma(L, y => dcsFinal(y, DCS.rows.get(dcsId(y)))); out.orcLinhas = L.length;
+  }
+  return out;
+}
+function expModeloFolhaAprovada(ctrl) {
+  const { vis, area } = folhaSel(), a = area || (vis.length === 1 ? vis[0] : null);
+  if (!a) throw new Error('escolha a área no filtro da tela — a folha aprovada é de uma área');
+  const F = faDados(a, ctrl), R2 = { uni: 'R$', dec: 2 }, R0 = { uni: 'R$', dec: 0 };
+  const remF = soma(F.time.filter(t => !t.PJ), t => t.rem), remPJ = soma(F.time.filter(t => t.PJ), t => t.rem);
+  const Q = [];
+  Q.push({ nome: 'Quadro', titulo: `Quadro aprovado 2027 — ${a}`, cong: 0, w0: 110,
+    nota: 'Quadro = pessoas CLT e aprendiz da folha; PJ à parte',
+    cols: [{ t: 'Quadro de pessoas', tipo: 't', w: 56 }, { t: 'Pessoas', tipo: 'i', w: 12 }],
+    linhas: [{ c: ['Posição de out/26', F.base] }, { c: ['Aprovado para jan/27', F.hc0] }, { c: ['Aprovado para dez/27', F.hc11] }]
+      .concat(F.pj0 ? [{ c: ['PJ em jan/27', F.pj0] }] : []) });
+  Q.push({ nome: 'Time aprovado', titulo: `Time aprovado — salário aprovado e remuneração 2027 · ${a}`, cong: 2, w0: 34,
+    nota: 'Salário aprovado = salário de out/26 (com adicionais fixos) + dissídio da convenção a partir do mês de aplicação · remuneração 2027 = salário × meses no time (sem encargos e benefícios) · código anônimo da posição',
+    cols: [{ t: 'Posição', tipo: 't', w: 9 }, { t: 'Função', tipo: 't', w: 36 }, { t: 'Tipo', tipo: 't', w: 11 }, { t: 'Conv.', tipo: 't', w: 7 }, { t: 'Qtd', tipo: 'i', w: 6 },
+           { t: 'Situação em 2027', tipo: 't', w: 34 }, { t: 'Salário out/26', tipo: 'n', w: 14, ...R2 }, { t: 'Salário aprovado 2027', tipo: 'n', w: 16, ...R2 },
+           { t: 'Remuneração 2027', tipo: 'n', w: 16, ...R2 }, { t: 'part.', tipo: 'p', w: 8 }],
+    linhas: F.time.map(t => ({ c: [t.id, t.funcao, t.tipo, t.conv, t.qtd, t.sit, t.z, t.sal, t.rem, t.PJ ? null : div(t.rem, remF)] }))
+      .concat([{ e: 't', c: ['Total da folha (sem PJ)', '', '', '', soma(F.time.filter(t => !t.PJ), t => t.qtd), '', null, null, remF, 1] }])
+      .concat(remPJ ? [{ c: ['PJ — honorários (informativo)', '', '', '', soma(F.time.filter(t => t.PJ), t => t.qtd), '', null, null, remPJ, null] }] : []) });
+  const pjC = F.comp[FOLHA_NPJ];
+  Q.push({ nome: 'Folha 2027', titulo: `Folha 2027 do time aprovado por componente — ${a}`, cong: 1, w0: 58, novaPagina: true,
+    nota: 'Salários, encargos, provisões e benefícios do time aprovado, mês a mês (motor do orçamento) · honorários de PJ fora do total',
+    cols: [{ t: 'Componente', tipo: 't', w: 46 }, ...MESES.map(x => ({ t: x + '/27', tipo: 'n', w: 12, ...R0 })), { t: 'Total 2027', tipo: 'n', w: 14, ...R0 }, { t: 'part.', tipo: 'p', w: 8 }],
+    linhas: F.nomes.filter(n => n !== FOLHA_NPJ).map(n => ({ c: [n, ...F.comp[n], soma(F.comp[n]), div(soma(F.comp[n]), F.tot)] }))
+      .concat([{ e: 't', c: ['Total da folha 2027', ...F.totM, F.tot, 1] }])
+      .concat(pjC ? [{ c: ['Honorários PJ (informativo)', ...pjC, soma(pjC), null] }] : []) });
+  if (F.dis.length) Q.push({ nome: 'Dissídio', titulo: 'Dissídio 2027 aplicado ao time', cong: 0, w0: 60,
+    cols: [{ t: 'Convenção', tipo: 't', w: 14 }, { t: '% dissídio', tipo: 'p', w: 11, dec: 2 }, { t: 'Mês de aplicação', tipo: 't', w: 16 }, { t: 'Compensação do atraso', tipo: 't', w: 22 }],
+    linhas: F.dis.map(d => ({ c: [d.conv, +d.pct || 0, faMes(+d.ap) || '—', d.comp || 'NENHUMA'] })) });
+  if (ctrl) {
+    const I = F.itens || [], somaC = c => soma(I.filter(i => i.soma && i.cat === c), i => i.valor || 0);
+    Q.push({ nome: 'Pleitos negados', titulo: `Pleitos do gestor negados e cortes orçamentários na folha — ${a} (só Controladoria)`, cong: 1, w0: 40, novaPagina: true,
+      nota: 'Textos "CORTE ORÇAMENTÁRIO — …" das posições e das decisões das contas de folha + vagas cortadas pela trava do quadro · o mesmo pleito na posição e na conta entra uma vez (pela conta) · valor = o do texto do corte',
+      cols: [{ t: 'Categoria', tipo: 't', w: 26 }, { t: 'Origem', tipo: 't', w: 16 }, { t: 'Posição / conta', tipo: 't', w: 12 }, { t: 'Descrição', tipo: 't', w: 26 },
+             { t: 'Pleito e motivo do corte', tipo: 't', w: 60 }, { t: 'Corte 2027', tipo: 'n', w: 14, ...R2 }, { t: 'Efeito líquido', tipo: 'n', w: 14, ...R2 }, { t: 'No total', tipo: 't', w: 12 }],
+      linhas: I.length ? I.map(i => ({ c: [i.cat, i.origem, i.ref, i.desc + (i.mes ? ` (${faMes(i.mes)})` : ''), i.motivo, i.valor, i.liquido, i.soma ? 'sim' : 'não — já na conta'] }))
+        .concat([{ e: 't', c: ['Total cortado na folha (sem dupla contagem)', '', '', '', '', F.totCorte, null, ''] }])
+        : [{ c: ['Nenhum corte orçamentário na folha da área', '', '', '', '', null, null, ''] }] });
+    Q.push({ nome: 'Resumo dos cortes', titulo: 'Resumo dos cortes na folha por categoria (só Controladoria)', cong: 0, w0: 70,
+      cols: [{ t: 'Categoria', tipo: 't', w: 34 }, { t: 'Itens', tipo: 'i', w: 8 }, { t: 'Corte 2027', tipo: 'n', w: 15, ...R2 }, { t: '% do cortado', tipo: 'p', w: 11 }, { t: '% da folha aprovada', tipo: 'p', w: 13 }],
+      linhas: FA_CAT.map(c => ({ c: [c, I.filter(i => i.cat === c).length, somaC(c), div(somaC(c), F.totCorte), div(somaC(c), F.tot)] }))
+        .concat([{ e: 't', c: ['Total', I.length, F.totCorte, F.totCorte ? 1 : null, div(F.totCorte, F.tot)] }]) });
+    if ((F.autorizadas || []).length) Q.push({ nome: 'Autorizados', titulo: 'Aumentos de quadro autorizados (exceção à trava — só Controladoria)', cong: 0, w0: 60,
+      cols: [{ t: 'Posição', tipo: 't', w: 10 }, { t: 'Função', tipo: 't', w: 34 }, { t: 'Qtd', tipo: 'i', w: 6 }, { t: 'Admissão', tipo: 't', w: 12 }, { t: 'Autorizado por', tipo: 't', w: 40 }],
+      linhas: F.autorizadas.map(x => ({ c: [x.id, x.funcao, x.qtd, faMes(x.mes) || '—', x.por] })) });
+    Q.push({ nome: 'Conferência', titulo: 'Conferência — folha do time aprovado × orçamento aprovado nas contas de folha (só Controladoria)', cong: 0, w0: 110,
+      nota: F.dcsOk ? `Orçamento = valor final das decisões por linha nas ${F.orcLinhas} linhas de contas de folha da área (o que está na tela de Decisões)`
+        : 'Decisões por linha não lidas nesta sessão — conferência indisponível',
+      cols: [{ t: 'Linha', tipo: 't', w: 70 }, { t: 'R$ 2027', tipo: 'n', w: 16, ...R2 }],
+      linhas: [{ c: ['Folha 2027 do time aprovado (motor, sem PJ)', F.tot] }].concat(F.dcsOk ? [{ c: ['Orçamento aprovado nas contas de folha da área', F.orcFolha] },
+        { e: 't', c: ['Diferença (ajustes por conta: hora extra pelo histórico do CC, cortes lançados na conta etc.)', F.orcFolha - F.tot] }] : [])
+        .concat([{ c: ['Total cortado na folha (sem dupla contagem)', F.totCorte] }]) });
+  }
+  const M = expBase(`FOLHA_APROVADA_${ctrl ? 'CONTROLADORIA' : 'GESTOR'}_${faSlug(a)}`, `Folha aprovada 2027 — ${a}${ctrl ? ' · versão da Controladoria' : ''}`, Q,
+    ctrl ? 'versão da Controladoria (com os pleitos negados)' : 'versão do gestor');
+  M.uniNota = 'valores em R$';
+  if (!ctrl) { const v = versaoAtual(); M.sub = `Área ${a} · orçamento 2027, versão ${v.codigo || '—'} (${v.status || '—'})`; }     // gestor: sem origem nem detalhe interno
+  return M;
+}
+async function faGera(ctrl, tipo) {
+  const st = document.getElementById('expMsg'), diz = (t, erro) => { if (st) { st.textContent = t; st.style.color = erro ? '#C8102E' : ''; } };
+  try {
+    if (ctrl && !faCtrl()) throw new Error('a versão da Controladoria é só para Controladoria e CEO');
+    if (ctrl && typeof dcsCarrega === 'function') { diz('lendo as decisões por linha…'); await dcsCarrega(); }
+    const M = expModeloFolhaAprovada(ctrl);
+    if (tipo === 'xlsx') {
+      expBaixa(new Blob([expXlsx(M)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), M.arq + '.xlsx');
+      diz(`✓ Excel gerado: ${M.arq}.xlsx (${M.quadros.length} aba(s))`);
+    } else {
+      diz('gerando o PDF…'); await expLibPdf();
+      M.notas.push(M.uniNota); const doc = expPdf(M); doc.save(M.arq + '.pdf');
+      diz(`✓ PDF gerado: ${M.arq}.pdf (${doc.getNumberOfPages()} página(s))`);
+    }
+  } catch (e) { console.error(e); diz('Não foi possível gerar a folha aprovada: ' + (e.message || e), true); }
+}
+
 const EXP_TELAS = { dre: expModeloDRE, dre_tcp: expModeloTCP, folha: expModeloFolha, premissas_orc: expModeloPremissas };
 const EXP_SO_PDF = { premissas_orc: 'PDF completo, A4 paisagem: a tela inteira — cartões, seções, quadros de premissas (com a coluna “Onde se muda”) e “Para discutir”. Quadro de detalhe aberto na tela sai como anexo' };   // tela só com PDF (texto do botão)
 const EXP_PDF_EXEC = { premissas_orc: 'PDF executivo, para a Diretoria e a TCP: o mesmo PDF sem o detalhe operacional — sem a coluna “Onde se muda” e sem o arquivo de origem' };   // tela com o 2º PDF (executivo)
@@ -571,13 +738,20 @@ function expBotoes(tela) {
   d.innerHTML = '<span id="expMsg" class="exp-msg"></span>' + (EXP_SO_PDF[tela] ? '' : '<button class="btn" data-exp="xlsx" title="Planilha .xlsx com os valores exatos em R$, uma aba por quadro">⬇ Excel</button>')
     + (EXP_PDF_EXEC[tela] ? `<button class="btn" data-exp="pdf_exec" title="${EXP_PDF_EXEC[tela]}">⬇ PDF executivo</button>` : '')
     + `<button class="btn" data-exp="pdf" title="${EXP_SO_PDF[tela] || 'PDF A4 paisagem, na unidade que está na tela'}">⬇ PDF</button>`;
+  if (tela === 'folha') {                     // 19/11/2026: folha aprovada da área (versão do gestor; a da Controladoria só para Controladoria e CEO)
+    const s_ = document.createElement('select'); s_.className = 'exp-fa'; s_.title = 'Folha aprovada da área: time, salário aprovado e folha 2027 (Excel ou PDF)';
+    s_.innerHTML = '<option value="">⬇ Folha aprovada…</option><option value="g:xlsx">Versão do gestor — Excel</option><option value="g:pdf">Versão do gestor — PDF</option>'
+      + (faCtrl() ? '<option value="c:xlsx">Versão da Controladoria — Excel</option><option value="c:pdf">Versão da Controladoria — PDF</option>' : '');
+    s_.onchange = () => { const v_ = s_.value; s_.value = ''; if (v_) faGera(v_[0] === 'c', v_.slice(2)); };
+    d.insertBefore(s_, d.querySelector('[data-exp]'));
+  }
   cab.appendChild(d);
   d.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => expGera(tela, b.dataset.exp));
 }
 function instalaOrcExporta() {
   if (window.__orcExp) return; window.__orcExp = true;
   const st = document.createElement('style');
-  st.textContent = '.exp-bts{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.exp-msg{font-size:11.5px;color:var(--ink2);max-width:420px;text-align:right}.exp-msg:empty{display:none}'
+  st.textContent = '.exp-bts{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.exp-msg{font-size:11.5px;color:var(--ink2);max-width:420px;text-align:right}.exp-msg:empty{display:none}.exp-fa{height:30px;border:1px solid var(--line,#D6DCE3);border-radius:6px;padding:0 6px;font-size:12.5px;background:#fff;color:var(--ink,#16202E)}'
     + '@media print{.exp-bts{display:none}}';
   document.head.appendChild(st);
   Object.keys(EXP_TELAS).forEach(tela => { const ant = POS[tela]; POS[tela] = () => { if (ant) ant(); expBotoes(tela); }; });
