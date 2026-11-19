@@ -251,6 +251,55 @@ function decoraCaixa() {
   ligaIconesPrem(document.querySelector('#tela'));
 }
 
+/* ------------------------------------------------------------------ subgrupos recolhíveis (+/−) nas demonstrações
+   19/11/2026 (Silvio): "para as contas que fazem parte de um subgrupo, exista possibilidade de reduzir a visualização (aquela + que agrupa) — o gestor
+   só clica no + quando quiser analisar as contas daquele grupo". As contas começam RECOLHIDAS; o + abre e o − fecha; o valor fica na linha do grupo.
+   DRE 2027: as contas ficam ACIMA do subtotal (como o agrupamento do Excel) · DRE TCP: abaixo do subgrupo ou da seção · fluxo de caixa: o detalhe
+   dos fornecedores. O que está aberto fica guardado por tela no navegador (localStorage, com try/catch). Excel e PDF saem dos dados — completos. */
+const GRP_PAI = {
+  dre: (L, i) => { if (L[i].t !== 'd') return -1; let j = i; while (j < L.length && L[j].t === 'd') j++; return j < L.length && (L[j].t === 's' || L[j].t === 'l') ? j : -1; },
+  dre_tcp: (L, i) => { if (L[i].t !== 'd') return -1; let j = i; while (j >= 0 && L[j].t === 'd') j--; return j >= 0 && (L[j].t === 's' || L[j].t === 'h') ? j : -1; },
+  caixa: (L, i) => { if (L[i].t !== 'dd') return -1; let j = i; while (j >= 0 && L[j].t === 'dd') j--; return j >= 0 && L[j].t === 'd' ? j : -1; }
+};
+function grpLe(tela) { try { return new Set(JSON.parse(localStorage.getItem('orc.grp.' + tela) || '[]')); } catch (e) { return new Set(); } }
+function grpGrava(tela, s) { try { localStorage.setItem('orc.grp.' + tela, JSON.stringify([...s])); } catch (e) { /* sem localStorage: vale só até recarregar */ } }
+function agrupaTabela(tela, L) {
+  const tab = document.querySelector('#tela table.dre'); if (!tab || !L || !GRP_PAI[tela]) return;
+  const trs = [...tab.querySelectorAll('tbody tr')]; if (trs.length !== L.length) return;
+  const filhos = {};
+  L.forEach((_, i) => { const p = GRP_PAI[tela](L, i); if (p >= 0) (filhos[p] = filhos[p] || []).push(i); });
+  const pais = Object.keys(filhos).map(Number), abertos = grpLe(tela), chave = p => L[p].l + '#' + p;
+  if (tela === 'dre_tcp') trs.forEach((tr, i) => {                  // a seção da DRE TCP deixa de recolher tudo: quem abre e fecha é o + de cada grupo
+    if (L[i].t !== 'h') return; const v = tr.querySelector('.tgl'); if (v) v.remove(); tr.onclick = null; tr.classList.remove('dclic'); });
+  if (!pais.length) return;
+  const aplica = p => {
+    const ab = abertos.has(chave(p)); filhos[p].forEach(i => trs[i].classList.toggle('grp-oculta', !ab));
+    const b = trs[p].querySelector('.grp-tg');
+    if (b) { b.textContent = ab ? '−' : '+'; b.title = (ab ? 'Recolher' : 'Mostrar') + ' as contas de ' + L[p].l.trim(); b.setAttribute('aria-expanded', ab ? 'true' : 'false'); }
+  };
+  const alterna = (p, ab) => { if (ab) abertos.add(chave(p)); else abertos.delete(chave(p)); grpGrava(tela, abertos); aplica(p); };
+  pais.forEach(p => {
+    const tr = trs[p], lb = tr.querySelector('.lbl'); if (!lb) return;
+    if (!lb.querySelector('.grp-tg')) {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'grp-tg';
+      b.onclick = ev => { ev.stopPropagation(); alterna(p, !abertos.has(chave(p))); };
+      lb.prepend(b);
+    }
+    tr.classList.add('grp-pai');
+    if (L[p].t === 'h') { tr.onclick = () => alterna(p, !abertos.has(chave(p))); tr.title = 'Clique para mostrar ou recolher as contas'; }
+    aplica(p);
+  });
+  const tw = tab.closest('.tw');
+  if (tw && !(tw.previousElementSibling && tw.previousElementSibling.classList.contains('grp-barra'))) {
+    const bar = document.createElement('div'); bar.className = 'grp-barra';
+    bar.innerHTML = '<span class="grp-dica">Contas agrupadas: clique no <b>+</b> para ver as contas de um grupo.</span>'
+      + '<button type="button" class="btn" data-grp="abre">+ Expandir tudo</button><button type="button" class="btn" data-grp="fecha">− Recolher tudo</button>';
+    bar.querySelector('[data-grp="abre"]').onclick = () => pais.forEach(p => alterna(p, true));
+    bar.querySelector('[data-grp="fecha"]').onclick = () => pais.forEach(p => alterna(p, false));
+    tw.parentNode.insertBefore(bar, tw);
+  }
+}
+
 /* ------------------------------------------------------------------ PREMISSAS ORÇAMENTÁRIAS */
 const PREM_SECOES = [['receita', 'Receita (cenário de faturamento)'], ['impostos', 'Impostos sobre vendas'], ['vpc', 'VPC — desconto comercial'],
   ['devolucoes', 'Devoluções'], ['cmv', 'CMV / CPV e bonificação em mercadoria'], ['dvv', 'DVV — frete, comissões e bonificações'],
@@ -456,6 +505,11 @@ p.exp{font-size:13px;line-height:1.5;color:var(--ink2);margin:6px 0 10px}
 .disc{margin-top:10px;background:#FFF8F0;border:1px solid #F3D9BF;border-radius:8px;padding:8px 12px;font-size:12.5px}.disc ul{margin:4px 0 0 18px}.disc li{margin:3px 0}
 .prem-indice{flex-wrap:wrap}.prem-indice .chip{text-decoration:none}
 details.prem-det summary{cursor:pointer;font-weight:700}
+table.dre tr.grp-oculta{display:none}
+.grp-tg{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;padding:0;margin:0;border:1px solid #9AA6B5;border-radius:5px;background:#fff;color:#1F3864;font:800 14px/1 inherit;cursor:pointer;flex-shrink:0}
+.grp-tg:hover{border-color:#C8102E;color:#C8102E}table.dre tr.t .grp-tg{background:transparent;color:#fff}
+.grp-barra{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:6px 0}.grp-dica{font-size:12px;color:var(--ink2);margin-right:auto}
+@media (max-width:700px){.grp-tg{width:24px;height:24px;font-size:16px}.grp-dica{width:100%}}
 @media (max-width:700px){.prem-tab th:nth-child(4),.prem-tab td:nth-child(4){display:none}}`;
   document.head.appendChild(st);
   const g = MENU.find(x => x.g === 'orc');
@@ -466,9 +520,9 @@ details.prem-det summary{cursor:pointer;font-weight:700}
   }
   TELAS.premissas_orc = telaPremissas; POS.premissas_orc = posPrem;
   const pd = POS.dre, pt = POS.dre_tcp, pc_ = POS.caixa, tc = TELAS.cfg_premissas, pcf = POS.cfg_premissas;
-  POS.dre = () => { if (pd) pd(); decoraDRE(); };
-  POS.dre_tcp = () => { if (pt) pt(); decoraTCP(); };
-  POS.caixa = () => { if (pc_) pc_(); decoraCaixa(); };
+  POS.dre = () => { if (pd) pd(); decoraDRE(); agrupaTabela('dre', D.dre && D.dre.linhas); };          // 19/11/2026: subgrupos recolhíveis
+  POS.dre_tcp = () => { if (pt) pt(); decoraTCP(); agrupaTabela('dre_tcp', D.dre_tcp && D.dre_tcp.linhas); };
+  POS.caixa = () => { if (pc_) pc_(); decoraCaixa(); agrupaTabela('caixa', D.caixa && D.caixa.linhas); };
   if (tc) TELAS.cfg_premissas = () => tc() + adicionaisHtml();
   POS.cfg_premissas = () => { if (pcf) pcf(); ligaIconesPrem(document.querySelector('#tela')); };
 }
