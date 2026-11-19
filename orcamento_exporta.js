@@ -391,7 +391,11 @@ function expModeloDRE() {
   const composicao = { nome: 'Composição', titulo: 'Composição das despesas projetadas 2027 pela decisão por linha', cong: 0, w0: 150,
     cols: [{ t: 'Decisão', tipo: 't', w: 96 }, { t: 'Valor 2027', tipo: 'n', w: 18 }, { t: '% do total', tipo: 'p', w: 11 }],
     linhas: comp.map((c, i) => ({ e: i >= 3 ? 't' : '', c: [c[0], c[1], c[2] ? c[2] : div(c[1], ct)] })) };
-  return expBase('DRE', 'DRE projetada 2027', [anual, mensal, composicao], `cenário ${D.meta.cenario || '—'}`);
+  const q = D.dre.desagio;                         // 19/11/2026: Lucro Líquido · (+) deságio esperado da RJ (TCP) · Lucro Líquido ajustado
+  const desagio = q && q.linhas && q.linhas.length >= 3 ? { nome: 'Deságio RJ', titulo: q.titulo, cong: 1, w0: 58, novaPagina: true, nota: q.nota,
+    cols: [{ t: 'Linha', tipo: 't', w: 52 }, ...expMesesCols(), { t: 'Total 2027', tipo: 'n' }],
+    linhas: q.linhas.map((l, i) => ({ e: i === 2 ? 't' : '', c: [l.l, ...l.m, l.tot] })) } : null;
+  return expBase('DRE', 'DRE projetada 2027', [anual, mensal, composicao].concat(desagio ? [desagio] : []), `cenário ${D.meta.cenario || '—'}`);
 }
 
 function expModeloTCP() {
