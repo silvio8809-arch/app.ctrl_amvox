@@ -464,13 +464,13 @@ TELAS.caixa = () => {
   const fco = cxLinha('(=) FLUXO DE CAIXA OPERACIONAL');
   const corpo = D.caixa.linhas.map(l => {
     if (l.t === 'h') return `<tr class="h"><td class="fx"><div class="lbl">${esc(l.l)}</div></td><td colspan="15"></td></tr>`;
-    const tc = l.tcp, dt = tc == null ? null : l.tot - tc, tot = l.t === 'sal' ? (l.l.startsWith('Saldo inicial') ? l.m[0] : l.m[11]) : l.tot;
+    const tc = l.tcp, dt = tc == null ? null : (l.dif != null ? l.dif : l.tot - tc), tot = l.t === 'sal' ? (l.l.startsWith('Saldo inicial') ? l.m[0] : l.m[11]) : l.tot;   // 19/11/2026: Δ do PT (Impostos pagos + PIS/COFINS × TCP)
     return `<tr class="${l.t}"><td class="fx"><div class="lbl">${esc(l.l)}</div></td>${tdN(tot)}${tc == null ? '<td class="n">—</td><td></td>' : tdN(tc) + `<td class="n ${cd(dt)}">${fmt(dt, { sinal: true })}</td>`}
       ${l.m.map((x, i) => tdN(x, { cls: i === m ? 'hl' : '' })).join('')}</tr>`;
   }).join('');
   return `${cabecalho('Fluxo de caixa projetado 2027 — método direto', esc(D.caixa.nota))}
   <section class="kpis">
-    <div class="kpi k5"><div class="lab">Saldo inicial 01/01/2027</div><div class="val">${rsC(si.m[0])}</div><div class="meta">média dos saldos livres jul–out/26</div></div>
+    <div class="kpi k5"><div class="lab">Saldo inicial 01/01/2027</div><div class="val">${rsC(si.m[0])}</div><div class="meta">projetado: média jul–out/26 ± nov–dez/26</div></div>
     <div class="kpi ${fco.tot < 0 ? '' : 'k4'}"><div class="lab">Fluxo operacional 2027</div><div class="val ${fco.tot < 0 ? 'down' : 'up'}">${rsC(fco.tot)}</div><div class="meta">geração total ${rsC(ger.tot)}</div></div>
     <div class="kpi k2"><div class="lab">Saldo final dez/27</div><div class="val ${sf.m[11] < 0 ? 'down' : ''}">${rsC(sf.m[11])}</div><div class="meta">${m == null ? '' : 'fim de ' + mesTxt(m) + ': ' + rsC(sf.m[m])}</div></div>
     <div class="kpi k3"><div class="lab">Saldo mínimo do ano</div><div class="val ${D.caixa.saldo_min < 0 ? 'down' : ''}">${rsC(D.caixa.saldo_min)}</div><div class="meta">em ${esc(D.caixa.mes_min)}</div></div>
