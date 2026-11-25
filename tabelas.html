@@ -37,6 +37,9 @@
   .chips{display:flex;gap:6px;flex-wrap:wrap}
   .chip{border:1px solid var(--line);background:var(--panel);color:var(--muted);font:600 11px var(--sans);letter-spacing:.05em;text-transform:uppercase;padding:6px 11px;border-radius:99px;cursor:pointer}
   .chip.on{background:var(--ink);border-color:var(--ink);color:#fff}
+  .chip.fdiv{border-color:#E0A23B;background:#FDF3E7;color:#8A5A00}
+  .chip.fdiv.on{background:#B45309;border-color:#B45309;color:#fff}
+  .chip.fdiv:disabled{opacity:.40;cursor:not-allowed;border-color:var(--line);background:var(--panel);color:var(--muted)}
   .barra .acao{margin-left:auto;display:flex;gap:8px;align-items:center}
   .btn{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:600 12px var(--sans);padding:8px 13px;border-radius:6px;cursor:pointer}
   .btn:hover{border-color:var(--ink)}
@@ -195,13 +198,14 @@
 
   <!-- CONSULTA -->
   <section class="tela on" id="tela-consulta">
-    <div class="aviso" style="margin-bottom:10px">Reajuste geral de <b>+5% sobre a tabela 078</b> aprovado pela Diretoria em <b>01/10/2026</b> (revisto de +6% para +5%) — todas as tabelas acompanham pela regra (Metodologia). Enquanto o TOTVS não for recadastrado, a coluna <b>Δ</b> (1 tabela marcada) mostra a diferença a digitar.</div>
+    <div class="aviso" style="margin-bottom:10px">Reajuste geral de <b>+5% sobre a tabela 078</b> aprovado pela Diretoria em <b>01/10/2026</b> (revisto de +6% para +5%) — todas as tabelas acompanham pela regra (Metodologia). Enquanto o TOTVS não for recadastrado, a coluna <b>Δ</b> (1 tabela marcada) mostra a diferença a digitar — o botão <b>⚠ Só divergências</b> lista apenas os itens com Δ preenchido.</div>
     <div class="aviso-param" id="avisoSim">⚠ Parâmetros alterados (simulação) — os valores abaixo NÃO são os oficiais. Restaure em Parâmetros para voltar à tabela vigente.</div>
     <div class="barra">
       <div class="busca"><input id="q" type="search" placeholder="Buscar por modelo ou código… (ex.: ACA 650, 000503B50)" aria-label="Buscar produto"></div>
       <div class="chips" id="chipsLinha"></div>
       <div class="chips" id="chipsSeg"></div>
       <div class="acao">
+        <button class="chip fdiv" id="fDivBtn" disabled>⚠ Só divergências</button>
         <span class="conta" id="conta"></span>
       </div>
     </div>
@@ -411,6 +415,7 @@ function calc(d){
 // filtros
 const linhas=[...new Set(PRODUTOS.map(d=>d[2]))], segs=[...new Set(PRODUTOS.map(d=>d[3]))];
 let fLin=null, fSeg=null, termo='';
+let fDiv=false;   /* filtro "Só divergências" da Consulta (Silvio 25/11/2026) */
 function chip(el, lista, get, set){
   el.innerHTML='';
   const mk=(txt,val)=>{const b=document.createElement('button');b.className='chip'+(get()===val?' on':'');b.textContent=txt;
@@ -469,6 +474,19 @@ function margemCel(preco, cod, tab){   // tab: '227'/'228' na aba Suframa; demai
   const bg = mcp>=0.30?'#EAF3EC':(mcp>=0?'#FDF3E7':'#FDE8E8');
   return `<td class="num" style="background:${bg};font-weight:600">${(mcp*100).toLocaleString('pt-BR',{maximumFractionDigits:1})}%</td>`;
 }
+/* Δ = validador da digitação (combinado Silvio × Samuel 21/09/2026): célula VAZIA = preço
+   certo no TOTVS; divergente mostra a diferença em R$ e o %, sem arredondar centavo a zero.
+   Tolerância de R$0,01 (arredondamento do próprio cálculo) conta como certo. "—" = sem preço no TOTVS.
+   Mesma função para a coluna Δ e para o filtro "Só divergências". */
+function deltaC(d, k){
+  const novo=calc(d)[k], atual=(TOTVS_TAB[k]||{})[d[0]];
+  const delta=(atual&&novo!=null)?(novo/atual-1):null;
+  const difRS=(atual&&novo!=null)?Math.round((novo-atual)*100)/100:null;
+  const cel=(difRS==null)?'—':(Math.abs(difRS)<=0.01?'':
+    difRS.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})
+    +' · '+(delta*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1,signDisplay:'always'})+'%');
+  return {novo, atual, cel};
+}
 const TH_MARG = '<th title="Margem de contribuição na base Brasil (sem frete/VPC): preço − impostos 15% e comissão/devolução 6% sobre o valor com IPI − royalty 3% (linha R10) − custo dep-40 × 1,01 (Suframa: imposto devido da tabela, sem IPI). Só na tela, perfis ADM e Gerente.">Margem</th>';
 function render(){
   chip(document.getElementById('chipsLinha'), linhas, ()=>fLin, v=>{
@@ -484,11 +502,28 @@ function render(){
   });
   const t=termo.trim().toLowerCase();
   visiveis = PRODUTOS.filter(d=>(!fLin||d[2]===fLin)&&(!fSeg||d[3]===fSeg)&&(!t||d[1].toLowerCase().includes(t)||d[0].toLowerCase().includes(t)));
-  document.getElementById('conta').textContent = visiveis.length+' de '+PRODUTOS.length+' produtos';
   /* 1 tabela marcada = visão FOCADA no padrão da aba Suframa: Tabela · TOTVS hoje · Δ
      (Silvio 18/09). 0 ou 2+ marcadas = grade completa, como sempre foi. */
   const foco = (typeof selTabC!=='undefined' && selTabC.length===1)
              ? TABELAS_C.find(x=>x.k===selTabC[0]) : null;
+  /* SÓ DIVERGÊNCIAS (Silvio 25/11/2026): disponível só com UMA tabela marcada que exista no TOTVS;
+     ligado, mostra apenas os itens com a coluna Δ diferente de BRANCO (inclui "—" = sem preço no TOTVS).
+     Soma-se à busca e aos chips de linha/segmento; o XLS sai com o filtrado. */
+  const podeDiv = !!(foco && TOTVS_COD[foco.k]);
+  if(!podeDiv) fDiv=false;
+  const nFiltro = visiveis.length;
+  let nDiv = null;
+  if(podeDiv){ const divs = visiveis.filter(d=>deltaC(d, foco.k).cel!==''); nDiv = divs.length; if(fDiv) visiveis = divs; }
+  const bDiv = document.getElementById('fDivBtn');
+  bDiv.disabled = !podeDiv; bDiv.classList.toggle('on', fDiv);
+  bDiv.textContent = '⚠ Só divergências' + (nDiv!=null ? ' ('+nDiv+')' : '');
+  bDiv.title = !foco ? 'Marque UMA tabela em "Tabela p/ download" para filtrar os itens com divergência (Δ preenchido)'
+             : !podeDiv ? 'A '+foco.n+' não tem tabela no TOTVS (calculada no app) — não há Δ para filtrar'
+             : fDiv ? 'Clique para voltar a mostrar todos os itens'
+             : 'Mostrar só os itens da '+foco.n+' com Δ preenchido (preço do app ≠ TOTVS) — o que falta ajustar no TOTVS';
+  document.getElementById('conta').textContent = fDiv
+    ? visiveis.length+' com divergência de '+nFiltro+' produtos'
+    : visiveis.length+' de '+PRODUTOS.length+' produtos';
   const cab=document.getElementById('cabC'), avisoST=document.getElementById('avisoSemTotvs');
   if(foco){
     const semBase = !TOTVS_COD[foco.k];
@@ -497,16 +532,10 @@ function render(){
     avisoST.style.display = semBase?'block':'none';
     if(semBase) avisoST.innerHTML = `A tabela <b>${foco.n}</b> não é cadastrada no TOTVS `+
       `(é derivada pela regra da Metodologia) — não há preço vigente para comparar.`;
-    document.getElementById('corpo').innerHTML = visiveis.map((d,i)=>{
-      const novo=calc(d)[foco.k], atual=(TOTVS_TAB[foco.k]||{})[d[0]];
-      const delta=(atual&&novo!=null)?(novo/atual-1):null;
-    /* Δ = validador da digitação (combinado Silvio × Samuel 21/09/2026): célula VAZIA = preço
-       certo no TOTVS; divergente mostra a diferença em R$ e o %, sem arredondar centavo a zero.
-       Tolerância de R$0,01 (arredondamento do próprio cálculo) conta como certo. */
-    const difRS=(atual&&novo!=null)?Math.round((novo-atual)*100)/100:null;
-    const celDelta=(difRS==null)?'—':(Math.abs(difRS)<=0.01?'':
-      difRS.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})
-      +' · '+(delta*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1,signDisplay:'always'})+'%');
+    document.getElementById('corpo').innerHTML = (fDiv && !visiveis.length)
+      ? `<tr><td colspan="${MARG_ADM()?6:5}" style="text-align:center;padding:22px;color:var(--muted)">Nenhuma divergência — a <b>${foco.n}</b> está igual ao TOTVS nos itens filtrados ✓</td></tr>`
+      : visiveis.map((d,i)=>{
+      const {novo, atual, cel: celDelta} = deltaC(d, foco.k);
       return `<tr data-i="${i}"><td class="cod">${d[0]}</td><td><span class="mod">${d[1]}</span>${badges(d)}<br><span class="seg">${d[2]} · ${d[3]}</span></td>`+
         `<td class="dest num">${fmt(novo)}</td><td class="num">${atual!=null?fmt(atual):'—'}</td>`+
         `<td class="num">${celDelta}</td>${MARG_ADM()?margemCel(novo,d[0]):''}</tr>`;
@@ -527,9 +556,10 @@ function render(){
   if (window.__cliPronto) { renderCli(); renderFatores(); }   /* aba Clientes e fator s/ 078 acompanham os parâmetros */
 }
 document.getElementById('q').addEventListener('input',e=>{termo=e.target.value;render();});
+document.getElementById('fDivBtn').onclick=()=>{ if(document.getElementById('fDivBtn').disabled) return; fDiv=!fDiv; render(); };
 // detalhe
 document.getElementById('corpo').addEventListener('click',e=>{
-  const tr=e.target.closest('tr'); if(!tr)return;
+  const tr=e.target.closest('tr'); if(!tr||tr.dataset.i==null)return;
   const d=visiveis[+tr.dataset.i], v=calc(d);
   document.getElementById('detCod').textContent=d[0];
   document.getElementById('detNome').textContent=d[1];
