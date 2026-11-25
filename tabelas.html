@@ -476,13 +476,15 @@ function margemCel(preco, cod, tab){   // tab: '227'/'228' na aba Suframa; demai
 }
 /* Δ = validador da digitação (combinado Silvio × Samuel 21/09/2026): célula VAZIA = preço
    certo no TOTVS; divergente mostra a diferença em R$ e o %, sem arredondar centavo a zero.
-   Tolerância de R$0,01 (arredondamento do próprio cálculo) conta como certo. "—" = sem preço no TOTVS.
+   Tolerância de R$0,01 (arredondamento do próprio cálculo) conta como certo. Sem preço no TOTVS = "+valor · a cadastrar".
    Mesma função para a coluna Δ e para o filtro "Só divergências". */
 function deltaC(d, k){
   const novo=calc(d)[k], atual=(TOTVS_TAB[k]||{})[d[0]];
   const delta=(atual&&novo!=null)?(novo/atual-1):null;
   const difRS=(atual&&novo!=null)?Math.round((novo-atual)*100)/100:null;
-  const cel=(difRS==null)?'—':(Math.abs(difRS)<=0.01?'':
+  /* 25/11/2026 (Silvio): item SEM preço nesta tabela do TOTVS não fica com "—" — o Δ é o valor inteiro a cadastrar */
+  const cel=(novo!=null&&!atual)?`<span title="Sem preço nesta tabela do TOTVS — cadastrar pelo valor da tabela nova">+${fmt(novo)} · a cadastrar</span>`
+    :(difRS==null)?'—':(Math.abs(difRS)<=0.01?'':
     difRS.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2,signDisplay:'always'})
     +' · '+(delta*100).toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1,signDisplay:'always'})+'%');
   return {novo, atual, cel};
