@@ -27,6 +27,8 @@ const PREM_CX = { '  (+) Recebimentos de clientes': 'caixa', '  (−) Impostos p
   'ICMS — carga do PROBAHIA (ICMS − subvenção; na importação é diferido)': 'caixa',
   'IPI — débito das vendas − crédito do IPI pago na chegada (saldo credor transportado)': 'caixa',
   'PIS/COFINS — débito das vendas − crédito do PIS/COFINS pago na chegada (saldo credor transportado)': 'caixa',
+  'IPI — débito das vendas − crédito do IPI pago na chegada (saldo credor não transportado — premissa N)': 'caixa',      // 26/11/2026: rótulo segue a premissa
+  'PIS/COFINS — débito das vendas − crédito do PIS/COFINS pago na chegada (saldo credor não transportado — premissa N)': 'caixa',
   '  (−) Mão de obra direta': 'folha', '  (−) Comissões, frete e VPC': 'dvv', '  (−) Despesas SG&A': 'despesas',
   '  (−) Despesas não recorrentes (reestruturação)': 'naorec', '  (−) Investimentos (capex)': 'decisao', '  (−) Pagamento aos credores da RJ': 'rj',
   '  (−) Parcelamentos de impostos': 'rj', 'Saldo inicial de caixa': 'caixa' };
@@ -432,6 +434,7 @@ function telaPremissas() {
         ['Saldo de caixa em 01/01/2027', rs(cxI.m[0]), onde('PREMISSAS (caixa) — sobrescrever na última linha do bloco'), esc(cx('Saldo de caixa em 01/01/2027 (R$) — projetado')[2] || '')],
         ['Usar aging a receber da data da geração para a carteira', pFmt(cx('Usar aging')[1]), onde('PREMISSAS (caixa)'), ''],
         ['Recuperação dos títulos a receber vencidos na data da geração', pFmt(cx('Recuperação')[1]), onde('PREMISSAS (caixa)'), 'A CONFIRMAR — 0 = conservador'],
+        ...(D.caixa && D.caixa.entrega ? [cxEntPrem()] : []),                // 26/11/2026: chave "só títulos com data de entrega"
         ['Pagamento dos fornecedores pós-pedido vencidos na data da geração', pFmt(cx('Pagamento em 2027')[1]), onde('PREMISSAS (caixa)'), 'A CONFIRMAR'],
         ['Faturamento nov/26 e dez/26', `${pFmt(cx('Faturamento nov')[1])} · ${pFmt(cx('Faturamento dez')[1])}`, onde('PREMISSAS (caixa)'), 'vazio = média jul–out/26']]),
     [...(temImp ? ['IPI e PIS/COFINS: existe saldo credor acumulado (a recuperar) que abata o débito de 2027? Os saldos de nov/26 começam em 0 (Configuração › Premissas).'] : []),
@@ -521,6 +524,62 @@ function adicionaisHtml() {
     <div class="csub" style="margin-top:6px">O porquê de cada premissa e quanto ela pesa: <a href="#premissas_orc" data-prem="rj">Premissas orçamentárias</a>.</div></div>`;
 }
 
+/* ------------------------------------------------------------------ CHAVE DO CAIXA "só títulos com data de entrega" (Silvio 26/11/2026)
+   A carga traz as DUAS séries (D.caixa.entrega — orc_app_dados.bloco_caixa_entrega): N = todos os títulos da carteira já faturada; S = só os que têm a
+   "Dt. Entrega" do Financeiro (SE1.E1_DTSAIDA) — o boleto só sai com a entrega. Em cada uma: recebimentos de clientes mês a mês e saldo em 01/01/27.
+   A tela do caixa troca a chave na hora e refaz recebimentos, fluxo operacional, geração e saldos mês a mês. Padrão = a premissa do PT carregado
+   (Configuração › Premissas → próximo PT); a troca aqui é simulação desta tela: não grava a premissa e não muda as outras telas nem o Excel/PDF. */
+const CXE_SOMA = ['(+) Recebimentos de clientes', '(=) FLUXO DE CAIXA OPERACIONAL', '(=) GERAÇÃO DE CAIXA'];
+function cxEntChave() {
+  const E = D.caixa && D.caixa.entrega; if (!E) return null;
+  const s = est.f.cxEnt; return s && s.arq === (D.meta && D.meta.arquivo) && (s.v === 'S' || s.v === 'N') ? s.v : E.prem;
+}
+function cxEntDelta(E, ch) {                       // Δ da chave `ch` sobre a série que o PT usa (E.prem): recebimentos mês a mês e saldo inicial
+  const a = E[ch], b = E[E.prem]; return { rec: a.rec.map((v, i) => v - (b.rec[i] || 0)), si: a.si - b.si };
+}
+function cxComChave(C, ch) {                       // cópia do bloco do caixa com a chave `ch` (o PT carregado não muda)
+  const E = C && C.entrega; if (!E || !E[ch] || ch === E.prem) return C;
+  const d = cxEntDelta(E, ch), dT = soma(d.rec);
+  let ac = d.si; const dF = d.rec.map(v => (ac += v)), dI = dF.map((v, i) => i ? dF[i - 1] : d.si);
+  const linhas = C.linhas.map(l => {
+    if (!l.m || !l.m.length) return l;
+    if (CXE_SOMA.includes(l.l)) return { ...l, m: l.m.map((v, i) => v + d.rec[i]), tot: l.tot + dT, ...(l.dif != null ? { dif: l.dif + dT } : {}) };
+    if (l.l === 'Saldo inicial de caixa') { const m = l.m.map((v, i) => v + dI[i]); return { ...l, m, tot: m[0] }; }
+    if (l.l === 'Saldo final de caixa') { const m = l.m.map((v, i) => v + dF[i]); return { ...l, m, tot: m[11] }; }
+    return l;
+  });
+  const sf = (linhas.find(l => l.l === 'Saldo final de caixa') || { m: [] }).m, mn = sf.length ? Math.min(...sf) : C.saldo_min;
+  return { ...C, linhas, saldo_min: mn, mes_min: sf.length ? MESES[sf.indexOf(mn)] : C.mes_min, chave: ch };
+}
+function cxEntCartao(C0, ch) {
+  const E = C0.entrega, sf = (C0.linhas.find(l => l.l === 'Saldo final de caixa') || { m: Array(12).fill(0) }).m;
+  const fim = k => { const d = cxEntDelta(E, k); return sf[11] + d.si + soma(d.rec); };      // saldo dez/27 de cada chave
+  const efSI = E.S.si - E.N.si, efRec = soma(E.S.rec) - soma(E.N.rec);
+  let ac = efSI; const efMes = E.S.rec.map((v, i) => (ac += v - (E.N.rec[i] || 0)));       // efeito S − N no saldo final de cada mês
+  const bt = (v, t) => `<button type="button" class="chip ${ch === v ? 'on' : ''}" data-cxent="${v}" aria-pressed="${ch === v}">${t}</button>`;
+  const fN = fim('N'), fS = fim('S');
+  return `<div class="card cxent"><div class="cxent-cab"><h3>Caixa: considerar só títulos com data de entrega?</h3>
+      <div class="chips">${bt('N', 'N — todos os títulos')}${bt('S', 'S — só com data de entrega')}</div></div>
+    <p class="exp">S = só entram no caixa os títulos a receber já faturados (NF/FT/BOL/NDI) com a <b>"Dt. Entrega" do Financeiro</b> (E1_DTSAIDA): o boleto
+      só sai com a entrega. Sem a data, o título sai do saldo inicial (a vencer até 31/12/26), dos recebimentos de 2027 e da recuperação dos vencidos.
+      Vencimento = o do título; NCC, RA e o faturamento projetado de 2027 não mudam.</p>
+    <div class="row3" style="gap:0 24px">
+      <div class="sumline"><span class="t">Saldo dez/27 — N (todos os títulos)</span><span class="v ${fN < 0 ? 'down' : ''}">${rsC(fN)}</span></div>
+      <div class="sumline"><span class="t">Saldo dez/27 — S (só com data de entrega)</span><span class="v ${fS < 0 ? 'down' : ''}">${rsC(fS)}</span></div>
+      <div class="sumline"><span class="t">Efeito de S: saldo inicial ${rsC(efSI)} · recebimentos 2027 ${rsC(efRec)}</span><span class="v ${efSI + efRec < 0 ? 'down' : ''}">${rsC(efSI + efRec)}</span></div></div>
+    <details class="cxent-mes"><summary>Efeito de S no saldo final, mês a mês</summary><div class="tw solta"><table class="t"><thead><tr><th>R$ mil</th>${MESES.map(x => `<th class="n">${x}/27</th>`).join('')}</tr></thead>
+      <tbody><tr><td class="nw">S − N</td>${efMes.map(v => tdN(v, { uni: 'mil', dec: 0 })).join('')}</tr></tbody></table></div></details>
+    <div class="csub">${ch === E.prem ? `Padrão = premissa do PT carregado (${E.prem}).` : `<b>Simulação nesta tela:</b> o PT carregado usa ${E.prem}; as outras telas, o Excel e o PDF seguem ${E.prem}. Para valer no PT: Configuração › Premissas e gerar o PT.`}${E.sem && E.sem.nota ? ' · ' + esc(E.sem.nota) : ''}</div></div>`;
+}
+function ligaCxEnt() {
+  document.querySelectorAll('#tela [data-cxent]').forEach(b => b.onclick = () => { est.f.cxEnt = { arq: D.meta && D.meta.arquivo, v: b.dataset.cxent }; desenha(); });
+}
+function cxEntPrem() {                             // linha da chave na seção do caixa da tela Premissas orçamentárias
+  const E = D.caixa.entrega, ef = (E.S.si - E.N.si) + soma(E.S.rec) - soma(E.N.rec);
+  return ['Caixa: considerar só títulos com data de entrega (S/N)', pFmt(E.prem), onde('PREMISSAS (fim — bloco "CAIXA — CARTEIRA A RECEBER")', 'Configuração › Premissas'),
+    `S tira ${rsC(-ef)} do caixa de dez/27 (títulos sem a "Dt. Entrega" do Financeiro); a tela Fluxo de caixa troca a chave na hora`];
+}
+
 /* ------------------------------------------------------------------ instalação (chamada pelo orcamento.js antes de inicia()) */
 function instalaOrcDre() {
   if (window.__orcDre) return; window.__orcDre = true;
@@ -542,7 +601,9 @@ table.dre tr.grp-oculta{display:none}
 .grp-barra{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:6px 0}.grp-dica{font-size:12px;color:var(--ink2);margin-right:auto}
 @media (max-width:700px){.grp-tg{width:24px;height:24px;font-size:16px}.grp-dica{width:100%}}
 @media (max-width:700px){.prem-tab th:nth-child(4),.prem-tab td:nth-child(4){display:none}}
-table.dq td.fx,table.dq th.fx{min-width:340px;max-width:460px;white-space:normal}`;
+table.dq td.fx,table.dq th.fx{min-width:340px;max-width:460px;white-space:normal}
+.cxent{border-left:4px solid #1F6FEB}.cxent-cab{display:flex;justify-content:space-between;align-items:center;gap:8px 16px;flex-wrap:wrap}.cxent-cab h3{margin:0}
+.cxent .chips{margin:0}.cxent p.exp{margin:8px 0}.cxent-mes{margin:6px 0}.cxent-mes summary{cursor:pointer;font-size:13px;font-weight:700;color:var(--ink2)}`;
   document.head.appendChild(st);
   const g = MENU.find(x => x.g === 'orc');
   if (g && !g.itens.some(i => i.id === 'premissas_orc')) {
@@ -554,7 +615,14 @@ table.dq td.fx,table.dq th.fx{min-width:340px;max-width:460px;white-space:normal
   const pd = POS.dre, pt = POS.dre_tcp, pc_ = POS.caixa, tc = TELAS.cfg_premissas, pcf = POS.cfg_premissas;
   POS.dre = () => { if (pd) pd(); decoraDRE(); agrupaTabela('dre', D.dre && D.dre.linhas); };          // 19/11/2026: subgrupos recolhíveis
   POS.dre_tcp = () => { if (pt) pt(); decoraTCP(); agrupaTabela('dre_tcp', D.dre_tcp && D.dre_tcp.linhas); };
-  POS.caixa = () => { if (pc_) pc_(); decoraCaixa(); agrupaTabela('caixa', D.caixa && D.caixa.linhas); };
+  POS.caixa = () => { if (pc_) pc_(); decoraCaixa(); agrupaTabela('caixa', D.caixa && D.caixa.linhas); ligaCxEnt(); };
+  const tcx = TELAS.caixa;                         // 26/11/2026: chave "só títulos com data de entrega" — a tela desenha com a série escolhida
+  if (tcx) TELAS.caixa = () => {
+    const C0 = D.caixa; if (!C0 || !C0.entrega) return tcx();
+    const ch = cxEntChave(); D.caixa = cxComChave(C0, ch);
+    try { const h = tcx(), k = h.indexOf('<section class="kpis">'), c = cxEntCartao(C0, ch); return k >= 0 ? h.slice(0, k) + c + h.slice(k) : c + h; }
+    finally { D.caixa = C0; }
+  };
   if (tc) TELAS.cfg_premissas = () => tc() + adicionaisHtml();
   const tdre = TELAS.dre; if (tdre) TELAS.dre = () => tdre() + quadroDesagio();          // 19/11/2026: deságio da RJ abaixo da DRE padrão
   const pp_ = POS.premissas_orc; POS.premissas_orc = () => { if (pp_) pp_(); const d_ = document.getElementById('premRJ'); if (d_) d_.ontoggle = () => { est.f.premRJ = d_.open; }; };
