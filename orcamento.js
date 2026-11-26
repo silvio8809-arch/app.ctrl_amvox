@@ -166,7 +166,7 @@ async function carregaDados() {
   FOLHA = { P: prem.data.dados, pos: pos.map(x => ({ ...x, salario: +x.salario, adicional: +x.adicional, he_media: +x.he_media, qtd: +x.qtd, pct_promo: x.pct_promo == null ? null : +x.pct_promo })),
     proj: proj.map(r => ({ ...r, conta: +r.conta, m: r.m.map(Number), base: r.base == null ? null : +r.base })),
     origem: ult ? `${ult.projetado_por || ''} em ${new Date(ult.projetado_em).toLocaleString('pt-BR')}` : '—', sujo: new Set(), noBanco: new Set(pos.map(x => x.id)), premSuja: false,
-    Pbase: prem.data.dados_pt || null };
+    Pbase: prem.data.dados_pt || null, Pem: prem.data.atualizado_em || null, Ppor: prem.data.atualizado_por || '' };
 }
 const versaoAtual = () => (est.versoes || []).find(v => v.codigo === est.versao) || { codigo: est.versao, status: 'RASCUNHO' };
 const versaoEditavel = () => ['RASCUNHO', 'EM REVISÃO'].includes(versaoAtual().status);
@@ -706,18 +706,38 @@ function flAlteradoPrem() {
 }
 const flV = (v, pct) => v == null || v === '' ? '—' : typeof v === 'number' ? (pct ? (v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 4 }) + '%'
   : v.toLocaleString('pt-BR', { maximumFractionDigits: 6 })) : String(v);
+/* 26/11/2026 (Silvio: "Sim, corrigir"): o aviso dizia "Alterado no app em relação ao PT carregado — entra na próxima geração" para TODA posição diferente
+   da folha do mês, mas o PT aplica essas alterações a cada geração (aba FOLHA_APP). Agora separa: já está no PT carregado (gravada pela carga ou alterada
+   até a leitura da folha pelo PT — D.meta.folha_app.lida_utc) × alterada depois da leitura ou ainda não salva (entra na próxima geração). */
+const flLidaPT = () => { const u = D && D.meta && D.meta.folha_app && D.meta.folha_app.lida_utc; if (!u) return null;
+  const t = Date.parse(/Z$|[+-]\d\d:?\d\d$/.test(u) ? u : u + 'Z'); return isNaN(t) ? null : t; };
+function flDepoisDoPT(em, por, sujo) {
+  if (sujo) return true;                                                     // editado nesta tela e ainda não salvo
+  const t = flLidaPT(); if (t == null) return true;                          // PT sem a leitura da folha do app: como antes
+  if (/^rotina:orc_folha_app \(carga/.test(String(por || ''))) return false;  // gravado pela carga = o que o PT carregado tem
+  const e = em ? Date.parse(em) : NaN; return !isNaN(e) && e > t;
+}
 function flQuadroAlteracoes(posA) {
   if (!flTemBase()) return '';
   const pk = new Set(Object.keys(FOLHA.P.p || {}).map(k => FOLHA_ROT[k] || k)),          // % como na tela: dissídio, reajuste e parâmetros entre 0 e 1
     pctQ = (k, v) => typeof v === 'number' && (/ · %$| · reajuste$/.test(k) || (pk.has(k) && v > 0 && v < 1));
   const lp = posA.map(x => [x, flAlteradoPos(x)]).filter(([, k]) => k.length), lq = flAlteradoPrem();
-  if (!lp.length && !lq.length) return `<div class="csub">Folha do app = PT carregado (nada alterado no app em relação a ele).</div>`;
+  if (!lp.length && !lq.length) return `<div class="csub">Folha do app = folha do mês (nada alterado no app).</div>`;
+  const fa = (D.meta && D.meta.folha_app) || {}, lida = fa.lida_em ? ` (folha do app lida em ${esc(fa.lida_em)})` : '';
+  const novaP = lp.filter(([x]) => flDepoisDoPT(x.atualizado_em, x.atualizado_por, FOLHA.sujo && FOLHA.sujo.has(x.id))),
+    noPtP = lp.filter(p => !novaP.includes(p));
+  const premNova = lq.length && flDepoisDoPT(FOLHA.Pem, FOLHA.Ppor, FOLHA.premSuja), nNova = novaP.length + (premNova ? lq.length : 0);
   const it = ([x, ks]) => ks[0] === 'vaga nova' ? `<li><b>${esc(x.id)}</b> (${esc(x.area)}) — vaga criada no app</li>`
     : `<li><b>${esc(x.id)}</b> (${esc(x.area)}) — ${ks.map(k => `${esc(FL_ROT[k] || k)}: ${esc(flV(flNorm(k, x.pt[k]), k === 'pct_promo'))} → <b>${esc(flV(flNorm(k, x[k]), k === 'pct_promo'))}</b>`).join(' · ')}</li>`;
-  return `<details class="card prem-det"><summary>Alterado no app em relação ao PT carregado — entra na próxima geração do PT: <b>${lp.length}</b> posição(ões) · <b>${lq.length}</b> premissa(s)</summary>
-    <div class="csub">O PT é gerado com a folha do mês e, por cima, o que foi alterado aqui (aba FOLHA_APP do PT). Valor do PT → valor do app.</div>
-    ${lp.length ? `<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7">${lp.map(it).join('')}</ul>` : ''}
-    ${lq.length ? `<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7">${lq.map(q => `<li>${esc(q.k)}: ${esc(flV(q.pt, pctQ(q.k, q.pt ?? q.app)))} → <b>${esc(flV(q.app, pctQ(q.k, q.app ?? q.pt)))}</b></li>`).join('')}</ul>` : ''}</details>`;
+  const ul = l => `<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7">${l.map(it).join('')}</ul>`;
+  const ulq = `<ul style="margin:6px 0 0 18px;font-size:12px;line-height:1.7">${lq.map(q => `<li>${esc(q.k)}: ${esc(flV(q.pt, pctQ(q.k, q.pt ?? q.app)))} → <b>${esc(flV(q.app, pctQ(q.k, q.app ?? q.pt)))}</b></li>`).join('')}</ul>`;
+  return `<details class="card prem-det"><summary>Folha alterada no app em relação à folha do mês: <b>${lp.length}</b> posição(ões) · <b>${lq.length}</b> premissa(s) —
+      ${nNova ? `<b>${nNova}</b> alteração(ões) feita(s) depois da geração do PT carregado <b>entram na próxima geração</b>; as demais já estão no PT${lida}`
+              : `<b>todas já estão no PT carregado</b>${lida}`}</summary>
+    <div class="csub">O PT é gerado com a folha do mês do Protheus e, por cima, o que foi alterado aqui (aba FOLHA_APP do PT). Valor da folha do mês → valor do app.</div>
+    ${novaP.length ? `<div class="csub" style="margin-top:6px"><b>Depois da geração do PT carregado — entram na próxima geração:</b></div>${ul(novaP)}` : ''}
+    ${noPtP.length ? `<div class="csub" style="margin-top:6px"><b>Já no PT carregado:</b></div>${ul(noPtP)}` : ''}
+    ${lq.length ? `<div class="csub" style="margin-top:6px"><b>Premissas da folha — ${premNova ? 'entram na próxima geração' : 'já no PT carregado'}:</b></div>${ulq}` : ''}</details>`;
 }
 /* 17/11/2026 — SIMULADOR DE FOLHA REVISADO (Silvio: "Aprovo"): situação de cada posição, trava do quadro e modelo para baixar */
 const FL_SIT_ORD = ['OCUPADA', 'VAGA PREVISTA', 'VAGA NÃO OCUPADA', 'CORTE ORÇAMENTÁRIO', 'AUMENTO DE QUADRO — CORTE ORÇAMENTÁRIO', 'AUMENTO DE QUADRO — AUTORIZADO'];
