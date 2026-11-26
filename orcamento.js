@@ -144,6 +144,7 @@ async function carregaDados() {
   const rv = await SB.from('orc_versao').select('*').order('codigo');
   est.legado = !!rv.error;
   est.versoes = rv.error ? [{ codigo: 'V1', nome: '', status: 'RASCUNHO' }] : rv.data;
+  est.versoes.sort((a, b) => (+String(a.codigo).slice(1) || 0) - (+String(b.codigo).slice(1) || 0));   // V10 depois da V9 (a ordem do banco é texto)
   if (!est.versao || !est.versoes.some(v => v.codigo === est.versao)) {
     const f = est.versoes.find(v => v.status === 'APROVADA FINAL'); est.versao = (f || est.versoes[est.versoes.length - 1]).codigo;
   }
@@ -1007,18 +1008,21 @@ POS.projecao = () => { $('pjSetor').onchange = e => { est.f.pjSetor = e.target.v
 TELAS.versoes = () => {
   const rec = D.premissas.receita, sel = D.dre.linhas.filter(l => l.t !== 'd' && l.t !== 'p'), ctl = est.papelReal === 'controladoria' && est.papel === 'controladoria';
   const fin = (est.versoes || []).find(v => v.status === 'APROVADA FINAL');
-  const tagSt = s => `<span class="tag ${s === 'APROVADA FINAL' ? 'g' : s === 'EM REVISÃO' ? 'b' : s === 'SUBSTITUÍDA' ? '' : 'y'}">${esc(s)}</span>`;
+  const tagSt = s => `<span class="tag ${s === 'APROVADA FINAL' ? 'g' : s === 'EM REVISÃO' || s === 'ENVIADA À DIRETORIA' ? 'b' : s === 'REPROVADA' ? 'r' : s === 'SUBSTITUÍDA' ? '' : 'y'}">${esc(s)}</span>`;
+  const dirV = v => [v.enviada_em ? `enviada ${dt_(v.enviada_em)}` : '', v.diretoria_decisao ? `<b>${esc(v.diretoria_decisao)}</b> ${dt_(v.diretoria_em)}` : '',
+    v.diretoria_parecer ? `<small style="color:var(--ink3)">${esc(v.diretoria_parecer)}</small>` : '', v.rodada_de ? `<small>rodada após a reprova da ${esc(v.rodada_de)}</small>` : ''].filter(Boolean).join('<br>') || '—';
   const dt_ = x => x ? new Date(x).toLocaleString('pt-BR') : '—';
-  return `${cabecalho('Versões (rodadas) e cenários', 'Cada rodada guarda o orçamento inteiro (DRE, linhas, folha, premissas, decisões). A Controladoria cria nova rodada a partir de uma versão, coloca em revisão e aprova a FINAL — só ela vale no Orçado × Realizado mensal. Versão aprovada fica fechada para edição.')}
+  return `${cabecalho('Versões (rodadas) e cenários', 'Cada rodada guarda o orçamento inteiro (DRE, linhas, folha, premissas, decisões e a composição analítica). Fluxo com a Diretoria: a Controladoria fecha a versão de trabalho e envia à Diretoria (fica fechada para edição) → a Diretoria APROVA (vira a FINAL, congelada — só ela vale no Orçado × Realizado mensal) ou REPROVA (fica no histórico com o motivo e abre a rodada seguinte, cópia, para os ajustes) — até a versão aprovada.')}
   ${fin ? `<div class="ok-box">✓ Versão FINAL aprovada: <b>${esc(fin.codigo)} · ${esc(fin.nome || '')}</b> em ${dt_(fin.aprovada_em)} por ${esc(fin.aprovada_por || '')} — referência do acompanhamento mensal.</div>`
         : '<div class="aviso">Nenhuma versão aprovada como FINAL ainda — o acompanhamento usa a versão selecionada como referência provisória.</div>'}
   <div id="vrAviso" hidden></div>
-  <div class="tw solta"><table class="t"><thead><tr><th>Versão</th><th>Nome</th><th>Situação</th><th>Origem</th><th>Criada</th><th>Aprovada</th><th></th></tr></thead><tbody>
+  <div class="tw solta"><table class="t"><thead><tr><th>Versão</th><th>Nome</th><th>Situação</th><th>Origem</th><th>Criada</th><th>Diretoria</th><th></th></tr></thead><tbody>
     ${(est.versoes || []).map(v => `<tr ${v.codigo === est.versao ? 'class="hl"' : ''}><td><b>${esc(v.codigo)}</b>${v.codigo === est.versao ? ' <span class="tag b">aberta</span>' : ''}</td><td>${esc(v.nome || '')}</td><td>${tagSt(v.status)}</td><td class="w">${esc(v.origem || '')}</td>
-      <td class="nw">${dt_(v.criada_em)}<br><small style="color:var(--ink3)">${esc(v.criada_por || '')}</small></td><td class="nw">${dt_(v.aprovada_em)}</td>
+      <td class="nw">${dt_(v.criada_em)}<br><small style="color:var(--ink3)">${esc(v.criada_por || '')}</small></td><td class="w">${dirV(v)}</td>
       <td class="nw">${v.codigo !== est.versao ? `<button class="btn" data-vabre="${esc(v.codigo)}">Abrir</button> ` : ''}${ctl ? `<button class="btn" data-vnova="${esc(v.codigo)}">Nova rodada a partir desta</button> ` +
         (['RASCUNHO'].includes(v.status) ? `<button class="btn" data-vst="${esc(v.codigo)}|EM REVISÃO">Em revisão</button> ` : '') +
-        (['RASCUNHO', 'EM REVISÃO'].includes(v.status) ? `<button class="btn primary" data-vst="${esc(v.codigo)}|APROVADA FINAL">Aprovar como FINAL</button>` : '') : ''}</td></tr>`).join('')}
+        (['RASCUNHO', 'EM REVISÃO'].includes(v.status) ? `<button class="btn primary" data-vfx="${esc(v.codigo)}|ENVIAR">Fechar e enviar à Diretoria</button>` : '') +
+        (v.status === 'ENVIADA À DIRETORIA' ? `<button class="btn primary" data-vfx="${esc(v.codigo)}|APROVAR">Diretoria aprovou</button> <button class="btn" data-vfx="${esc(v.codigo)}|REPROVAR">Diretoria reprovou → nova rodada</button> <button class="btn" data-vfx="${esc(v.codigo)}|REABRIR">Reabrir para ajuste</button>` : '') : ''}</td></tr>`).join('')}
   </tbody></table></div>
   <div class="row2">
    <div class="card"><h3>Cenários de receita 2027</h3><div class="csub">Curva mensal do faturamento</div>
@@ -1041,6 +1045,34 @@ POS.versoes = () => {
     const { error } = await SB.rpc('orc_nova_versao', { p_codigo: prox, p_nome: nome, p_base: base });
     if (error) return aviso('Não foi possível criar: ' + error.message, true);
     await trocaVersao(prox);
+  });
+  // Fluxo com a Diretoria (Silvio 25/11/2026; migração 063, RPC orc_fluxo_versao — só a Controladoria): ENVIAR · APROVAR · REPROVAR (→ rodada seguinte) · REABRIR
+  document.querySelectorAll('#tela [data-vfx]').forEach(b => b.onclick = async () => {
+    const [cod, acao] = b.dataset.vfx.split('|'), prox = 'V' + (Math.max(0, ...est.versoes.map(v => +v.codigo.slice(1) || 0)) + 1);
+    const P = {
+      ENVIAR: [`Observação do envio (opcional — ex.: "enviada à Diretoria por e-mail em ${new Date().toLocaleDateString('pt-BR')}"):`, false,
+        `Fechar ${cod} e enviar à Diretoria? A versão fica FECHADA para edição (gestores, Controladoria e rotinas) até a decisão da Diretoria. Exige a composição analítica conferida (carga do PT, sem rateio).`],
+      APROVAR: ['Quem aprovou e onde (reunião, ata ou e-mail)?', true,
+        `Registrar a APROVAÇÃO da ${cod} pela Diretoria? Ela vira a versão FINAL do orçamento 2027 — congelada, referência do Orçado × Realizado mensal.`],
+      REPROVAR: ['Motivo da reprova — o que a Diretoria pediu para mudar?', true,
+        `Registrar a REPROVA da ${cod}? Ela fica REPROVADA (histórico, com o motivo) e a rodada ${prox} é criada como cópia dela, em RASCUNHO, para os ajustes.`],
+      REABRIR: ['Por que a versão volta para ajuste antes da decisão da Diretoria?', true,
+        `Reabrir ${cod}? Ela sai da Diretoria e volta a RASCUNHO (editável).`] }[acao];
+    const txt = prompt(P[0], ''); if (txt === null) return;
+    if (P[1] && !txt.trim()) return aviso('Informação obrigatória para registrar ' + acao.toLowerCase() + ' — nada foi alterado.', true);
+    if (!confirm(P[2])) return;
+    if (window.ORC_FONTE_LOCAL) {
+      const v = est.versoes.find(x => x.codigo === cod), agora = new Date().toISOString();
+      if (acao === 'ENVIAR') Object.assign(v, { status: 'ENVIADA À DIRETORIA', enviada_em: agora, enviada_por: 'prévia', diretoria_parecer: txt });
+      if (acao === 'APROVAR') { est.versoes.forEach(x => { if (x.status === 'APROVADA FINAL') x.status = 'SUBSTITUÍDA'; }); Object.assign(v, { status: 'APROVADA FINAL', aprovada_em: agora, aprovada_por: 'prévia', diretoria_decisao: 'APROVADA', diretoria_em: agora, diretoria_parecer: txt }); }
+      if (acao === 'REPROVAR') { Object.assign(v, { status: 'REPROVADA', diretoria_decisao: 'REPROVADA', diretoria_em: agora, diretoria_parecer: txt }); est.versoes.push({ codigo: prox, nome: `${prox} · rodada (reprova da ${cod})`, status: 'RASCUNHO', origem: 'cópia de ' + cod, rodada_de: cod, criada_em: agora, criada_por: 'prévia' }); }
+      if (acao === 'REABRIR') Object.assign(v, { status: 'RASCUNHO', diretoria_decisao: 'REABERTA', diretoria_em: agora, diretoria_parecer: txt });
+      montaSeletores(); desenha(); return;
+    }
+    const { data, error } = await SB.rpc('orc_fluxo_versao', { p_codigo: cod, p_acao: acao, p_texto: txt });
+    if (error) return aviso((/orc_fluxo_versao|function|schema cache/i.test(error.message) && !/Versão|versão|Diretoria|Informe|composição/.test(error.message)
+      ? 'O fluxo da Diretoria ainda não está no banco (migração 063 a rodar no Supabase). ' : 'Não foi possível registrar: ') + error.message, true);
+    await trocaVersao(acao === 'REPROVAR' && data ? data : est.versao);
   });
   document.querySelectorAll('#tela [data-vst]').forEach(b => b.onclick = async () => {
     const [cod, st] = b.dataset.vst.split('|');
