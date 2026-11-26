@@ -147,7 +147,8 @@ async function carregaDados() {
   if (!est.versao || !est.versoes.some(v => v.codigo === est.versao)) {
     const f = est.versoes.find(v => v.status === 'APROVADA FINAL'); est.versao = (f || est.versoes[est.versoes.length - 1]).codigo;
   }
-  let q = SB.from('orc_bloco').select('nome,dados').not('nome', 'like', 'razao_%').order('ordem');
+  // 25/11/2026: o bloco 'composicao' (versão analítica para o orçado × realizado de 2027) fica fora da abertura, como o razão — lido só quando a tela usar
+  let q = SB.from('orc_bloco').select('nome,dados').not('nome', 'like', 'razao_%').neq('nome', 'composicao').order('ordem');
   if (!est.legado) q = q.eq('versao', est.versao);
   const { data, error } = await q;
   if (error) throw error;
