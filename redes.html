@@ -2039,13 +2039,36 @@ async function atualizaTela(){
       if(t === 'ordens') pintaOr();
     }
     const h = new Date(), p2 = n => String(n).padStart(2, '0');
-    if(!$('st').classList.contains('err')) $('st').textContent = statusTxt() + ` · tela atualizada às ${p2(h.getHours())}h${p2(h.getMinutes())} (a cada ${ATU_MIN} min)`;
+    if(!$('st').classList.contains('err')) $('st').textContent = statusTxt() + ` · tela atualizada às ${p2(h.getHours())}h${p2(h.getMinutes())} (atualiza quando há carga nova ou movimento nas redes)`;
     window.scrollTo(0, y);
   } catch(e){ console.warn('atualização automática: tento de novo no próximo ciclo —', e.message || e); }
   finally { _atualizando = false; }
 }
-setInterval(() => { if(Date.now() - _telaEm >= ATU_MIN * 60000 && !telaOcupada()) atualizaTela(); }, 60000);
-document.addEventListener('visibilitychange', () => { if(!document.hidden && Date.now() - _telaEm >= ATU_MIN * 60000 && !telaOcupada()) atualizaTela(); });
+/* 🔴 TRÁFEGO (Silvio 27/11/2026, REGRA DURA — cota de egress do Supabase estourou): a tela NÃO relê o banco por relógio.
+   A cada 2 min só pergunta "mudou algo?" — última carga OK de clientes/notas (carga_pedido) e último evento das redes
+   (rede_evento), poucos bytes — e só então relê a aba aberta. Aba escondida não consulta; ao voltar para ela, confere na hora.
+   Mantém as travas de tela ocupada (campo em edição, texto não salvo, seleção, formulário). */
+let _sinal = null, _mudou = false;
+async function sinalDados(){
+  const [c, ev] = await Promise.all([
+    SB.from('carga_pedido').select('id').eq('status', 'OK').order('id', {ascending:false}).limit(1),
+    SB.from('rede_evento').select('id').order('id', {ascending:false}).limit(1)]);
+  if(c.error && ev.error) return null;
+  return `${(c.data && c.data[0] && c.data[0].id) || 0}|${(ev.data && ev.data[0] && ev.data[0].id) || 0}`;
+}
+async function confereMudanca(){
+  if(document.hidden) return;
+  try {
+    const s = await sinalDados(); if(s === null) return;
+    if(_sinal === null){ _sinal = s; return; }
+    if(s !== _sinal){ _mudou = true; _sinal = s; }
+  } catch(_){}
+  if(_mudou && !telaOcupada()){ _mudou = false; atualizaTela(); }
+}
+setInterval(confereMudanca, 2 * 60000);
+document.addEventListener('visibilitychange', () => { if(!document.hidden) confereMudanca(); });
+document.addEventListener('papel-pronto', () => { sinalDados().then(s => { if(s !== null && _sinal === null) _sinal = s; }).catch(() => {}); }, {once:true});
+if(window.PAPEL) sinalDados().then(s => { if(s !== null && _sinal === null) _sinal = s; }).catch(() => {});
 
 if(window.PAPEL) inicia(); else document.addEventListener('papel-pronto', inicia, {once:true});
 </script>
